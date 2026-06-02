@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PeakStroke — Mockup v2</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:        #0f1117;
+    --surface:   #1a1d27;
+    --surface2:  #222535;
+    --surface3:  #2a2e42;
+    --border:    #2e3247;
+    --accent:    #3b82f6;
+    --accent2:   #6366f1;
+    --green:     #22c55e;
+    --yellow:    #eab308;
+    --red:       #ef4444;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --sidebar-w: 220px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; height: 100vh; overflow: hidden; font-size: 13px;
+  }
+
+  /* ── SIDEBAR ──────────────────────────────── */
+  #sidebar {
+    width: var(--sidebar-w); background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; flex-shrink: 0;
+    padding: 0 0 16px; overflow-y: auto;
+  }
+  .sidebar-logo { padding: 20px 18px 14px; border-bottom: 1px solid var(--border); }
+  .sidebar-logo .logo-title { font-size: 17px; font-weight: 700; color: var(--accent); letter-spacing:.5px; }
+  .sidebar-logo .logo-sub   { font-size: 10px; color: var(--muted); margin-top:2px; text-transform:uppercase; letter-spacing:1px; }
+  .sidebar-section { padding: 14px 12px 4px; font-size:10px; text-transform:uppercase; letter-spacing:1.2px; color:var(--muted); font-weight:600; }
+  .nav-item {
+    display:flex; align-items:center; gap:10px; padding:9px 18px;
+    cursor:pointer; border-radius:6px; margin:1px 8px;
+    transition:background .15s,color .15s; color:#94a3b8; font-size:13px; user-select:none;
+  }
+  .nav-item:hover  { background:var(--surface2); color:var(--text); }
+  .nav-item.active { background:rgba(59,130,246,.18); color:var(--accent); font-weight:600; }
+  .nav-item .icon  { font-size:15px; width:18px; text-align:center; }
+
+  /* macro chip in sidebar */
+  .sidebar-macro {
+    margin: 12px 8px 0; padding: 10px 12px;
+    background:var(--surface2); border-radius:8px; border:1px solid var(--border);
+  }
+  .sidebar-macro .label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.8px; }
+  .sidebar-macro .name  { font-size:13px; font-weight:600; margin-top:2px; }
+  .sidebar-macro .sub   { font-size:11px; color:var(--muted); }
+
+  /* ── MAIN ─────────────────────────────────── */
+  #main { flex:1; overflow-y:auto; padding:24px 28px; display:flex; flex-direction:column; gap:20px; }
+  .view { display:none; flex-direction:column; gap:20px; }
+  .view.active { display:flex; }
+
+  /* typography */
+  .page-title { font-size:20px; font-weight:700; }
+  .page-sub   { font-size:12px; color:var(--muted); margin-top:2px; }
+
+  /* cards */
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:18px 20px; }
+  .card-title { font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); font-weight:600; margin-bottom:10px; }
+
+  /* grids */
+  .grid2  { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .grid3  { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+  .grid4  { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+
+  /* stat */
+  .stat { display:flex; flex-direction:column; gap:4px; }
+  .stat .label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.8px; }
+  .stat .value { font-size:24px; font-weight:700; line-height:1; }
+  .stat .sub   { font-size:11px; color:var(--muted); }
+
+  /* badge */
+  .badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600; margin-top:4px; width:fit-content; }
+  .badge-green  { background:rgba(34,197,94,.15);  color:var(--green);  }
+  .badge-yellow { background:rgba(234,179,8,.15);  color:var(--yellow); }
+  .badge-red    { background:rgba(239,68,68,.15);  color:var(--red);    }
+  .badge-blue   { background:rgba(59,130,246,.15); color:var(--accent); }
+  .badge-purple { background:rgba(99,102,241,.15); color:#818cf8;       }
+
+  /* progress */
+  .progress-wrap { background:var(--surface2); border-radius:999px; height:6px; overflow:hidden; }
+  .progress-bar  { height:100%; border-radius:999px; background:var(--accent); }
+
+  /* tables */
+  .tbl { width:100%; border-collapse:collapse; }
+  .tbl th { padding:8px 12px; text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); border-bottom:1px solid var(--border); font-weight:600; }
+  .tbl td { padding:9px 12px; border-bottom:1px solid var(--border); font-size:12px; color:var(--text); }
+  .tbl tr:last-child td { border-bottom:none; }
+  .tbl tr:hover td { background:var(--surface2); }
+  .tbl .mono  { font-family:'Consolas',monospace; font-size:12px; }
+  .tbl .muted { color:var(--muted); }
+  .tbl .center { text-align:center; }
+
+  /* phase chip */
+  .phase { padding:2px 8px; border-radius:999px; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
+  .phase-base  { background:rgba(59,130,246,.15); color:var(--accent); }
+  .phase-build { background:rgba(99,102,241,.15); color:#818cf8; }
+  .phase-peak  { background:rgba(234,179,8,.15);  color:var(--yellow); }
+  .phase-taper { background:rgba(34,197,94,.15);  color:var(--green); }
+
+  /* form */
+  .form-row { display:grid; gap:14px; }
+  .form-col { display:flex; flex-direction:column; gap:5px; }
+  label { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.7px; font-weight:600; }
+  input, select, textarea {
+    background:var(--surface2); border:1px solid var(--border);
+    border-radius:6px; color:var(--text); padding:8px 10px;
+    font-size:13px; outline:none; transition:border .15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color:var(--accent); }
+  select option { background:var(--surface2); }
+  textarea { resize:vertical; min-height:70px; }
+
+  /* buttons */
+  .btn { padding:8px 16px; border-radius:6px; border:none; cursor:pointer; font-size:12px; font-weight:600; transition:opacity .15s; }
+  .btn:hover { opacity:.85; }
+  .btn-primary { background:var(--accent);   color:#fff; }
+  .btn-ghost   { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+  .btn-danger  { background:var(--red);      color:#fff; }
+  .btn-green   { background:var(--green);    color:#fff; }
+  .btn-purple  { background:var(--accent2);  color:#fff; }
+
+  /* zone tags */
+  .zone-tag { display:inline-block; padding:3px 9px; border-radius:6px; font-size:11px; font-weight:700; margin:1px; }
+  .z-r1  { background:rgba(34,197,94,.12);  color:#4ade80; }
+  .z-r2  { background:rgba(59,130,246,.12); color:#60a5fa; }
+  .z-mv  { background:rgba(168,85,247,.12); color:#c084fc; }
+  .z-rl  { background:rgba(234,179,8,.12);  color:#facc15; }
+  .z-v   { background:rgba(239,68,68,.12);  color:#f87171; }
+
+  /* chart */
+  .chart-box { position:relative; }
+  .chart-box canvas { max-height:260px; }
+
+  /* topbar */
+  .topbar { display:flex; align-items:center; justify-content:space-between; padding-bottom:4px; }
+  .topbar-right { display:flex; gap:10px; align-items:center; }
+
+  /* diff colors */
+  .diff-positive { color:var(--green); }
+  .diff-negative { color:var(--red); }
+  .diff-yellow   { color:var(--yellow); }
+
+  /* prueba pill */
+  .prueba-pill { display:inline-flex; align-items:center; gap:6px; background:var(--surface3); border:1px solid var(--border); border-radius:8px; padding:6px 10px; }
+  .prueba-pill .p-label { font-size:11px; font-weight:700; color:var(--text); }
+  .prueba-pill .p-time  { font-family:'Consolas',monospace; font-size:12px; color:var(--accent); }
+  .prueba-pill .p-meta  { font-family:'Consolas',monospace; font-size:11px; color:var(--yellow); }
+
+  /* phase row editor */
+  .phase-row { display:grid; grid-template-columns:28px 1fr 80px 80px auto; gap:8px; align-items:center; padding:8px 10px; background:var(--surface2); border-radius:8px; border:1px solid var(--border); margin-bottom:6px; }
+  .phase-color-dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+
+  /* team table filters */
+  .filter-bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .filter-bar input, .filter-bar select { padding:6px 10px; font-size:12px; }
+
+  /* team table sticky header */
+  .team-table-wrap { overflow-x:auto; }
+  .team-tbl { border-collapse:collapse; white-space:nowrap; }
+  .team-tbl th { padding:8px 14px; font-size:11px; text-transform:uppercase; letter-spacing:.7px; color:var(--muted); border-bottom:2px solid var(--border); font-weight:600; text-align:center; position:sticky; top:0; background:var(--surface); z-index:2; }
+  .team-tbl th.left { text-align:left; }
+  .team-tbl td { padding:9px 14px; border-bottom:1px solid var(--border); font-size:12px; text-align:center; }
+  .team-tbl td.left { text-align:left; font-weight:600; }
+  .team-tbl tr:hover td { background:var(--surface2); }
+  .team-tbl .cur-week td { background:rgba(59,130,246,.07) !important; }
+  .time-cell { font-family:'Consolas',monospace; }
+  .athlete-group td { background:var(--surface2); }
+
+  /* info box */
+  .info-box { background:rgba(59,130,246,.07); border:1px solid rgba(59,130,246,.2); border-radius:8px; padding:12px 14px; font-size:12px; color:#93c5fd; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════ SIDEBAR ══════════════════════ -->
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-title">🏊 PeakStroke</div>
+    <div class="logo-sub">Performance Planner</div>
+  </div>
+
+  <div class="sidebar-macro">
+    <div class="label">Macrociclo activo</div>
+    <div class="name">Temporada Corta 2025</div>
+    <div class="sub">12 sem · 100m Mariposa · 8 atletas</div>
+  </div>
+
+  <div class="sidebar-section">Principal</div>
+  <div class="nav-item active" onclick="goTo('dashboard')"><span class="icon">📊</span> Dashboard</div>
+  <div class="nav-item" onclick="goTo('macros')"><span class="icon">📅</span> Macrociclos</div>
+  <div class="nav-item" onclick="goTo('athletes')"><span class="icon">👥</span> Atletas</div>
+
+  <div class="sidebar-section">Análisis</div>
+  <div class="nav-item" onclick="goTo('t30')"><span class="icon">⏱️</span> T-30 / T-15</div>
+  <div class="nav-item" onclick="goTo('weekly')"><span class="icon">📋</span> Plan Semanal</div>
+  <div class="nav-item" onclick="goTo('teamtable')"><span class="icon">📊</span> Tabla del Equipo</div>
+  <div class="nav-item" onclick="goTo('comparison')"><span class="icon">⚡</span> Comparación</div>
+  <div class="nav-item" onclick="goTo('simulator')"><span class="icon">🔬</span> Simulador</div>
+</nav>
+
+<!-- ══════════════════════ MAIN ══════════════════════════ -->
+<main id="main">
+
+<!-- ══════════ DASHBOARD ══════════ -->
+<section class="view active" id="view-dashboard">
+  <div class="topbar">
+    <div>
+      <div class="page-title">Dashboard</div>
+      <div class="page-sub">Temporada Corta 2025 · 8 atletas · Semana 7 / 12</div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost">Cambiar macrociclo</button>
+      <button class="btn btn-primary">Ver tabla del equipo →</button>
+    </div>
+  </div>
+
+  <div class="grid4">
+    <div class="card stat">
+      <div class="label">Atletas en plan</div>
+      <div class="value" style="color:var(--accent)">8</div>
+      <div class="sub">6 activos · 2 en recuperación</div>
+    </div>
+    <div class="card stat">
+      <div class="label">Semana actual</div>
+      <div class="value">7 / 12</div>
+      <div class="sub">12/05 – 18/05/2025</div>
+      <span class="badge badge-purple">Construcción II</span>
+    </div>
+    <div class="card stat">
+      <div class="label">Cumplimiento equipo</div>
+      <div class="value" style="color:var(--green)">91%</div>
+      <div class="sub">Promedio 6 semanas</div>
+      <div class="progress-wrap" style="margin-top:6px"><div class="progress-bar" style="width:91%;background:var(--green)"></div></div>
+    </div>
+    <div class="card stat">
+      <div class="label">Atletas adelantados</div>
+      <div class="value">3</div>
+      <div class="sub">4 dentro del plan · 1 atrasado</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Progresión del equipo · Promedio 100m Mariposa</div>
+    <div class="chart-box"><canvas id="chartDash"></canvas></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Estado por atleta · Semana 7</div>
+      <table class="tbl">
+        <thead><tr><th>Atleta</th><th>Prueba</th><th>Esperado</th><th>Real</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr><td style="font-weight:600">Sofía R.</td><td>100m Mari.</td><td class="mono">1:04.90</td><td class="mono">1:05.10</td><td><span class="badge badge-yellow">Dentro</span></td></tr>
+          <tr><td style="font-weight:600">Carlos M.</td><td>200m Libre</td><td class="mono">2:08.40</td><td class="mono">2:07.80</td><td><span class="badge badge-green">Adelantado</span></td></tr>
+          <tr><td style="font-weight:600">Valentina C.</td><td>400m Esp.</td><td class="mono">4:52.00</td><td class="mono">—</td><td><span class="badge badge-blue">En curso</span></td></tr>
+          <tr><td style="font-weight:600">Andrés L.</td><td>100m Pecho</td><td class="mono">1:08.20</td><td class="mono">1:09.40</td><td><span class="badge badge-red">Atrasado</span></td></tr>
+          <tr><td style="font-weight:600">Mariana V.</td><td>200m Mari.</td><td class="mono">2:18.50</td><td class="mono">2:17.90</td><td><span class="badge badge-green">Adelantado</span></td></tr>
+          <tr><td style="font-weight:600">Diego F.</td><td>100m Libre</td><td class="mono">0:52.80</td><td class="mono">0:52.60</td><td><span class="badge badge-green">Adelantado</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">Fases activas del macrociclo</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px;font-size:12px">
+          <div class="phase-color-dot" style="background:#3b82f6"></div>
+          <span class="phase phase-base">Base</span>
+          <span style="color:var(--muted)">Sem 1–3 · 31/03 – 20/04</span>
+          <span style="margin-left:auto;color:var(--green);font-size:11px">✓ Completada</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:12px">
+          <div class="phase-color-dot" style="background:#6366f1"></div>
+          <span class="phase phase-build">Construcción I</span>
+          <span style="color:var(--muted)">Sem 4–6 · 21/04 – 11/05</span>
+          <span style="margin-left:auto;color:var(--green);font-size:11px">✓ Completada</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:12px;background:rgba(99,102,241,.07);padding:6px 8px;border-radius:6px;border:1px solid rgba(99,102,241,.2)">
+          <div class="phase-color-dot" style="background:#818cf8"></div>
+          <span class="phase phase-build">Construcción II</span>
+          <span style="color:var(--muted)">Sem 7–9 · 12/05 – 01/06</span>
+          <span style="margin-left:auto;color:var(--accent);font-size:11px">← Actual</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:12px">
+          <div class="phase-color-dot" style="background:#eab308"></div>
+          <span class="phase phase-peak">Pico</span>
+          <span style="color:var(--muted)">Sem 10–11 · 02/06 – 15/06</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;font-size:12px">
+          <div class="phase-color-dot" style="background:#22c55e"></div>
+          <span class="phase phase-taper">Descenso</span>
+          <span style="color:var(--muted)">Sem 12 · 16/06 – 23/06</span>
+        </div>
+      </div>
+      <div style="padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)">
+        ⚡ Competencia: <span style="color:var(--text)">Nacional Juvenil — 29 Jun 2025</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ MACROCICLOS ══════════ -->
+<section class="view" id="view-macros">
+  <div class="topbar">
+    <div>
+      <div class="page-title">Macrociclos</div>
+      <div class="page-sub">Planificación general — el entrenador define el macro y luego asigna atletas</div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-primary">+ Nuevo macrociclo</button>
+    </div>
+  </div>
+
+  <div class="info-box" style="margin-bottom:0">
+    💡 <strong>Flujo recomendado:</strong> Crear el macrociclo general → configurar fases → agregar atletas y sus pruebas → el sistema genera el plan individual de cada atleta automáticamente.
+  </div>
+
+  <div class="grid2">
+    <!-- Configuración del macro -->
+    <div class="card">
+      <div class="card-title">Configuración general del macrociclo</div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+        <div class="form-col" style="grid-column:1/3">
+          <label>Nombre del macrociclo</label>
+          <input type="text" value="Temporada Corta 2025">
+        </div>
+        <div class="form-col">
+          <label>Prueba principal del equipo</label>
+          <select>
+            <option>100m Mariposa</option><option>200m Libre</option><option>400m Espalda</option>
+          </select>
+        </div>
+        <div class="form-col">
+          <label>Duración</label>
+          <select><option>12 semanas</option><option>18 semanas</option></select>
+        </div>
+        <div class="form-col">
+          <label>Microciclos de</label>
+          <select><option>4 semanas</option><option>5 semanas</option></select>
+        </div>
+        <div class="form-col">
+          <label>Fecha de inicio</label>
+          <input type="date" value="2025-03-31">
+        </div>
+        <div class="form-col">
+          <label>Kilómetros totales (base)</label>
+          <input type="number" value="320" placeholder="km">
+        </div>
+        <div class="form-col">
+          <label>Curva de progresión default</label>
+          <select>
+            <option>Sigmoidal (recomendada)</option>
+            <option>Lineal</option>
+            <option>Exponencial</option>
+            <option>Logarítmica</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-col" style="margin-bottom:14px">
+        <label>Objetivo / notas del macrociclo</label>
+        <textarea>Preparación para Nacional Juvenil 2025. Foco en pruebas cortas, mejora técnica de virajes.</textarea>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary">Guardar y configurar fases →</button>
+        <button class="btn btn-ghost">Guardar borrador</button>
+      </div>
+    </div>
+
+    <!-- Editor de fases -->
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between">
+        <span>Fases del macrociclo — configurables</span>
+        <button class="btn btn-ghost" style="font-size:11px;padding:4px 10px">+ Agregar fase</button>
+      </div>
+
+      <div class="phase-row">
+        <div class="phase-color-dot" style="background:#3b82f6;margin:0 auto"></div>
+        <input type="text" value="Base" style="font-size:12px;padding:5px 8px">
+        <input type="number" value="1" placeholder="Sem desde" style="font-size:12px;padding:5px 8px;text-align:center">
+        <input type="number" value="3" placeholder="Sem hasta" style="font-size:12px;padding:5px 8px;text-align:center">
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px">✕</button>
+      </div>
+      <div class="phase-row">
+        <div class="phase-color-dot" style="background:#6366f1;margin:0 auto"></div>
+        <input type="text" value="Construcción I" style="font-size:12px;padding:5px 8px">
+        <input type="number" value="4" placeholder="Sem desde" style="font-size:12px;padding:5px 8px;text-align:center">
+        <input type="number" value="6" placeholder="Sem hasta" style="font-size:12px;padding:5px 8px;text-align:center">
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px">✕</button>
+      </div>
+      <div class="phase-row">
+        <div class="phase-color-dot" style="background:#818cf8;margin:0 auto"></div>
+        <input type="text" value="Construcción II" style="font-size:12px;padding:5px 8px">
+        <input type="number" value="7" placeholder="Sem desde" style="font-size:12px;padding:5px 8px;text-align:center">
+        <input type="number" value="9" placeholder="Sem hasta" style="font-size:12px;padding:5px 8px;text-align:center">
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px">✕</button>
+      </div>
+      <div class="phase-row">
+        <div class="phase-color-dot" style="background:#eab308;margin:0 auto"></div>
+        <input type="text" value="Pico" style="font-size:12px;padding:5px 8px">
+        <input type="number" value="10" placeholder="Sem desde" style="font-size:12px;padding:5px 8px;text-align:center">
+        <input type="number" value="11" placeholder="Sem hasta" style="font-size:12px;padding:5px 8px;text-align:center">
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px">✕</button>
+      </div>
+      <div class="phase-row">
+        <div class="phase-color-dot" style="background:#22c55e;margin:0 auto"></div>
+        <input type="text" value="Descenso" style="font-size:12px;padding:5px 8px">
+        <input type="number" value="12" placeholder="Sem desde" style="font-size:12px;padding:5px 8px;text-align:center">
+        <input type="number" value="12" placeholder="Sem hasta" style="font-size:12px;padding:5px 8px;text-align:center">
+        <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px">✕</button>
+      </div>
+
+      <div style="margin-top:12px;font-size:11px;color:var(--muted)">
+        Semanas cubiertas: <span style="color:var(--green)">12 / 12</span>
+      </div>
+
+      <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
+        <div class="card-title">Atletas asignados a este macrociclo</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+          <span class="badge badge-blue">Sofía R.</span>
+          <span class="badge badge-blue">Carlos M.</span>
+          <span class="badge badge-blue">Valentina C.</span>
+          <span class="badge badge-blue">Andrés L.</span>
+          <span class="badge badge-blue">Mariana V.</span>
+          <span class="badge badge-blue">Diego F.</span>
+          <span class="badge badge-blue">+2 más</span>
+        </div>
+        <button class="btn btn-purple" style="width:100%">Gestionar atletas del macro →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lista de macrociclos -->
+  <div class="card">
+    <div class="card-title">Macrociclos registrados</div>
+    <table class="tbl">
+      <thead>
+        <tr><th>Nombre</th><th>Duración</th><th>Periodo</th><th>Atletas</th><th>Estado</th><th>Acciones</th></tr>
+      </thead>
+      <tbody>
+        <tr style="background:rgba(59,130,246,.05)">
+          <td style="font-weight:600">Temporada Corta 2025</td>
+          <td>12 sem</td><td class="mono">31/03 – 23/06/2025</td>
+          <td>8 atletas</td>
+          <td><span class="badge badge-green">Activo</span></td>
+          <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11px">Editar</button></td>
+        </tr>
+        <tr>
+          <td>Temporada Larga 2024</td>
+          <td>18 sem</td><td class="mono">01/08 – 30/11/2024</td>
+          <td>6 atletas</td>
+          <td><span class="badge badge-blue">Finalizado</span></td>
+          <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11px">Ver</button></td>
+        </tr>
+        <tr>
+          <td>Macro Prueba Corta 2025-2</td>
+          <td>12 sem</td><td class="mono">01/09 – 22/11/2025</td>
+          <td>—</td>
+          <td><span class="badge badge-yellow">Borrador</span></td>
+          <td><button class="btn btn-ghost" style="padding:4px 10px;font-size:11px">Editar</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══════════ ATLETAS ══════════ -->
+<section class="view" id="view-athletes">
+  <div class="topbar">
+    <div>
+      <div class="page-title">Atletas</div>
+      <div class="page-sub">Temporada Corta 2025 · 8 atletas asignados</div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost">Asignar atleta existente</button>
+      <button class="btn btn-primary">+ Nuevo atleta</button>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <!-- Lista de atletas -->
+    <div class="card">
+      <div class="card-title">Atletas del macrociclo</div>
+      <table class="tbl">
+        <thead><tr><th>Nombre</th><th>Pruebas</th><th>Estado</th></tr></thead>
+        <tbody>
+          <tr style="background:rgba(59,130,246,.07);cursor:pointer">
+            <td style="font-weight:600">Sofía Ramírez</td>
+            <td>
+              <span class="badge badge-blue" style="margin-right:2px">100m Mari.</span>
+              <span class="badge badge-purple">200m Mari.</span>
+            </td>
+            <td><span class="badge badge-green">Activa</span></td>
+          </tr>
+          <tr style="cursor:pointer">
+            <td>Carlos Mendoza</td>
+            <td><span class="badge badge-blue">200m Libre</span></td>
+            <td><span class="badge badge-green">Activo</span></td>
+          </tr>
+          <tr style="cursor:pointer">
+            <td>Valentina Cruz</td>
+            <td>
+              <span class="badge badge-blue" style="margin-right:2px">400m Esp.</span>
+              <span class="badge badge-purple" style="margin-right:2px">200m Esp.</span>
+              <span class="badge badge-yellow">100m Esp.</span>
+            </td>
+            <td><span class="badge badge-green">Activa</span></td>
+          </tr>
+          <tr style="cursor:pointer">
+            <td>Andrés López</td>
+            <td><span class="badge badge-blue">100m Pecho</span></td>
+            <td><span class="badge badge-red">Atrasado</span></td>
+          </tr>
+          <tr style="cursor:pointer">
+            <td>Mariana Vargas</td>
+            <td>
+              <span class="badge badge-blue" style="margin-right:2px">200m Mari.</span>
+              <span class="badge badge-purple">100m Mari.</span>
+            </td>
+            <td><span class="badge badge-green">Activa</span></td>
+          </tr>
+          <tr style="cursor:pointer">
+            <td>Diego Fuentes</td>
+            <td><span class="badge badge-blue">100m Libre</span></td>
+            <td><span class="badge badge-green">Activo</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Ficha atleta — hasta 3 pruebas -->
+    <div class="card">
+      <div class="card-title">Perfil · Sofía Ramírez</div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+        <div class="form-col"><label>Nombre</label><input type="text" value="Sofía Ramírez"></div>
+        <div class="form-col"><label>Fecha de nacimiento</label><input type="date" value="2007-03-14"></div>
+        <div class="form-col"><label>Sexo</label><select><option>Femenino</option><option>Masculino</option></select></div>
+        <div class="form-col"><label>Peso (kg)</label><input type="number" value="58"></div>
+      </div>
+
+      <!-- Pruebas principales -->
+      <div class="card-title" style="margin-top:4px">Pruebas principales (máx. 3)</div>
+
+      <!-- Prueba 1 -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:11px;font-weight:700;color:var(--accent)">PRUEBA PRINCIPAL #1</span>
+          <span class="badge badge-blue">Activa en macrociclo</span>
+        </div>
+        <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
+          <div class="form-col"><label>Prueba</label>
+            <select><option>100m Mariposa</option><option>50m Mariposa</option><option>200m Mariposa</option></select>
+          </div>
+          <div class="form-col"><label>Tiempo actual</label><input type="text" value="1:05.80"></div>
+          <div class="form-col"><label>Tiempo meta</label><input type="text" value="1:02.00"></div>
+        </div>
+      </div>
+
+      <!-- Prueba 2 -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:11px;font-weight:700;color:var(--accent2)">PRUEBA #2</span>
+          <span class="badge badge-purple">Seguimiento</span>
+        </div>
+        <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
+          <div class="form-col"><label>Prueba</label>
+            <select><option>200m Mariposa</option></select>
+          </div>
+          <div class="form-col"><label>Tiempo actual</label><input type="text" value="2:22.40"></div>
+          <div class="form-col"><label>Tiempo meta</label><input type="text" value="2:15.00"></div>
+        </div>
+      </div>
+
+      <!-- Prueba 3 - vacía -->
+      <div style="background:var(--surface2);border:1px dashed var(--border);border-radius:8px;padding:12px;text-align:center;margin-bottom:12px">
+        <div style="color:var(--muted);font-size:12px;margin-bottom:6px">+ Agregar 3ª prueba (opcional)</div>
+        <button class="btn btn-ghost" style="font-size:11px;padding:5px 12px">Agregar prueba</button>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary">Guardar</button>
+        <button class="btn btn-ghost">Cancelar</button>
+        <button class="btn btn-danger" style="margin-left:auto">Quitar del macro</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ T-30 / T-15 ══════════ -->
+<section class="view" id="view-t30">
+  <div class="topbar">
+    <div>
+      <div class="page-title">T-30 / T-15 — Base Aeróbica</div>
+      <div class="page-sub">Sofía Ramírez · Registrar test o ingresar base directamente</div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost">Historial de tests</button>
+      <button class="btn btn-primary">+ Nuevo test</button>
+    </div>
+  </div>
+
+  <!-- Modo de ingreso -->
+  <div class="card" style="padding:14px 20px">
+    <div class="card-title" style="margin-bottom:6px">Modo de ingreso de base aeróbica</div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary" id="btn-modo-test" onclick="setModo('test')">Ingresar parciales del test completo</button>
+      <button class="btn btn-ghost"   id="btn-modo-directo" onclick="setModo('directo')">Ya tengo la base aeróbica — ingresar directo</button>
+    </div>
+  </div>
+
+  <!-- Ingreso directo -->
+  <div id="modo-directo" style="display:none">
+    <div class="card">
+      <div class="card-title">Ingreso directo de base aeróbica</div>
+      <div class="info-box" style="margin-bottom:14px">
+        Usa esta opción si el tiempo promedio del test ya fue calculado externamente o si lo tenés anotado.
+        El sistema lo tomará como punto de partida para el motor de progresión.
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr 1fr 1fr;margin-bottom:14px">
+        <div class="form-col">
+          <label>Atleta</label>
+          <select><option>Sofía Ramírez</option></select>
+        </div>
+        <div class="form-col">
+          <label>Tipo de test</label>
+          <select><option>T-30</option><option>T-15</option></select>
+        </div>
+        <div class="form-col">
+          <label>Fecha del test</label>
+          <input type="date" value="2025-04-28">
+        </div>
+        <div class="form-col">
+          <label>Base aeróbica (mm:ss.cc)</label>
+          <input type="text" value="1:08.12" placeholder="1:08.12" style="font-size:16px;font-weight:700;border-color:var(--accent)">
+        </div>
+      </div>
+      <div class="form-row" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+        <div class="form-col">
+          <label>Desviación estándar (opcional)</label>
+          <input type="text" value="±0.48" placeholder="±0.48 s">
+        </div>
+        <div class="form-col">
+          <label>Notas</label>
+          <input type="text" placeholder="Ej: Test matutino, buenas condiciones">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary">Guardar base aeróbica</button>
+        <button class="btn btn-ghost">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ingreso por test completo (default) -->
+  <div id="modo-test">
+    <div class="grid2">
+      <div class="card">
+        <div class="card-title">Ingreso de repeticiones</div>
+        <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:14px">
+          <div class="form-col"><label>Tipo de test</label><select><option>T-30</option><option>T-15</option></select></div>
+          <div class="form-col"><label>Fecha</label><input type="date" value="2025-04-28"></div>
+          <div class="form-col"><label>Atleta</label><select><option>Sofía Ramírez</option></select></div>
+        </div>
+        <div class="card-title">Parciales R1 × 100m</div>
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:14px">
+          <div style="text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">1</div><input type="text" value="1:08.1" style="text-align:center;padding:5px;font-size:11px"></div>
+          <div style="text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">2</div><input type="text" value="1:07.8" style="text-align:center;padding:5px;font-size:11px"></div>
+          <div style="text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">3</div><input type="text" value="1:07.5" style="text-align:center;padding:5px;font-size:11px"></div>
+          <div style="text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">4</div><input type="text" value="1:07.9" style="text-align:center;padding:5px;font-size:11px"></div>
+          <div style="text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">5</div><input type="text" value="1:08.3" style="text-align:center;padding:5px;font-size:11px"></div>
+          <div style="text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">6</div><input type="text" value="1:07.6" style="text-align:center;padding:5px;font-size:11px"></div>
+          <div style="text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">7</div><input type="text" value="1:08.0" style="text-align:center;padding:5px;font-size:11px"></div>
+          <div style="text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">8</div><input type="text" value="1:07.7" style="text-align:center;padding:5px;font-size:11px"></div>
+          <div style="text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">9</div><input type="text" value="1:08.2" style="text-align:center;padding:5px;font-size:11px"></div>
+          <div style="text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">10</div><input type="text" value="1:07.4" style="text-align:center;padding:5px;font-size:11px"></div>
+          <div style="text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">11</div><input type="text" value="1:08.5" style="text-align:center;padding:5px;font-size:11px"></div>
+          <div style="text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">12</div><input type="text" value="1:08.1" style="text-align:center;padding:5px;font-size:11px"></div>
+          <div style="text-align:center;grid-column:1/7;color:var(--muted);font-size:11px;padding:4px 0">··· 18 repeticiones adicionales (13–30)</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary">Calcular base aeróbica</button>
+          <button class="btn btn-ghost">Limpiar</button>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="card">
+          <div class="card-title">Resultado</div>
+          <div class="grid2" style="gap:12px;margin-bottom:12px">
+            <div class="stat"><div class="label">Base aeróbica</div><div class="value mono" style="font-size:22px;color:var(--accent)">1:08.12</div><div class="sub">Promedio 30 reps</div></div>
+            <div class="stat"><div class="label">Desviación est.</div><div class="value" style="font-size:22px">±0.48 s</div><span class="badge badge-green">Consistente</span></div>
+          </div>
+          <div style="font-size:12px;color:var(--muted);padding-top:10px;border-top:1px solid var(--border)">
+            📈 Tendencia: <span style="color:var(--yellow)">Ligera caída reps 13–20 (+0.9 s)</span>
+          </div>
+        </div>
+        <div class="card chart-box">
+          <div class="card-title">Parciales + comparativo test anterior</div>
+          <canvas id="chartT30"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ PLAN SEMANAL ══════════ -->
+<section class="view" id="view-weekly">
+  <div class="topbar">
+    <div>
+      <div class="page-title">Plan Semanal · Sofía Ramírez</div>
+      <div class="page-sub">Temporada Corta 2025 · Curva Sigmoidal · 12 semanas</div>
+    </div>
+    <div class="topbar-right">
+      <select style="font-size:12px;padding:6px 10px">
+        <option>Sofía Ramírez</option><option>Carlos Mendoza</option><option>Valentina Cruz</option>
+      </select>
+      <button class="btn btn-primary">Registrar resultado real</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Progresión · 100m Mariposa</div>
+    <div class="chart-box" style="margin-bottom:18px"><canvas id="chartWeekly"></canvas></div>
+    <table class="tbl">
+      <thead>
+        <tr><th>#</th><th>Fecha</th><th>Fase</th><th>km</th><th>Tiempo 100m Mari.</th><th>Parcial R1</th><th>Mejora sem.</th><th>Intensidad</th><th>Real</th><th>Estado</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td class="mono">31/03</td><td><span class="phase phase-base">Base</span></td><td>22</td><td class="mono">1:07.50</td><td class="mono">1:29.8</td><td class="mono muted">−0.30 s</td><td>Baja</td><td class="mono">1:07.62</td><td><span class="badge badge-yellow">Dentro</span></td></tr>
+        <tr><td>2</td><td class="mono">07/04</td><td><span class="phase phase-base">Base</span></td><td>24</td><td class="mono">1:07.18</td><td class="mono">1:29.4</td><td class="mono muted">−0.32 s</td><td>Baja</td><td class="mono">1:07.10</td><td><span class="badge badge-green">Adelantado</span></td></tr>
+        <tr><td>3</td><td class="mono">14/04</td><td><span class="phase phase-base">Base</span></td><td>25</td><td class="mono">1:06.82</td><td class="mono">1:29.0</td><td class="mono muted">−0.36 s</td><td>Media-baja</td><td class="mono">1:06.95</td><td><span class="badge badge-yellow">Dentro</span></td></tr>
+        <tr><td>4</td><td class="mono">21/04</td><td><span class="phase phase-build">Const. I</span></td><td>27</td><td class="mono">1:06.40</td><td class="mono">1:28.4</td><td class="mono muted">−0.42 s</td><td>Media</td><td class="mono">1:06.38</td><td><span class="badge badge-green">Adelantado</span></td></tr>
+        <tr><td>5</td><td class="mono">28/04</td><td><span class="phase phase-build">Const. I</span></td><td>28</td><td class="mono">1:05.90</td><td class="mono">1:27.6</td><td class="mono muted">−0.50 s</td><td>Media</td><td class="mono">1:06.10</td><td><span class="badge badge-yellow">Dentro</span></td></tr>
+        <tr><td>6</td><td class="mono">05/05</td><td><span class="phase phase-build">Const. I</span></td><td>29</td><td class="mono">1:05.35</td><td class="mono">1:26.8</td><td class="mono muted">−0.55 s</td><td>Media-alta</td><td class="mono">1:05.42</td><td><span class="badge badge-yellow">Dentro</span></td></tr>
+        <tr style="background:rgba(59,130,246,.07)"><td><b>7</b></td><td class="mono"><b>12/05</b></td><td><span class="phase phase-build">Const. II</span></td><td>28.5</td><td class="mono"><b>1:04.90</b></td><td class="mono"><b>1:26.1</b></td><td class="mono muted">−0.45 s</td><td>Alta</td><td class="mono muted">—</td><td><span class="badge badge-blue">En curso</span></td></tr>
+        <tr style="color:var(--muted)"><td>8</td><td class="mono">19/05</td><td><span class="phase phase-build">Const. II</span></td><td>30</td><td class="mono">1:04.42</td><td class="mono">1:25.3</td><td class="mono">−0.48 s</td><td>Alta</td><td>—</td><td>—</td></tr>
+        <tr style="color:var(--muted)"><td>9</td><td class="mono">26/05</td><td><span class="phase phase-build">Const. II</span></td><td>30</td><td class="mono">1:03.90</td><td class="mono">1:24.5</td><td class="mono">−0.52 s</td><td>Alta</td><td>—</td><td>—</td></tr>
+        <tr style="color:var(--muted)"><td>10</td><td class="mono">02/06</td><td><span class="phase phase-peak">Pico</span></td><td>26</td><td class="mono">1:03.40</td><td class="mono">1:23.7</td><td class="mono">−0.50 s</td><td>Muy alta</td><td>—</td><td>—</td></tr>
+        <tr style="color:var(--muted)"><td>11</td><td class="mono">09/06</td><td><span class="phase phase-peak">Pico</span></td><td>22</td><td class="mono">1:02.80</td><td class="mono">1:22.8</td><td class="mono">−0.60 s</td><td>Muy alta</td><td>—</td><td>—</td></tr>
+        <tr style="color:var(--muted)"><td>12</td><td class="mono">16/06</td><td><span class="phase phase-taper">Descenso</span></td><td>14</td><td class="mono">1:02.00</td><td class="mono">1:21.7</td><td class="mono">−0.80 s</td><td>Baja</td><td>—</td><td>—</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══════════ TABLA DEL EQUIPO ══════════ -->
+<section class="view" id="view-teamtable">
+  <div class="topbar">
+    <div>
+      <div class="page-title">Tabla del Equipo</div>
+      <div class="page-sub">Tiempos esperados por atleta por semana · Temporada Corta 2025</div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost">Exportar CSV</button>
+      <button class="btn btn-primary">Registrar resultados</button>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="card" style="padding:14px 20px">
+    <div class="filter-bar">
+      <div class="form-col" style="flex-direction:row;align-items:center;gap:8px">
+        <label style="white-space:nowrap;margin:0">Semana</label>
+        <select id="filter-semana" style="padding:6px 10px;font-size:12px" onchange="filterTable()">
+          <option value="">Todas</option>
+          <option value="7" selected>Semana 7 (12/05)</option>
+          <option value="1">Semana 1 (31/03)</option>
+          <option value="2">Semana 2 (07/04)</option>
+          <option value="3">Semana 3 (14/04)</option>
+          <option value="4">Semana 4 (21/04)</option>
+          <option value="5">Semana 5 (28/04)</option>
+          <option value="6">Semana 6 (05/05)</option>
+          <option value="8">Semana 8 (19/05)</option>
+        </select>
+      </div>
+      <div class="form-col" style="flex-direction:row;align-items:center;gap:8px">
+        <label style="white-space:nowrap;margin:0">Prueba</label>
+        <select id="filter-prueba" style="padding:6px 10px;font-size:12px" onchange="filterTable()">
+          <option value="">Todas las pruebas</option>
+          <option value="100m Mari.">100m Mariposa</option>
+          <option value="200m Mari.">200m Mariposa</option>
+          <option value="200m Libre">200m Libre</option>
+          <option value="100m Pecho">100m Pecho</option>
+          <option value="400m Esp.">400m Espalda</option>
+          <option value="100m Libre">100m Libre</option>
+        </select>
+      </div>
+      <div class="form-col" style="flex-direction:row;align-items:center;gap:8px">
+        <label style="white-space:nowrap;margin:0">Atleta</label>
+        <input id="filter-atleta" type="text" placeholder="Buscar atleta..." style="padding:6px 10px;font-size:12px;width:150px" oninput="filterTable()">
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+        <span style="font-size:11px;color:var(--muted)">Vista:</span>
+        <button class="btn btn-primary" style="font-size:11px;padding:5px 10px" onclick="setVista('semana')">Por semana</button>
+        <button class="btn btn-ghost"   style="font-size:11px;padding:5px 10px" onclick="setVista('atleta')">Por atleta</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla principal — vista por semana -->
+  <div id="vista-semana" class="card" style="overflow:hidden">
+    <div class="card-title">Semana 7 — 12/05/2025 · Fase: Construcción II</div>
+    <div class="team-table-wrap">
+      <table class="team-tbl" style="width:100%">
+        <thead>
+          <tr>
+            <th class="left" style="min-width:140px">Atleta</th>
+            <th>Prueba</th>
+            <th>Base aeróbica</th>
+            <th>Tiempo esperado</th>
+            <th>Parcial R1 objetivo</th>
+            <th>km Sem.</th>
+            <th>Tiempo real</th>
+            <th>Diferencia</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Atleta 1: 2 pruebas -->
+          <tr>
+            <td class="left" rowspan="2" style="border-right:1px solid var(--border);vertical-align:middle">
+              <div style="font-weight:700">Sofía Ramírez</div>
+              <div style="font-size:10px;color:var(--muted)">17 años</div>
+            </td>
+            <td><span class="badge badge-blue">100m Mari.</span></td>
+            <td class="time-cell">1:08.12</td>
+            <td class="time-cell" style="font-weight:700;color:var(--accent)">1:04.90</td>
+            <td class="time-cell">1:26.1</td>
+            <td>28.5</td>
+            <td class="time-cell" style="color:var(--muted)">—</td>
+            <td>—</td>
+            <td><span class="badge badge-blue">En curso</span></td>
+          </tr>
+          <tr style="border-bottom:2px solid var(--border)">
+            <td><span class="badge badge-purple">200m Mari.</span></td>
+            <td class="time-cell">2:26.80</td>
+            <td class="time-cell" style="font-weight:700;color:var(--accent)">2:21.40</td>
+            <td class="time-cell">3:08.5</td>
+            <td>—</td>
+            <td class="time-cell" style="color:var(--muted)">—</td>
+            <td>—</td>
+            <td><span class="badge badge-blue">En curso</span></td>
+          </tr>
+
+          <!-- Atleta 2 -->
+          <tr>
+            <td class="left">
+              <div style="font-weight:700">Carlos Mendoza</div>
+              <div style="font-size:10px;color:var(--muted)">19 años</div>
+            </td>
+            <td><span class="badge badge-blue">200m Libre</span></td>
+            <td class="time-cell">2:12.50</td>
+            <td class="time-cell" style="font-weight:700;color:var(--accent)">2:08.40</td>
+            <td class="time-cell">2:51.2</td>
+            <td>30</td>
+            <td class="time-cell" style="color:var(--green)">2:07.80</td>
+            <td class="time-cell diff-positive">−0.60 s</td>
+            <td><span class="badge badge-green">Adelantado</span></td>
+          </tr>
+
+          <!-- Atleta 3: 3 pruebas -->
+          <tr>
+            <td class="left" rowspan="3" style="border-right:1px solid var(--border);vertical-align:middle">
+              <div style="font-weight:700">Valentina Cruz</div>
+              <div style="font-size:10px;color:var(--muted)">16 años</div>
+            </td>
+            <td><span class="badge badge-blue">400m Esp.</span></td>
+            <td class="time-cell">5:02.00</td>
+            <td class="time-cell" style="font-weight:700;color:var(--accent)">4:52.00</td>
+            <td class="time-cell">6:30.0</td>
+            <td>28</td>
+            <td class="time-cell" style="color:var(--muted)">—</td>
+            <td>—</td>
+            <td><span class="badge badge-blue">En curso</span></td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-purple">200m Esp.</span></td>
+            <td class="time-cell">2:28.00</td>
+            <td class="time-cell" style="font-weight:700;color:var(--accent)">2:22.50</td>
+            <td class="time-cell">3:10.5</td>
+            <td>—</td>
+            <td class="time-cell" style="color:var(--muted)">—</td>
+            <td>—</td>
+            <td><span class="badge badge-blue">En curso</span></td>
+          </tr>
+          <tr style="border-bottom:2px solid var(--border)">
+            <td><span class="badge badge-yellow">100m Esp.</span></td>
+            <td class="time-cell">1:10.50</td>
+            <td class="time-cell" style="font-weight:700;color:var(--accent)">1:07.80</td>
+            <td class="time-cell">1:31.2</td>
+            <td>—</td>
+            <td class="time-cell" style="color:var(--muted)">—</td>
+            <td>—</td>
+            <td><span class="badge badge-blue">En curso</span></td>
+          </tr>
+
+          <!-- Atleta 4 -->
+          <tr>
+            <td class="left">
+              <div style="font-weight:700">Andrés López</div>
+              <div style="font-size:10px;color:var(--muted)">21 años</div>
+            </td>
+            <td><span class="badge badge-blue">100m Pecho</span></td>
+            <td class="time-cell">1:12.80</td>
+            <td class="time-cell" style="font-weight:700;color:var(--accent)">1:08.20</td>
+            <td class="time-cell">1:32.0</td>
+            <td>27</td>
+            <td class="time-cell" style="color:var(--red)">1:09.40</td>
+            <td class="time-cell diff-negative">+1.20 s</td>
+            <td><span class="badge badge-red">Atrasado</span></td>
+          </tr>
+
+          <!-- Atleta 5 -->
+          <tr>
+            <td class="left">
+              <div style="font-weight:700">Mariana Vargas</div>
+              <div style="font-size:10px;color:var(--muted)">18 años</div>
+            </td>
+            <td><span class="badge badge-blue">200m Mari.</span></td>
+            <td class="time-cell">2:24.00</td>
+            <td class="time-cell" style="font-weight:700;color:var(--accent)">2:18.50</td>
+            <td class="time-cell">3:05.2</td>
+            <td>29</td>
+            <td class="time-cell" style="color:var(--green)">2:17.90</td>
+            <td class="time-cell diff-positive">−0.60 s</td>
+            <td><span class="badge badge-green">Adelantado</span></td>
+          </tr>
+
+          <!-- Atleta 6 -->
+          <tr>
+            <td class="left">
+              <div style="font-weight:700">Diego Fuentes</div>
+              <div style="font-size:10px;color:var(--muted)">20 años</div>
+            </td>
+            <td><span class="badge badge-blue">100m Libre</span></td>
+            <td class="time-cell">0:55.20</td>
+            <td class="time-cell" style="font-weight:700;color:var(--accent)">0:52.80</td>
+            <td class="time-cell">1:10.4</td>
+            <td>31</td>
+            <td class="time-cell" style="color:var(--green)">0:52.60</td>
+            <td class="time-cell diff-positive">−0.20 s</td>
+            <td><span class="badge badge-green">Adelantado</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Leyenda -->
+    <div style="display:flex;gap:16px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);flex-wrap:wrap;font-size:11px;color:var(--muted)">
+      <span>🟢 Adelantado: real &lt; esperado</span>
+      <span>🟡 Dentro: ±0.5 s del esperado</span>
+      <span>🔴 Atrasado: real &gt; esperado + 0.5 s</span>
+      <span style="margin-left:auto">
+        <button class="btn btn-ghost" style="font-size:11px;padding:5px 10px" onclick="goTo('weekly')">Ver plan detallado →</button>
+      </span>
+    </div>
+  </div>
+
+  <!-- Vista por atleta (oculta) -->
+  <div id="vista-atleta" style="display:none" class="card">
+    <div class="card-title">Vista por atleta · Sofía Ramírez — 100m Mariposa</div>
+    <div class="team-table-wrap">
+      <table class="team-tbl" style="width:100%">
+        <thead>
+          <tr>
+            <th class="left">Semana</th><th>Fecha</th><th>Fase</th>
+            <th>Tiempo esperado</th><th>Parcial R1</th><th>km</th>
+            <th>Tiempo real</th><th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="left">Sem 1</td><td class="time-cell">31/03</td><td><span class="phase phase-base">Base</span></td><td class="time-cell">1:07.50</td><td class="time-cell">1:29.8</td><td>22</td><td class="time-cell">1:07.62</td><td><span class="badge badge-yellow">Dentro</span></td></tr>
+          <tr><td class="left">Sem 2</td><td class="time-cell">07/04</td><td><span class="phase phase-base">Base</span></td><td class="time-cell">1:07.18</td><td class="time-cell">1:29.4</td><td>24</td><td class="time-cell">1:07.10</td><td><span class="badge badge-green">Adelantado</span></td></tr>
+          <tr><td class="left">Sem 3</td><td class="time-cell">14/04</td><td><span class="phase phase-base">Base</span></td><td class="time-cell">1:06.82</td><td class="time-cell">1:29.0</td><td>25</td><td class="time-cell">1:06.95</td><td><span class="badge badge-yellow">Dentro</span></td></tr>
+          <tr class="cur-week"><td class="left"><b>Sem 7</b></td><td class="time-cell">12/05</td><td><span class="phase phase-build">Const. II</span></td><td class="time-cell"><b>1:04.90</b></td><td class="time-cell">1:26.1</td><td>28.5</td><td class="time-cell muted">—</td><td><span class="badge badge-blue">En curso</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ COMPARACIÓN ══════════ -->
+<section class="view" id="view-comparison">
+  <div class="topbar">
+    <div><div class="page-title">Comparación Real vs. Esperado</div><div class="page-sub">Sofía Ramírez · Semanas 1–7</div></div>
+    <div class="topbar-right"><button class="btn btn-primary">+ Registrar tiempo real</button></div>
+  </div>
+  <div class="grid3">
+    <div class="card stat"><div class="label">Estado actual</div><div class="value" style="color:var(--green);font-size:18px">Dentro del plan</div><div class="sub">Diferencia prom. −0.08 s</div></div>
+    <div class="card stat"><div class="label">Mejor semana</div><div class="value" style="font-size:18px">Semana 4</div><div class="sub" style="color:var(--green)">−0.02 s (adelantada)</div></div>
+    <div class="card stat"><div class="label">Más desviada</div><div class="value" style="font-size:18px">Semana 5</div><div class="sub" style="color:var(--yellow)">+0.20 s (retrasada)</div></div>
+  </div>
+  <div class="card"><div class="card-title">Curva ideal vs. Real · 100m Mariposa</div><div class="chart-box"><canvas id="chartComp"></canvas></div></div>
+</section>
+
+<!-- ══════════ SIMULADOR ══════════ -->
+<section class="view" id="view-simulator">
+  <div class="topbar">
+    <div><div class="page-title">Simulador de Escenarios</div>
+    <div class="page-sub">Motor de progresión real — modelo de dos tiers (aeróbico / velocidad)</div></div>
+  </div>
+
+  <!-- Parámetros -->
+  <div class="card">
+    <div class="card-title">Parámetros del plan</div>
+    <div class="form-row" style="grid-template-columns:repeat(4,1fr) repeat(2,1fr);gap:14px">
+      <div class="form-col">
+        <label>Distancia (m)</label>
+        <select id="sim-dist" onchange="updateSim()">
+          <option value="50">50m</option>
+          <option value="100" selected>100m</option>
+          <option value="200">200m</option>
+          <option value="400">400m</option>
+          <option value="800">800m</option>
+          <option value="1500">1500m</option>
+        </select>
+      </div>
+      <div class="form-col">
+        <label>Estilo</label>
+        <select id="sim-stroke" onchange="updateSim()">
+          <option value="libre">Crawl / Libre</option>
+          <option value="mariposa" selected>Mariposa</option>
+          <option value="espalda">Espalda</option>
+          <option value="pecho">Pecho</option>
+          <option value="combinado">Combinado (IM)</option>
+        </select>
+      </div>
+      <div class="form-col">
+        <label>Tiempo actual</label>
+        <input type="text" id="sim-current" value="1:07.80" oninput="updateSim()">
+      </div>
+      <div class="form-col">
+        <label>Tiempo meta</label>
+        <input type="text" id="sim-target" value="1:02.00" oninput="updateSim()">
+      </div>
+      <div class="form-col">
+        <label>Semanas: <span id="sim-weeks-val" style="color:var(--accent);font-weight:600">12</span></label>
+        <input type="range" id="sim-weeks" min="8" max="24" value="12"
+          oninput="updateSim();document.getElementById('sim-weeks-val').textContent=this.value">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted)"><span>8</span><span>24</span></div>
+      </div>
+      <div class="form-col">
+        <label>km totales: <span id="sim-km-val" style="color:var(--accent);font-weight:600">320</span></label>
+        <input type="range" id="sim-km" min="100" max="600" value="320" step="10"
+          oninput="updateSim();document.getElementById('sim-km-val').textContent=this.value">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted)"><span>100</span><span>600</span></div>
+      </div>
+    </div>
+    <div class="form-row" style="grid-template-columns:200px 1fr;gap:14px;margin-top:14px">
+      <div class="form-col">
+        <label>Curva de progresión</label>
+        <select id="sim-curve" onchange="updateSim()">
+          <option value="sigmoid" selected>Sigmoidal (recomendada)</option>
+          <option value="linear">Lineal</option>
+          <option value="exponential">Exponencial</option>
+          <option value="logarithmic">Logarítmica</option>
+        </select>
+      </div>
+      <div class="form-col">
+        <label>Semanas por microciclo</label>
+        <select id="sim-micro" onchange="updateSim()" style="width:160px">
+          <option value="4" selected>4 semanas</option>
+          <option value="5">5 semanas</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Análisis + Zonas -->
+  <div class="grid2">
+    <!-- Panel análisis -->
+    <div class="card">
+      <div class="card-title">Análisis del motor</div>
+
+      <!-- Tier badge -->
+      <div id="sim-tier-box" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid;margin-bottom:14px;font-size:13px">
+        <span id="sim-tier-icon" style="font-size:20px">🏊</span>
+        <div>
+          <div id="sim-tier-label" style="font-weight:700"></div>
+          <div id="sim-tier-desc"  style="font-size:11px;margin-top:2px;opacity:.8"></div>
+        </div>
+      </div>
+
+      <!-- Métricas -->
+      <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)">Mejora total requerida</span>
+          <span id="sim-mejora" class="mono" style="color:var(--accent);font-weight:700">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)">Número de microciclos</span>
+          <span id="sim-micros" class="mono">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)">Mejora requerida / micro</span>
+          <span id="sim-por-micro" class="mono" style="font-weight:600">—</span>
+        </div>
+        <div id="sim-window-row" style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--muted)">Ventana realista / micro</span>
+          <span id="sim-window" class="mono">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0">
+          <span style="color:var(--muted)">Tiempo proyectado (meta)</span>
+          <span id="sim-final" class="mono" style="font-weight:700;color:var(--green)">—</span>
+        </div>
+      </div>
+
+      <!-- Factibilidad -->
+      <div id="sim-feasibility" style="padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.5;border:1px solid"></div>
+
+      <!-- Cálculo Tier 1 detalle (solo Tier 1) -->
+      <div id="sim-tier1-detail" style="display:none;margin-top:12px;padding:10px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);font-size:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Cálculo Tier 1 — Regla aeróbica</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">1s/micro (base empírica)</span><span class="mono">× 1.00</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">× Factor distancia</span><span id="t1-dist-f" class="mono">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">× Factor estilo</span><span id="t1-stroke-f" class="mono">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">× Ratio aeróbico</span><span id="t1-aero-r" class="mono">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding-top:5px;border-top:1px solid var(--border);font-weight:600"><span>= Mejora esperada/micro</span><span id="t1-result" class="mono" style="color:var(--accent)">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Zonas de entrenamiento semana 1 y última -->
+    <div class="card">
+      <div class="card-title">Zonas de entrenamiento — inicio vs. pico</div>
+      <div style="display:flex;gap:10px;margin-bottom:12px">
+        <button class="btn btn-primary" id="btn-zona-inicio" style="font-size:11px;padding:5px 12px" onclick="showZonaWeek('inicio')">Semana 1</button>
+        <button class="btn btn-ghost"   id="btn-zona-pico"  style="font-size:11px;padding:5px 12px" onclick="showZonaWeek('pico')">Semana pico</button>
+      </div>
+      <div id="zones-table" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <div class="card-title" style="margin-bottom:8px">Parcial /100m esperado semana seleccionada</div>
+        <div style="display:flex;justify-content:space-between;font-size:13px">
+          <span style="color:var(--muted)">Tiempo de prueba</span>
+          <span id="zone-race-time" class="mono" style="font-weight:700;color:var(--accent)">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px">
+          <span style="color:var(--muted)">Parcial /100m</span>
+          <span id="zone-pace" class="mono">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla del plan semanal generado -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+      <div>
+        <div class="card-title" style="margin-bottom:3px">Plan semanal generado por el motor</div>
+        <div style="font-size:11px;color:var(--muted)">
+          <strong style="color:var(--accent)">Parcial /100m</strong> = referencia para planear series de cualquier distancia (×2 para 200m, ×3 para 300m, etc.)
+        </div>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="tbl" id="sim-plan-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Sem</th>
+            <th>km</th>
+            <th>T. Prueba total</th>
+            <th style="color:var(--accent)">Parcial /100m ★</th>
+            <th>R1 /100m</th>
+            <th>R2 /100m</th>
+            <th>Mejora sem.</th>
+            <th>Acum.</th>
+          </tr>
+        </thead>
+        <tbody id="sim-plan-body"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--muted)">
+      ★ <strong>Parcial /100m</strong>: tiempo por cada 100m al ritmo de la prueba objetivo — base para calcular tiempos de cualquier serie.<br>
+      Para 50m: el parcial /100m = tiempo 50m × 2 (aproximación sin ajuste de salida — ver Bitácora #004).
+    </div>
+  </div>
+
+  <!-- Gráfico curvas -->
+  <div class="card chart-box">
+    <div class="card-title">Curvas de progresión comparadas</div>
+    <canvas id="chartSim" style="max-height:280px"></canvas>
+  </div>
+</section>
+
+</main>
+
+<script>
+// ── Navigation ─────────────────────────────────────────
+function goTo(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('view-' + id).classList.add('active');
+  const el = document.querySelector(`[onclick="goTo('${id}')"]`);
+  if (el) el.classList.add('active');
+}
+
+// ── T-30 modo ───────────────────────────────────────────
+function setModo(m) {
+  document.getElementById('modo-test').style.display = m === 'test' ? '' : 'none';
+  document.getElementById('modo-directo').style.display = m === 'directo' ? '' : 'none';
+  document.getElementById('btn-modo-test').className = m === 'test' ? 'btn btn-primary' : 'btn btn-ghost';
+  document.getElementById('btn-modo-directo').className = m === 'directo' ? 'btn btn-primary' : 'btn btn-ghost';
+}
+
+// ── Team table vista ────────────────────────────────────
+function setVista(v) {
+  document.getElementById('vista-semana').style.display = v === 'semana' ? '' : 'none';
+  document.getElementById('vista-atleta').style.display = v === 'atleta'  ? '' : 'none';
+}
+function filterTable() { /* UI only mockup */ }
+
+// ── Chart defaults ──────────────────────────────────────
+Chart.defaults.color = '#64748b';
+Chart.defaults.borderColor = '#2e3247';
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+
+const weeks = ['31/03','07/04','14/04','21/04','28/04','05/05','12/05','19/05','26/05','02/06','09/06','16/06'];
+
+// Dashboard chart
+new Chart(document.getElementById('chartDash'), {
+  type:'line',
+  data:{
+    labels:weeks,
+    datasets:[
+      {label:'Esperado',data:[67.5,67.18,66.82,66.4,65.9,65.35,64.9,64.42,63.9,63.4,62.8,62.0],borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.08)',tension:.4,fill:true,pointRadius:3,borderWidth:2},
+      {label:'Real',    data:[67.62,67.10,66.95,66.38,66.10,65.42,null,null,null,null,null,null],borderColor:'#22c55e',tension:.4,fill:false,pointRadius:4,borderWidth:2},
+      {label:'Predicción',data:[null,null,null,null,null,null,64.9,64.35,63.78,63.2,62.5,61.85],borderColor:'#6366f1',borderDash:[5,4],tension:.4,fill:false,pointRadius:2,borderWidth:1.5}
+    ]
+  },
+  options:{responsive:true,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{position:'top',labels:{boxWidth:12,font:{size:11}}}},
+    scales:{y:{reverse:true,ticks:{callback:v=>{const m=Math.floor(v/60),s=(v%60).toFixed(0).padStart(2,'0');return `${m}:${s}`;}}}}}
+});
+
+// T-30 chart
+const t30data=[68.1,67.8,67.5,67.9,68.3,67.6,68.0,67.7,68.2,67.4,68.5,68.1,69.0,68.8,69.2,68.9,68.7,69.1,68.6,69.0,69.3,69.5,69.1,68.8,69.2,68.9,69.4,69.1,68.7,69.2];
+const prev30=[69.5,69.2,69.8,69.1,70.0,69.6,70.1,69.8,70.2,69.9,70.5,70.1,70.3,70.7,70.4,70.8,70.3,70.6,70.9,71.0,71.2,70.8,71.1,71.3,71.0,71.4,71.1,71.5,71.2,71.6];
+const avg30=t30data.reduce((a,b)=>a+b)/30;
+new Chart(document.getElementById('chartT30'),{
+  type:'line',
+  data:{labels:Array.from({length:30},(_,i)=>i+1),
+    datasets:[
+      {label:'Test actual (28/04)',data:t30data,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.06)',tension:.3,fill:true,pointRadius:2,borderWidth:2},
+      {label:'Test anterior (15/02)',data:prev30,borderColor:'#64748b',borderDash:[4,3],tension:.3,fill:false,pointRadius:2,borderWidth:1.5},
+      {label:'Promedio actual',data:Array(30).fill(avg30),borderColor:'#22c55e',borderDash:[6,3],pointRadius:0,borderWidth:1.5}
+    ]},
+  options:{responsive:true,plugins:{legend:{position:'top',labels:{boxWidth:12,font:{size:11}}}},
+    scales:{x:{title:{display:true,text:'Repetición',font:{size:11}}},y:{reverse:true,ticks:{callback:v=>{const m=Math.floor(v/60),s=(v%60).toFixed(1).padStart(4,'0');return `${m}:${s}`;}}}}}
+});
+
+// Weekly chart
+new Chart(document.getElementById('chartWeekly'),{
+  type:'line',
+  data:{labels:weeks,datasets:[
+    {label:'Tiempo esperado',data:[67.5,67.18,66.82,66.4,65.9,65.35,64.9,64.42,63.9,63.4,62.8,62.0],borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.07)',tension:.4,fill:true,pointRadius:3,borderWidth:2},
+    {label:'Tiempo real',data:[67.62,67.10,66.95,66.38,66.10,65.42,null,null,null,null,null,null],borderColor:'#22c55e',tension:.4,fill:false,pointRadius:5,borderWidth:2}
+  ]},
+  options:{responsive:true,plugins:{legend:{position:'top',labels:{boxWidth:12}}},
+    scales:{y:{reverse:true,ticks:{callback:v=>{const m=Math.floor(v/60),s=(v%60).toFixed(0).padStart(2,'0');return `${m}:${s}`;}}}}}
+});
+
+// Comparison chart
+new Chart(document.getElementById('chartComp'),{
+  type:'bar',
+  data:{labels:weeks.slice(0,7),datasets:[
+    {label:'Tiempo esperado',data:[67.5,67.18,66.82,66.4,65.9,65.35,64.9],backgroundColor:'rgba(59,130,246,.5)',borderColor:'#3b82f6',borderWidth:1,borderRadius:4},
+    {label:'Tiempo real',data:[67.62,67.10,66.95,66.38,66.10,65.42,null],backgroundColor:'rgba(34,197,94,.5)',borderColor:'#22c55e',borderWidth:1,borderRadius:4}
+  ]},
+  options:{responsive:true,plugins:{legend:{position:'top',labels:{boxWidth:12}}},
+    scales:{y:{reverse:true,ticks:{callback:v=>{const m=Math.floor(v/60),s=(v%60).toFixed(0).padStart(2,'0');return `${m}:${s}`;}}}}}
+});
+
+// ══════════════════════════════════════════════════════════
+//  PEAKSTROKE ENGINE — JavaScript port del motor Python
+// ══════════════════════════════════════════════════════════
+
+// ── Utilidades de tiempo ───────────────────────────────────
+function toSec(s) {
+  s = String(s).replace(',','.');
+  const p = s.split(':');
+  return p.length === 2 ? parseFloat(p[0])*60 + parseFloat(p[1]) : parseFloat(s);
+}
+function toTime(sec) {
+  if (isNaN(sec) || sec < 0) return '--:--';
+  const m = Math.floor(sec/60), s = (sec%60).toFixed(2).padStart(5,'0');
+  return `${m}:${s}`;
+}
+function toTimeShort(sec) {
+  const m = Math.floor(sec/60), s = (sec%60).toFixed(0).padStart(2,'0');
+  return `${m}:${s}`;
+}
+
+// ── Datos de configuración (training_zones.py) ─────────────
+const TIER1_THRESHOLD = 400;
+
+const DISTANCE_FACTORS = {50:0.15, 100:0.45, 200:1.80, 400:4.00, 800:8.00, 1500:15.0};
+const AEROBIC_RATIO    = {50:0.15, 100:0.325,200:0.625,400:0.875,800:0.925,1500:0.96};
+const STROKE_FACTORS   = {
+  libre:1.0, crawl:1.0, espalda:0.90, mariposa:0.76, pecho:0.68, combinado:0.80
+};
+const SPEED_WINDOWS = {
+  '100-libre':(w=>[0.40,0.60]),    '100-mariposa':()=>[0.30,0.50],
+  '100-espalda':()=>[0.35,0.50],   '100-pecho':()=>[0.25,0.45],
+  '50-libre':()=>[0.10,0.25],      '50-mariposa':()=>[0.08,0.20],
+  '50-espalda':()=>[0.10,0.22],    '50-pecho':()=>[0.08,0.18],
+  '200-libre':()=>[0.80,1.20],     '200-mariposa':()=>[0.50,0.80],
+  '200-espalda':()=>[0.60,0.90],   '200-pecho':()=>[0.45,0.70],
+};
+const ZONE_FACTORS  = {R1:1.375, R2:1.275, MVO2:1.175, RL:1.125, V:1.075};
+const ZONE_LABELS   = {
+  R1:'Base aeróbica', R2:'Umbral aeróbico',
+  MVO2:'VO₂ máximo', RL:'Res. lactato', V:'Velocidad pura'
+};
+const ZONE_CLASSES  = {R1:'z-r1', R2:'z-r2', MVO2:'z-mv', RL:'z-rl', V:'z-v'};
+
+// ── Curvas de progresión ───────────────────────────────────
+function curveProgress(x, curve) {
+  x = Math.max(0, Math.min(1, x));
+  if (curve === 'linear') return x;
+  if (curve === 'exponential') {
+    const k = 4.0;
+    return (1 - Math.exp(-k*x)) / (1 - Math.exp(-k));
+  }
+  if (curve === 'logarithmic') return Math.log(1+9*x) / Math.log(10);
+  if (curve === 'sigmoid') {
+    const sig = t => 1/(1+Math.exp(-10*(t-0.5)));
+    return (sig(x)-sig(0))/(sig(1)-sig(0));
+  }
+  return x;
+}
+
+// ── Distribución de km ─────────────────────────────────────
+function distributeKm(n, totalKm) {
+  const raw = Array.from({length:n}, (_,i) => {
+    const x = i/(n-1||1);
+    return x <= 0.70 ? 0.65 + 0.35*(x/0.70) : 1.0 - 0.60*((x-0.70)/0.30);
+  });
+  const sum = raw.reduce((a,b)=>a+b,0);
+  return raw.map(f => +(f*totalKm/sum).toFixed(1));
+}
+
+// ── Factibilidad ───────────────────────────────────────────
+function analyzeFeasibility(dist, stroke, totalImp, numMicros) {
+  const tier = dist >= TIER1_THRESHOLD ? 1 : 2;
+  const impPerMicro = totalImp / (numMicros || 1);
+
+  if (tier === 1) {
+    const df = DISTANCE_FACTORS[dist] || dist/100;
+    const sf = STROKE_FACTORS[stroke] || 0.80;
+    const ar = AEROBIC_RATIO[dist] || 0.85;
+    const expected = 1.0 * df * sf * ar;
+    const wMax = expected * 1.5;
+    let status, msg;
+    if (impPerMicro <= expected) {
+      status='ok'; msg=`✓ Objetivo conservador/realista. Mejora esperada por regla aeróbica: ${expected.toFixed(2)} s/micro.`;
+    } else if (impPerMicro <= wMax) {
+      status='warning'; msg=`⚡ Exigente pero posible. Requerido: ${impPerMicro.toFixed(2)} s/micro, máximo recomendado: ${expected.toFixed(2)} s/micro.`;
+    } else {
+      status='aggressive'; msg=`⚠ Objetivo agresivo. Requerido: ${impPerMicro.toFixed(2)} s/micro supera el techo de ${wMax.toFixed(2)} s/micro. Considera ampliar el macrociclo.`;
+    }
+    return {tier, impPerMicro, windowMin:null, windowMax:expected,
+            distF:df, strokeF:sf, aeroR:ar, expected, status, msg};
+  } else {
+    const key = `${dist}-${stroke}`;
+    const wFn = SPEED_WINDOWS[key];
+    const [wMin, wMax] = wFn ? wFn() : [0.20, 0.50];
+    let status, msg;
+    if (impPerMicro <= wMax) {
+      status='ok'; msg=`✓ Dentro de la ventana realista (${wMin.toFixed(2)}–${wMax.toFixed(2)} s/micro).`;
+    } else if (impPerMicro <= wMax*1.5) {
+      status='warning'; msg=`⚡ Exigente. Requerido: ${impPerMicro.toFixed(2)} s/micro, techo: ${wMax.toFixed(2)} s/micro.`;
+    } else {
+      status='aggressive'; msg=`⚠ Agresivo. ${impPerMicro.toFixed(2)} s/micro supera el techo de ${wMax.toFixed(2)} s/micro para ${dist}m ${stroke}. Extiende el macrociclo o ajusta la meta.`;
+    }
+    return {tier, impPerMicro, windowMin:wMin, windowMax:wMax,
+            distF:null, strokeF:null, aeroR:null, expected:null, status, msg};
+  }
+}
+
+// ── Zonas ──────────────────────────────────────────────────
+function calcZones(pace100m) {
+  return Object.fromEntries(
+    Object.entries(ZONE_FACTORS).map(([z,f])=>[z, pace100m*f])
+  );
+}
+
+// ── Plan semanal ───────────────────────────────────────────
+function generatePlan(dist, stroke, t0, tn, nWeeks, totalKm, curve) {
+  const totalImp = t0 - tn;
+  const km = distributeKm(nWeeks, totalKm);
+  let prev = t0;
+  return Array.from({length:nWeeks}, (_,i) => {
+    const x = (i+1)/nWeeks;
+    const progress = curveProgress(x, curve);
+    const expected = t0 - totalImp*progress;
+    const pace = expected / (dist/100);
+    const zones = calcZones(pace);
+    const impVsPrev = expected - prev;
+    prev = expected;
+    return {
+      week: i+1, km: km[i], expected, pace, aerobic: zones.R1,
+      impVsPrev, cumulative: t0-expected, zones
+    };
+  });
+}
+
+// ── Render del simulador ───────────────────────────────────
+let simChart = null;
+let _simPlan  = null;
+let _simZoneMode = 'inicio';
+
+function showZonaWeek(mode) {
+  _simZoneMode = mode;
+  document.getElementById('btn-zona-inicio').className = mode==='inicio'?'btn btn-primary':'btn btn-ghost';
+  document.getElementById('btn-zona-pico').className   = mode==='pico'  ?'btn btn-primary':'btn btn-ghost';
+  renderZones();
+}
+
+function renderZones() {
+  if (!_simPlan || !_simPlan.length) return;
+  const w = _simZoneMode === 'inicio' ? _simPlan[0] : _simPlan[_simPlan.length-2];
+  const zEl = document.getElementById('zones-table');
+  zEl.innerHTML = '';
+  ['R1','R2','MVO2','RL','V'].forEach(z => {
+    zEl.innerHTML += `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="zone-tag ${ZONE_CLASSES[z]}">${z}</span>
+          <span style="font-size:12px;color:var(--muted)">${ZONE_LABELS[z]}</span>
+        </div>
+        <span class="mono" style="font-size:13px;font-weight:600">${toTime(w.zones[z])} /100m</span>
+      </div>`;
+  });
+  document.getElementById('zone-race-time').textContent = toTime(w.expected);
+  document.getElementById('zone-pace').textContent      = toTime(w.pace) + ' /100m';
+}
+
+function updateSim() {
+  const dist    = parseInt(document.getElementById('sim-dist').value);
+  const stroke  = document.getElementById('sim-stroke').value;
+  const t0      = toSec(document.getElementById('sim-current').value || '67.8');
+  const tn      = toSec(document.getElementById('sim-target').value  || '62.0');
+  const nWeeks  = parseInt(document.getElementById('sim-weeks').value);
+  const totalKm = parseInt(document.getElementById('sim-km').value);
+  const curve   = document.getElementById('sim-curve').value;
+  const micro   = parseInt(document.getElementById('sim-micro').value);
+
+  if (isNaN(t0)||isNaN(tn)||t0<=tn) return;
+
+  const totalImp  = t0 - tn;
+  const numMicros = nWeeks / micro;
+  const fa        = analyzeFeasibility(dist, stroke, totalImp, numMicros);
+  _simPlan        = generatePlan(dist, stroke, t0, tn, nWeeks, totalKm, curve);
+
+  // ── Tier box ──────────────────────────────────────────
+  const tierBox = document.getElementById('sim-tier-box');
+  const isT1 = fa.tier === 1;
+  tierBox.style.background  = isT1 ? 'rgba(59,130,246,.08)' : 'rgba(99,102,241,.08)';
+  tierBox.style.borderColor = isT1 ? 'rgba(59,130,246,.25)' : 'rgba(99,102,241,.25)';
+  tierBox.style.color       = isT1 ? '#60a5fa' : '#818cf8';
+  document.getElementById('sim-tier-icon').textContent  = isT1 ? '🌊' : '⚡';
+  document.getElementById('sim-tier-label').textContent =
+    isT1 ? 'Tier 1 — Evento aeróbico' : 'Tier 2 — Evento de velocidad / mixto';
+  document.getElementById('sim-tier-desc').textContent  =
+    isT1 ? 'Mejora guiada por la base aeróbica. Regla: 1s/micro en R1 × factores.'
+         : 'Mejora por ventana fraccionada. La base aeróbica es secundaria.';
+
+  // ── Métricas ──────────────────────────────────────────
+  document.getElementById('sim-mejora').textContent =
+    `${totalImp.toFixed(2)} s (${(totalImp/t0*100).toFixed(2)}%)`;
+  document.getElementById('sim-micros').textContent =
+    `${numMicros.toFixed(1)} microciclos × ${micro} semanas`;
+  document.getElementById('sim-por-micro').textContent =
+    `${fa.impPerMicro.toFixed(3)} s/micro`;
+
+  const wRow = document.getElementById('sim-window-row');
+  const wEl  = document.getElementById('sim-window');
+  if (fa.tier === 2 && fa.windowMin !== null) {
+    wRow.style.display = '';
+    wEl.textContent = `${fa.windowMin.toFixed(2)}–${fa.windowMax.toFixed(2)} s/micro`;
+    wEl.style.color = fa.status === 'ok' ? 'var(--green)'
+                    : fa.status === 'warning' ? 'var(--yellow)' : 'var(--red)';
+  } else {
+    wRow.style.display = '';
+    wEl.textContent = fa.windowMax ? `≤ ${fa.windowMax.toFixed(2)} s/micro (regla aeróbica)` : '—';
+    wEl.style.color = 'var(--muted)';
+  }
+  document.getElementById('sim-final').textContent = toTime(tn);
+
+  // ── Factibilidad ──────────────────────────────────────
+  const fEl = document.getElementById('sim-feasibility');
+  const colors = {ok:['rgba(34,197,94,.1)','#22c55e','rgba(34,197,94,.25)'],
+                  warning:['rgba(234,179,8,.1)','#eab308','rgba(234,179,8,.25)'],
+                  aggressive:['rgba(239,68,68,.1)','#ef4444','rgba(239,68,68,.25)']};
+  const [bg,col,bc] = colors[fa.status];
+  fEl.style.background=bg; fEl.style.color=col; fEl.style.borderColor=bc;
+  fEl.textContent = fa.msg;
+
+  // ── Tier 1 detalle ────────────────────────────────────
+  const t1d = document.getElementById('sim-tier1-detail');
+  if (fa.tier === 1) {
+    t1d.style.display = '';
+    document.getElementById('t1-dist-f').textContent   = `× ${fa.distF.toFixed(2)}`;
+    document.getElementById('t1-stroke-f').textContent = `× ${fa.strokeF.toFixed(3)}`;
+    document.getElementById('t1-aero-r').textContent   = `× ${fa.aeroR.toFixed(3)}`;
+    document.getElementById('t1-result').textContent   = `= ${fa.expected.toFixed(3)} s/micro`;
+  } else {
+    t1d.style.display = 'none';
+  }
+
+  // ── Tabla plan semanal ────────────────────────────────
+  const tbody = document.getElementById('sim-plan-body');
+  tbody.innerHTML = '';
+  _simPlan.forEach(w => {
+    const impColor = w.impVsPrev < 0 ? 'color:var(--green)' : 'color:var(--yellow)';
+    tbody.innerHTML += `
+      <tr>
+        <td>${w.week}</td>
+        <td class="mono">S${w.week}</td>
+        <td>${w.km}</td>
+        <td class="mono" style="color:var(--muted)">${toTime(w.expected)}</td>
+        <td class="mono" style="font-weight:700;color:var(--accent)">${toTime(w.pace)}</td>
+        <td class="mono">${toTime(w.aerobic)}</td>
+        <td class="mono" style="color:#60a5fa">${toTime(w.zones.R2)}</td>
+        <td class="mono" style="${impColor}">${w.impVsPrev.toFixed(2)}s</td>
+        <td class="mono">${w.cumulative.toFixed(2)}s</td>
+      </tr>`;
+  });
+
+  // ── Zonas ─────────────────────────────────────────────
+  renderZones();
+
+  // ── Gráfico curvas ────────────────────────────────────
+  const labels = _simPlan.map(w => `S${w.week}`);
+  const genDS = (c, color) => ({
+    label: {sigmoid:'Sigmoidal',linear:'Lineal',exponential:'Exponencial',logarithmic:'Logarítmica'}[c],
+    data: generatePlan(dist, stroke, t0, tn, nWeeks, totalKm, c).map(w=>w.expected),
+    borderColor: color, tension:.4, pointRadius:2,
+    borderWidth: c===curve?3:1.5, borderDash: c===curve?[]:[4,3]
+  });
+
+  const ctx = document.getElementById('chartSim').getContext('2d');
+  if (simChart) simChart.destroy();
+  simChart = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[
+      genDS('sigmoid','#3b82f6'),
+      genDS('linear','#22c55e'),
+      genDS('exponential','#f59e0b'),
+      genDS('logarithmic','#a855f7'),
+    ]},
+    options:{
+      responsive:true,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'top',labels:{boxWidth:12,font:{size:11}}}},
+      scales:{y:{reverse:true,ticks:{callback:v=>toTimeShort(v)}}}
+    }
+  });
+}
+updateSim();
+</script>
+</body>
+</html>
