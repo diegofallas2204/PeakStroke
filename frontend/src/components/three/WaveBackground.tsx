@@ -59,13 +59,13 @@ export function WaveBackground() {
     points.rotation.x = -Math.PI / 2.6
     scene.add(points)
 
-    const clock = new THREE.Clock()
+    const start = performance.now()
     let raf = 0
     let running = true
 
     const tick = () => {
       if (!running) return
-      material.uniforms.uTime.value = clock.getElapsedTime()
+      material.uniforms.uTime.value = (performance.now() - start) / 1000
       renderer.render(scene, camera)
       raf = requestAnimationFrame(tick)
     }

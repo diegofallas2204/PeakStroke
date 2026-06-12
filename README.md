@@ -6,6 +6,11 @@ convertirse en SaaS sin reescrituras.
 
 ![Stack](https://img.shields.io/badge/FastAPI-Python_3.12+-009688) ![Frontend](https://img.shields.io/badge/React_19-TypeScript_strict-3178c6) ![UI](https://img.shields.io/badge/Tailwind_v4-GSAP_·_Three.js-8b5cf6)
 
+![Dashboard](docs/dashboard.png)
+*Capturas reales de la app corriendo en local: [tabla del equipo](docs/tabla-equipo.png) ·
+[comparación ideal vs. real](docs/comparacion.png) · [base aeróbica](docs/base-aerobica.png) ·
+[simulador](docs/simulador.png)*
+
 ---
 
 ## 1. Qué hace el sistema
