@@ -1,0 +1,191 @@
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/space-grotesk/500.css';
+@import '@fontsource/space-grotesk/600.css';
+@import '@fontsource/space-grotesk/700.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/600.css';
+@import 'tailwindcss';
+
+@theme {
+  --color-ink: #06070b;
+  --color-surface: #0d0f17;
+  --color-surface-2: #131624;
+  --color-surface-3: #1a1e30;
+  --color-line: rgba(148, 163, 224, 0.10);
+  --color-line-strong: rgba(148, 163, 224, 0.18);
+
+  --color-violet: #8b5cf6;
+  --color-violet-soft: #a78bfa;
+  --color-cyan: #22d3ee;
+  --color-magenta: #f472b6;
+  --color-amber: #fbbf24;
+  --color-mint: #34d399;
+  --color-coral: #fb7185;
+
+  --color-text: #e7eaf6;
+  --color-text-dim: #8b93b8;
+  --color-text-faint: #565e82;
+
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+
+  --radius-card: 1rem;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-ink);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+::selection { background: rgba(139, 92, 246, 0.35); }
+
+/* ── Scrollbars ─────────────────────────────────────── */
+* { scrollbar-width: thin; scrollbar-color: #252a44 transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: #252a44; border-radius: 99px; }
+*::-webkit-scrollbar-thumb:hover { background: #323a5e; }
+
+/* ── Card base ──────────────────────────────────────── */
+.card {
+  background: linear-gradient(180deg, rgba(148, 163, 224, 0.045), rgba(148, 163, 224, 0.012)), var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  position: relative;
+}
+.card-hover { transition: border-color .25s ease, transform .25s ease, box-shadow .25s ease; }
+.card-hover:hover {
+  border-color: var(--color-line-strong);
+  box-shadow: 0 8px 40px -18px rgba(139, 92, 246, 0.35);
+}
+
+.card-title {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-text-dim);
+  font-weight: 600;
+}
+
+/* ── Inputs ─────────────────────────────────────────── */
+.field {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  color: var(--color-text);
+  padding: 8px 12px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color .2s ease, box-shadow .2s ease;
+  width: 100%;
+  font-family: var(--font-sans);
+}
+.field:focus {
+  border-color: rgba(139, 92, 246, 0.55);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.14);
+}
+.field::placeholder { color: var(--color-text-faint); }
+select.field option { background: var(--color-surface-2); }
+input[type='date'].field::-webkit-calendar-picker-indicator { filter: invert(.7); }
+
+.label {
+  font-size: 10.5px;
+  color: var(--color-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 6px;
+}
+
+/* ── Botones ────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px; border-radius: 10px; border: 1px solid transparent;
+  font-size: 12.5px; font-weight: 600; cursor: pointer;
+  font-family: var(--font-sans);
+  transition: transform .15s ease, box-shadow .2s ease, background .2s ease, border-color .2s, opacity .2s;
+  user-select: none;
+}
+.btn:active { transform: translateY(1px) scale(.99); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-primary {
+  background: linear-gradient(135deg, #8b5cf6, #6d3ef0);
+  color: white;
+  box-shadow: 0 4px 24px -8px rgba(139, 92, 246, 0.6);
+}
+.btn-primary:hover:not(:disabled) { box-shadow: 0 6px 32px -8px rgba(139, 92, 246, 0.85); }
+.btn-ghost {
+  background: var(--color-surface-2);
+  border-color: var(--color-line);
+  color: var(--color-text);
+}
+.btn-ghost:hover:not(:disabled) { border-color: var(--color-line-strong); background: var(--color-surface-3); }
+.btn-danger { background: rgba(251, 113, 133, .12); color: var(--color-coral); border-color: rgba(251,113,133,.25); }
+.btn-danger:hover:not(:disabled) { background: rgba(251, 113, 133, .2); }
+
+/* ── Tablas ─────────────────────────────────────────── */
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th {
+  padding: 9px 14px; text-align: left; font-size: 10px;
+  text-transform: uppercase; letter-spacing: .1em;
+  color: var(--color-text-dim); font-weight: 600;
+  border-bottom: 1px solid var(--color-line);
+  white-space: nowrap;
+}
+.tbl td {
+  padding: 10px 14px; border-bottom: 1px solid rgba(148, 163, 224, 0.05);
+  font-size: 12.5px; white-space: nowrap;
+}
+.tbl tbody tr { transition: background .15s ease; }
+.tbl tbody tr:hover { background: rgba(148, 163, 224, 0.035); }
+.tbl tr:last-child td { border-bottom: none; }
+
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.display { font-family: var(--font-display); }
+
+/* ── Animaciones utilitarias ────────────────────────── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .4; transform: scale(.8); }
+}
+.pulse-dot { animation: pulse-dot 2.2s ease-in-out infinite; }
+
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--color-surface-2) 25%, var(--color-surface-3) 50%, var(--color-surface-2) 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s infinite linear;
+  border-radius: 10px;
+}
+
+/* Glow decorativo para tarjetas hero */
+.glow-edge::before {
+  content: '';
+  position: absolute; inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(139,92,246,.5), rgba(34,211,238,.25) 40%, transparent 70%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Recharts */
+.recharts-wrapper:focus, .recharts-surface:focus { outline: none; }
