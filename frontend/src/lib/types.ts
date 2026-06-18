@@ -65,6 +65,7 @@ export interface Plan {
   main_event: string | null
   notes: string | null
   status: string
+  effective_status: string
   phases: Phase[]
   competitions: Competition[]
   athletes: AthletePlan[]
@@ -171,6 +172,7 @@ export interface AthleteStatusRow {
 export interface DashboardSummary {
   plan_id: number
   plan_name: string
+  plan_status: string
   start_date: string
   total_weeks: number
   current_week: number | null

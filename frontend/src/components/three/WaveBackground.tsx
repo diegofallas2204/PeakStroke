@@ -1,7 +1,10 @@
 // Fondo WebGL: malla de ondas con shader propio (Three.js).
 // Muy sutil, detrás de toda la interfaz; evoca la superficie de la piscina.
+// Los colores y la opacidad se adaptan al tema: en el tema blanco se intensifican
+// (tonos más oscuros y mayor alfa) para que los puntos se aprecien sobre el claro.
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
+import { useTheme, type Theme } from '../../hooks/useTheme'
 
 const VERTEX = /* glsl */ `
   uniform float uTime;
@@ -19,19 +22,53 @@ const VERTEX = /* glsl */ `
 `
 
 const FRAGMENT = /* glsl */ `
+  uniform vec3 uColorLow;
+  uniform vec3 uColorHigh;
+  uniform float uAlphaBase;
+  uniform float uAlphaScale;
   varying float vElevation;
   void main() {
     float t = smoothstep(-1.2, 1.2, vElevation);
-    vec3 violet = vec3(0.545, 0.361, 0.965);
-    vec3 cyan = vec3(0.133, 0.827, 0.933);
-    vec3 color = mix(violet, cyan, t);
-    float alpha = 0.10 + t * 0.16;
+    vec3 color = mix(uColorLow, uColorHigh, t);
+    float alpha = uAlphaBase + t * uAlphaScale;
     gl_FragColor = vec4(color, alpha);
   }
 `
 
+interface WaveLook {
+  low: THREE.Color
+  high: THREE.Color
+  alphaBase: number
+  alphaScale: number
+  opacity: number
+}
+
+function lookFor(theme: Theme): WaveLook {
+  if (theme === 'white') {
+    // Azul/cian profundos y más opacos para destacar sobre fondo claro.
+    return {
+      low: new THREE.Color(0.114, 0.306, 0.847),   // #1d4ed8
+      high: new THREE.Color(0.031, 0.569, 0.698),   // #0891b2
+      alphaBase: 0.32,
+      alphaScale: 0.42,
+      opacity: 0.85,
+    }
+  }
+  return {
+    low: new THREE.Color(0.231, 0.510, 0.965),      // #3b82f6
+    high: new THREE.Color(0.133, 0.827, 0.933),      // #22d3ee
+    alphaBase: 0.1,
+    alphaScale: 0.16,
+    opacity: 0.55,
+  }
+}
+
 export function WaveBackground() {
+  const [theme] = useTheme()
   const mountRef = useRef<HTMLDivElement>(null)
+  const materialRef = useRef<THREE.ShaderMaterial | null>(null)
+  const themeRef = useRef<Theme>(theme)
+  themeRef.current = theme
 
   useEffect(() => {
     const mount = mountRef.current
@@ -47,14 +84,22 @@ export function WaveBackground() {
     camera.position.set(0, -7.5, 5.5)
     camera.lookAt(0, 2, 0)
 
+    const look = lookFor(themeRef.current)
     const geometry = new THREE.PlaneGeometry(46, 30, 110, 70)
     const material = new THREE.ShaderMaterial({
       vertexShader: VERTEX,
       fragmentShader: FRAGMENT,
-      uniforms: { uTime: { value: 0 } },
+      uniforms: {
+        uTime: { value: 0 },
+        uColorLow: { value: look.low },
+        uColorHigh: { value: look.high },
+        uAlphaBase: { value: look.alphaBase },
+        uAlphaScale: { value: look.alphaScale },
+      },
       transparent: true,
       depthWrite: false,
     })
+    materialRef.current = material
     const points = new THREE.Points(geometry, material)
     points.rotation.x = -Math.PI / 2.6
     scene.add(points)
@@ -89,6 +134,7 @@ export function WaveBackground() {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', onResize)
       document.removeEventListener('visibilitychange', onVisibility)
+      materialRef.current = null
       geometry.dispose()
       material.dispose()
       renderer.dispose()
@@ -96,13 +142,25 @@ export function WaveBackground() {
     }
   }, [])
 
+  // Reacciona al cambio de tema sin recrear la escena.
+  useEffect(() => {
+    const material = materialRef.current
+    if (!material) return
+    const look = lookFor(theme)
+    material.uniforms.uColorLow.value = look.low
+    material.uniforms.uColorHigh.value = look.high
+    material.uniforms.uAlphaBase.value = look.alphaBase
+    material.uniforms.uAlphaScale.value = look.alphaScale
+    if (mountRef.current) mountRef.current.style.opacity = String(look.opacity)
+  }, [theme])
+
   return (
     <div
       ref={mountRef}
       aria-hidden
       className="pointer-events-none fixed inset-0 z-0"
       style={{
-        opacity: 0.55,
+        opacity: lookFor(theme).opacity,
         maskImage: 'radial-gradient(ellipse 90% 70% at 60% 30%, black 30%, transparent 75%)',
         WebkitMaskImage: 'radial-gradient(ellipse 90% 70% at 60% 30%, black 30%, transparent 75%)',
       }}

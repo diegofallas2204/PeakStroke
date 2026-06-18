@@ -9,15 +9,20 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-ink: #06070b;
-  --color-surface: #0d0f17;
-  --color-surface-2: #131624;
-  --color-surface-3: #1a1e30;
-  --color-line: rgba(148, 163, 224, 0.10);
-  --color-line-strong: rgba(148, 163, 224, 0.18);
+  /* Tema azul marino (por defecto) — los tokens de superficie se redefinen
+     en runtime bajo [data-theme="black"] para el tema negro. */
+  --color-ink: #060b18;
+  --color-surface: #0b1322;
+  --color-surface-2: #111c33;
+  --color-surface-3: #18253f;
+  --color-line: rgba(96, 165, 250, 0.10);
+  --color-line-strong: rgba(96, 165, 250, 0.20);
+  --color-sidebar: rgba(6, 11, 24, 0.82);
+  --color-grid: rgba(148, 163, 224, 0.06);
 
-  --color-violet: #8b5cf6;
-  --color-violet-soft: #a78bfa;
+  /* Acento primario: azul marino (reemplaza al morado anterior). */
+  --color-accent: #3b82f6;
+  --color-accent-soft: #60a5fa;
   --color-cyan: #22d3ee;
   --color-magenta: #f472b6;
   --color-amber: #fbbf24;
@@ -35,6 +40,42 @@
   --radius-card: 1rem;
 }
 
+/* Tema negro: solo cambian las superficies y las líneas; el acento se mantiene. */
+[data-theme='black'] {
+  --color-ink: #000000;
+  --color-surface: #0a0a0a;
+  --color-surface-2: #141414;
+  --color-surface-3: #1e1e1e;
+  --color-line: rgba(148, 163, 184, 0.10);
+  --color-line-strong: rgba(148, 163, 184, 0.18);
+  --color-sidebar: rgba(0, 0, 0, 0.82);
+}
+
+/* Tema blanco: interfaz clara de alto contraste. Para que no se vea pálido, la
+   paleta de acento se intensifica a tonos más oscuros/saturados (los gráficos y
+   el fondo de ondas leen estas variables). */
+[data-theme='white'] {
+  --color-ink: #eef2f7;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f5f9;
+  --color-surface-3: #e2e8f0;
+  --color-line: rgba(15, 23, 42, 0.10);
+  --color-line-strong: rgba(15, 23, 42, 0.20);
+  --color-sidebar: rgba(255, 255, 255, 0.82);
+  --color-grid: rgba(15, 23, 42, 0.10);
+  --color-text: #0f172a;
+  --color-text-dim: #475569;
+  --color-text-faint: #94a3b8;
+
+  --color-accent: #2563eb;
+  --color-accent-soft: #1d4ed8;
+  --color-cyan: #0891b2;
+  --color-magenta: #db2777;
+  --color-amber: #d97706;
+  --color-mint: #059669;
+  --color-coral: #e11d48;
+}
+
 html, body, #root {
   height: 100%;
 }
@@ -49,7 +90,7 @@ body {
   overflow: hidden;
 }
 
-::selection { background: rgba(139, 92, 246, 0.35); }
+::selection { background: rgba(59, 130, 246, 0.35); }
 
 /* ── Scrollbars ─────────────────────────────────────── */
 * { scrollbar-width: thin; scrollbar-color: #252a44 transparent; }
@@ -68,7 +109,7 @@ body {
 .card-hover { transition: border-color .25s ease, transform .25s ease, box-shadow .25s ease; }
 .card-hover:hover {
   border-color: var(--color-line-strong);
-  box-shadow: 0 8px 40px -18px rgba(139, 92, 246, 0.35);
+  box-shadow: 0 8px 40px -18px rgba(59, 130, 246, 0.40);
 }
 
 .card-title {
@@ -93,8 +134,8 @@ body {
   font-family: var(--font-sans);
 }
 .field:focus {
-  border-color: rgba(139, 92, 246, 0.55);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
 }
 .field::placeholder { color: var(--color-text-faint); }
 select.field option { background: var(--color-surface-2); }
@@ -122,11 +163,11 @@ input[type='date'].field::-webkit-calendar-picker-indicator { filter: invert(.7)
 .btn:active { transform: translateY(1px) scale(.99); }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn-primary {
-  background: linear-gradient(135deg, #8b5cf6, #6d3ef0);
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
   color: white;
-  box-shadow: 0 4px 24px -8px rgba(139, 92, 246, 0.6);
+  box-shadow: 0 4px 24px -8px rgba(59, 130, 246, 0.6);
 }
-.btn-primary:hover:not(:disabled) { box-shadow: 0 6px 32px -8px rgba(139, 92, 246, 0.85); }
+.btn-primary:hover:not(:disabled) { box-shadow: 0 6px 32px -8px rgba(59, 130, 246, 0.85); }
 .btn-ghost {
   background: var(--color-surface-2);
   border-color: var(--color-line);
@@ -180,7 +221,7 @@ input[type='date'].field::-webkit-calendar-picker-indicator { filter: invert(.7)
   position: absolute; inset: -1px;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, rgba(139,92,246,.5), rgba(34,211,238,.25) 40%, transparent 70%);
+  background: linear-gradient(135deg, rgba(59,130,246,.5), rgba(34,211,238,.25) 40%, transparent 70%);
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;

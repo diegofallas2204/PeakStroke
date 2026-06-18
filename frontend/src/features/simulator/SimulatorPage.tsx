@@ -73,10 +73,10 @@ export function SimulatorPage() {
         subtitle="Modifica semanas, kilómetros y objetivos: el motor recalcula todo en tiempo real, sin tocar los planes guardados"
       />
 
-      <div className="grid grid-cols-[300px_1fr] items-start gap-4">
-        {/* ── Parámetros ── */}
-        <Card title="Parámetros del plan" className="card-hover sticky top-0">
-          <div className="grid grid-cols-2 gap-3.5">
+      <div className="flex flex-col gap-4">
+        {/* ── Parámetros (fila superior, a todo el ancho) ── */}
+        <Card title="Parámetros del plan" className="card-hover">
+          <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 lg:grid-cols-5">
             <Field label="Distancia">
               <select className="field" value={params.distance} onChange={set('distance', true)}>
                 {DISTANCES.map((d) => <option key={d} value={d}>{d}m</option>)}
@@ -109,7 +109,7 @@ export function SimulatorPage() {
                 {CURVES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
             </Field>
-            <Field label="Especialidad del atleta" className="col-span-2">
+            <Field label="Especialidad del atleta" className="col-span-2 sm:col-span-1">
               <select className="field" value={params.specialty} onChange={set('specialty')}>
                 {SPECIALTIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
@@ -159,7 +159,7 @@ export function SimulatorPage() {
                   </div>
                   <div>
                     <p className="card-title !text-[9px]">Requerido / micro</p>
-                    <p className="mono mt-0.5 text-[15px] font-bold text-violet-soft">
+                    <p className="mono mt-0.5 text-[15px] font-bold text-accent-soft">
                       {feasibility.improvement_per_micro.toFixed(3)}s
                     </p>
                   </div>
@@ -173,7 +173,7 @@ export function SimulatorPage() {
                   </div>
                   <div>
                     <p className="card-title !text-[9px]">{feasibility.recommended_weeks ? 'Semanas sugeridas' : 'Tiempo final'}</p>
-                    <p className="mono mt-0.5 text-[15px] font-bold" style={{ color: feasibility.recommended_weeks ? '#fbbf24' : '#34d399' }}>
+                    <p className="mono mt-0.5 text-[15px] font-bold" style={{ color: feasibility.recommended_weeks ? 'var(--color-amber)' : 'var(--color-mint)' }}>
                       {feasibility.recommended_weeks ?? toClock(goal ?? 0)}
                     </p>
                   </div>
@@ -183,12 +183,12 @@ export function SimulatorPage() {
               <Card title="Curvas de progresión comparadas" className="card-hover" animate={false}>
                 <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={chartData} margin={{ top: 6, right: 10, left: 4, bottom: 0 }}>
-                    <CartesianGrid stroke="rgba(148,163,224,.06)" vertical={false} />
-                    <XAxis dataKey="date_label" tick={{ fill: '#8b93b8', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} tickLine={false} axisLine={false} />
+                    <CartesianGrid stroke="var(--color-grid)" vertical={false} />
+                    <XAxis dataKey="date_label" tick={{ fill: 'var(--color-text-dim)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} tickLine={false} axisLine={false} />
                     <YAxis reversed tickFormatter={(v: number) => toClock(v, 1)} domain={['dataMin - 0.4', 'dataMax + 0.4']}
-                      tick={{ fill: '#8b93b8', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} tickLine={false} axisLine={false} width={50} />
+                      tick={{ fill: 'var(--color-text-dim)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} tickLine={false} axisLine={false} width={50} />
                     <Tooltip content={<ChartTooltip formatter={(v) => toClock(v)} />} />
-                    {goal != null && <ReferenceLine y={goal} stroke="#fbbf24" strokeDasharray="5 4" strokeOpacity={0.7} />}
+                    {goal != null && <ReferenceLine y={goal} stroke="var(--color-amber)" strokeDasharray="5 4" strokeOpacity={0.7} />}
                     {Object.keys(data.curves).map((name) => (
                       <Line
                         key={name} type="monotone" dataKey={name} name={CURVE_LABEL[name] ?? name}
@@ -204,7 +204,7 @@ export function SimulatorPage() {
                 <div className="mt-1 flex gap-4 text-[10.5px]">
                   {Object.keys(data.curves).map((name) => (
                     <span key={name} className="flex items-center gap-1.5"
-                      style={{ color: name === debounced.curve ? CURVE_COLORS[name] : '#565e82' }}>
+                      style={{ color: name === debounced.curve ? CURVE_COLORS[name] : 'var(--color-text-faint)' }}>
                       <span className="h-0.5 w-4 rounded" style={{ background: CURVE_COLORS[name], opacity: name === debounced.curve ? 1 : 0.4 }} />
                       {CURVE_LABEL[name]}
                     </span>
@@ -214,10 +214,10 @@ export function SimulatorPage() {
 
               <SimZones weeks={data.weeks} />
 
-              <Card title="Plan semanal generado" className="card-hover !p-0" animate={false}>
+              <Card title="Plan semanal generado" className="card-hover" animate={false} flush>
                 <div className="max-h-80 overflow-auto">
                   <table className="tbl">
-                    <thead className="sticky top-0 z-10" style={{ background: '#0d0f17' }}>
+                    <thead className="sticky top-0 z-10" style={{ background: 'var(--color-surface)' }}>
                       <tr>
                         <th>Semana</th><th>Fase</th><th>Km</th><th>Esperado</th>
                         <th>Pace /100</th><th>R1</th><th>R2</th><th>Mejora</th><th>Acumulada</th>
@@ -230,10 +230,10 @@ export function SimulatorPage() {
                           <td className="text-text-dim">{w.phase}</td>
                           <td className="mono">{w.planned_km}</td>
                           <td className="mono">{toClock(w.expected_time)}</td>
-                          <td className="mono font-semibold text-violet-soft">{toClock(w.pace_100m)}</td>
+                          <td className="mono font-semibold text-accent-soft">{toClock(w.pace_100m)}</td>
                           <td className="mono text-mint">{w.zones.R1 ? toClock(w.zones.R1.mid, 1) : '—'}</td>
                           <td className="mono text-cyan">{w.zones.R2 ? toClock(w.zones.R2.mid, 1) : '—'}</td>
-                          <td className="mono" style={{ color: w.improvement_vs_prev < 0 ? '#34d399' : '#8b93b8' }}>
+                          <td className="mono" style={{ color: w.improvement_vs_prev < 0 ? 'var(--color-mint)' : 'var(--color-text-dim)' }}>
                             {w.improvement_vs_prev.toFixed(2)}s
                           </td>
                           <td className="mono text-text-dim">{w.cumulative_improvement.toFixed(2)}s</td>

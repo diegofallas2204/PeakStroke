@@ -96,7 +96,8 @@ class PlanResponse(BaseModel):
     progression_curve: str
     main_event: str | None
     notes: str | None
-    status: str
+    status: str                   # crudo en BD: active|draft|finished|suspended
+    effective_status: str = "active"  # derivado por fecha (auto-completado) + override manual
     phases: list[PhaseResponse]
     competitions: list[CompetitionResponse]
     athletes: list[AthletePlanResponse] = []

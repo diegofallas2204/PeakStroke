@@ -14,6 +14,17 @@ from dataclasses import dataclass
 
 TIER1_THRESHOLD = 400
 
+# Reglas de realismo de la mejora (ajustables — ver manual de tuning).
+# TIER1_BASE_PER_MICRO: mejora "techo verde" base en s/microciclo a la que se
+#   aplican los factores de distancia/estilo/aerobicidad (regla aeróbica clásica).
+# TIER1_CEILING_MULT: múltiplo del techo verde a partir del cual el objetivo
+#   pasa de "exigente" a "agresivo" en pruebas Tier 1.
+# TIER2_WARNING_MULT: múltiplo de la ventana de velocidad a partir del cual el
+#   objetivo pasa de "exigente" a "agresivo" en pruebas Tier 2.
+TIER1_BASE_PER_MICRO = 1.0
+TIER1_CEILING_MULT = 1.5
+TIER2_WARNING_MULT = 1.5
+
 DISTANCE_FACTORS = {50: 0.15, 100: 0.45, 200: 1.80, 400: 4.00, 800: 8.00, 1500: 15.0}
 AEROBIC_RATIO = {50: 0.15, 100: 0.325, 200: 0.625, 400: 0.875, 800: 0.925, 1500: 0.96}
 STROKE_FACTORS = {
@@ -84,8 +95,8 @@ def _tier1(distance: int, stroke: str, total_imp: float, per_micro: float,
     dist_f = DISTANCE_FACTORS.get(distance, distance / 100)
     stroke_f = STROKE_FACTORS.get(stroke, 0.80)
     aero_r = AEROBIC_RATIO.get(distance, 0.85)
-    expected = 1.0 * dist_f * stroke_f * aero_r   # regla: 1 s/micro en R1
-    ceiling = expected * 1.5
+    expected = TIER1_BASE_PER_MICRO * dist_f * stroke_f * aero_r   # regla aeróbica
+    ceiling = expected * TIER1_CEILING_MULT
 
     if per_micro <= expected:
         status = "ok"
@@ -117,7 +128,7 @@ def _tier2(distance: int, stroke: str, total_imp: float, per_micro: float,
         status = "ok"
         message = (f"Dentro de la ventana realista ({w_min:.2f}-{w_max:.2f} s/micro) "
                    f"para {distance}m {stroke}.")
-    elif per_micro <= w_max * 1.5:
+    elif per_micro <= w_max * TIER2_WARNING_MULT:
         status = "warning"
         message = (f"Exigente: requiere {per_micro:.2f} s/micro con un techo de "
                    f"{w_max:.2f} s/micro para {distance}m {stroke}.")

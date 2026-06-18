@@ -19,7 +19,7 @@ export function ChartTooltip({
   return (
     <div
       className="card !rounded-xl px-3.5 py-2.5 text-xs shadow-2xl"
-      style={{ background: '#11131f', border: '1px solid rgba(148,163,224,.18)' }}
+      style={{ border: '1px solid var(--color-line-strong)' }}
     >
       <p className="mono mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-text-dim">
         {label}

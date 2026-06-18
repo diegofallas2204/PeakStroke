@@ -21,7 +21,7 @@ class Plan(Base):
     progression_curve: Mapped[str] = mapped_column(String(20), default="sigmoid")
     main_event: Mapped[str | None] = mapped_column(String(60))
     notes: Mapped[str | None] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(12), default="active")  # active|draft|finished
+    status: Mapped[str] = mapped_column(String(12), default="active")  # active|draft|finished|suspended
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     phases: Mapped[list[PlanPhase]] = relationship(

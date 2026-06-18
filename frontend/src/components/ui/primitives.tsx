@@ -1,22 +1,31 @@
 // Primitivas de UI compartidas: Card, Badge, botones, campos, modal, vacíos.
 import type { ReactNode } from 'react'
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { STATUS_META } from '../../lib/constants'
 
 export function Card({
-  title, action, children, className = '', animate = true,
+  title, action, children, className = '', animate = true, flush = false,
 }: {
   title?: ReactNode
   action?: ReactNode
   children: ReactNode
   className?: string
   animate?: boolean
+  // flush: el cuerpo va a ras de los bordes (tablas full-bleed), pero el
+  // encabezado conserva su padding para que el título no toque el borde.
+  flush?: boolean
 }) {
   return (
-    <section className={`card p-5 ${className}`} {...(animate ? { 'data-animate': '' } : {})}>
+    <section
+      className={`card ${flush ? '' : 'p-5'} ${className}`}
+      {...(animate ? { 'data-animate': '' } : {})}
+    >
       {(title || action) && (
-        <header className="mb-4 flex items-center justify-between gap-3">
+        <header
+          className={`flex items-center justify-between gap-3 ${flush ? 'px-5 pb-4 pt-5' : 'mb-4'}`}
+        >
           {title && <h3 className="card-title">{title}</h3>}
           {action}
         </header>
@@ -40,7 +49,7 @@ export function StatusBadge({ status }: { status: string | null }) {
 }
 
 export function Chip({
-  children, color = '#8b5cf6',
+  children, color = '#3b82f6',
 }: { children: ReactNode; color?: string }) {
   return (
     <span
@@ -80,7 +89,9 @@ export function Modal({
   }, [open, onClose])
 
   if (!open) return null
-  return (
+  // Portal a <body>: evita que un ancestro con backdrop-filter (p. ej. el sidebar)
+  // capture el position:fixed y comprima el modal a su ancho.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
       style={{ background: 'rgba(4,5,10,.72)', backdropFilter: 'blur(6px)' }}
@@ -99,7 +110,8 @@ export function Modal({
         </header>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -109,8 +121,8 @@ export function EmptyState({
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-14 text-center" data-animate>
       <div
-        className="flex size-14 items-center justify-center rounded-2xl text-violet-soft"
-        style={{ background: 'rgba(139,92,246,.1)', border: '1px solid rgba(139,92,246,.2)' }}
+        className="flex size-14 items-center justify-center rounded-2xl text-accent-soft"
+        style={{ background: 'rgba(59,130,246,.1)', border: '1px solid rgba(59,130,246,.2)' }}
       >
         {icon}
       </div>
@@ -126,7 +138,7 @@ export function Spinner() {
     <div className="flex items-center justify-center py-16">
       <div
         className="size-8 animate-spin rounded-full border-2 border-line"
-        style={{ borderTopColor: '#8b5cf6' }}
+        style={{ borderTopColor: '#3b82f6' }}
       />
     </div>
   )

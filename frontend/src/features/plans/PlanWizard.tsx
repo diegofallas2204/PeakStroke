@@ -87,7 +87,7 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
           <div key={label} className="flex flex-1 items-center gap-2">
             <span
               className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[10.5px] font-bold transition-all duration-300 ${
-                i < step ? 'bg-mint text-ink' : i === step ? 'bg-violet text-white' : 'bg-surface-3 text-text-faint'
+                i < step ? 'bg-mint text-ink' : i === step ? 'bg-accent text-white' : 'bg-surface-3 text-text-faint'
               }`}
             >
               {i < step ? <Check size={12} /> : i + 1}
@@ -141,7 +141,7 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
               <span className="card-title">Fases ({form.total_weeks} semanas)</span>
               <button
                 className="btn btn-ghost !px-2.5 !py-1.5 text-[11px]"
-                onClick={() => setPhases((p) => [...p, { name: 'Nueva fase', type: 'build', week_start: 1, week_end: 1, color: '#8b5cf6' }])}
+                onClick={() => setPhases((p) => [...p, { name: 'Nueva fase', type: 'build', week_start: 1, week_end: 1, color: '#3b82f6' }])}
               >
                 <Plus size={12} /> Fase
               </button>

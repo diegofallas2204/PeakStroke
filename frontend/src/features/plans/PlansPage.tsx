@@ -2,22 +2,16 @@
 // + asignación de atletas con sus pruebas objetivo.
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarRange, Plus, Trash2, UserPlus, Flag, CheckCircle2, X } from 'lucide-react'
+import { CalendarRange, Plus, Trash2, UserPlus, Flag, CheckCircle2, PauseCircle, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { Plan } from '../../lib/types'
-import { CURVE_LABEL, SPECIALTY_LABEL } from '../../lib/constants'
+import { CURVE_LABEL, SPECIALTY_LABEL, PLAN_STATUS_META } from '../../lib/constants'
 import { toClock } from '../../lib/format'
 import { usePageEnter } from '../../hooks/usePageEnter'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card, Chip, EmptyState, Spinner } from '../../components/ui/primitives'
 import { PlanWizard } from './PlanWizard'
 import { AssignAthleteModal } from './AssignAthleteModal'
-
-const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  active: { label: 'Activo', color: '#34d399' },
-  draft: { label: 'Borrador', color: '#8b93b8' },
-  finished: { label: 'Finalizado', color: '#fbbf24' },
-}
 
 export function PlansPage() {
   const [showWizard, setShowWizard] = useState(false)
@@ -70,7 +64,7 @@ export function PlansPage() {
         />
       ) : (
         plans.map((plan) => {
-          const status = STATUS_LABEL[plan.status] ?? STATUS_LABEL.draft
+          const status = PLAN_STATUS_META[plan.effective_status] ?? PLAN_STATUS_META.draft
           return (
             <Card key={plan.id} className="card-hover">
               <div className="flex items-start justify-between gap-4">
@@ -94,6 +88,11 @@ export function PlansPage() {
                   {plan.status !== 'active' && (
                     <button className="btn btn-ghost" onClick={() => setStatus.mutate({ id: plan.id, status: 'active' })}>
                       <CheckCircle2 size={13} /> Activar
+                    </button>
+                  )}
+                  {plan.status !== 'suspended' && (
+                    <button className="btn btn-ghost" onClick={() => setStatus.mutate({ id: plan.id, status: 'suspended' })}>
+                      <PauseCircle size={13} /> Suspender
                     </button>
                   )}
                   <button className="btn btn-ghost" onClick={() => setAssignTo(plan)}>

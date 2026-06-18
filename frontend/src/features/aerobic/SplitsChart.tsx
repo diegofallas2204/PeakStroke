@@ -24,36 +24,36 @@ export function SplitsChart({ test, previous }: { test: AerobicTest; previous: A
   return (
     <ResponsiveContainer width="100%" height={260}>
       <ComposedChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
-        <CartesianGrid stroke="rgba(148,163,224,.06)" vertical={false} />
+        <CartesianGrid stroke="var(--color-grid)" vertical={false} />
         <XAxis
           dataKey="rep"
-          tick={{ fill: '#8b93b8', fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}
+          tick={{ fill: 'var(--color-text-dim)', fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}
           tickLine={false} axisLine={false}
-          label={{ value: 'Repetición', fill: '#565e82', fontSize: 10, dy: 12 }}
+          label={{ value: 'Repetición', fill: 'var(--color-text-faint)', fontSize: 10, dy: 12 }}
         />
         <YAxis
           reversed
           domain={[min - pad, max + pad]}
           tickFormatter={(v: number) => toClock(v, 1)}
-          tick={{ fill: '#8b93b8', fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}
+          tick={{ fill: 'var(--color-text-dim)', fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}
           tickLine={false} axisLine={false} width={52}
         />
         <Tooltip content={<ChartTooltip formatter={(v) => `${toClock(v)} /100m`} />} />
         <ReferenceLine
-          y={test.avg_per100} stroke="#8b5cf6" strokeDasharray="5 4" strokeOpacity={0.9}
-          label={{ value: `Promedio ${toClock(test.avg_per100)}`, fill: '#a78bfa', fontSize: 10, position: 'insideTopRight' }}
+          y={test.avg_per100} stroke="var(--color-accent)" strokeDasharray="5 4" strokeOpacity={0.9}
+          label={{ value: `Promedio ${toClock(test.avg_per100)}`, fill: 'var(--color-accent-soft)', fontSize: 10, position: 'insideTopRight' }}
         />
         {previous && (
           <Line
             type="monotone" dataKey="anterior" name="Test anterior"
-            stroke="#565e82" strokeWidth={1.8} strokeDasharray="4 4" dot={false}
+            stroke="var(--color-text-faint)" strokeWidth={1.8} strokeDasharray="4 4" dot={false}
           />
         )}
         <Line
           type="monotone" dataKey="actual" name="Test actual"
-          stroke="#22d3ee" strokeWidth={2.4}
-          dot={{ r: 2.5, fill: '#22d3ee', strokeWidth: 0 }}
-          activeDot={{ r: 4.5, fill: '#22d3ee', stroke: '#06070b', strokeWidth: 2 }}
+          stroke="var(--color-cyan)" strokeWidth={2.4}
+          dot={{ r: 2.5, fill: 'var(--color-cyan)', strokeWidth: 0 }}
+          activeDot={{ r: 4.5, fill: 'var(--color-cyan)', stroke: 'var(--color-surface)', strokeWidth: 2 }}
         />
       </ComposedChart>
     </ResponsiveContainer>

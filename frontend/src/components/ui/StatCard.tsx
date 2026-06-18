@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useCountUp } from '../../hooks/useCountUp'
 
 export function StatCard({
-  label, value, suffix = '', decimals = 0, sub, accent = '#8b5cf6', icon, children,
+  label, value, suffix = '', decimals = 0, sub, accent = '#3b82f6', icon, children,
 }: {
   label: string
   value: number

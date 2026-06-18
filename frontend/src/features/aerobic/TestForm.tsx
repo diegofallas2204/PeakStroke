@@ -153,7 +153,7 @@ export function TestForm({
         <div className="mt-4 grid grid-cols-3 gap-3 rounded-xl border border-line bg-surface-2 p-3.5">
           <div>
             <p className="card-title !text-[9px]">Base aeróbica</p>
-            <p className="mono mt-0.5 text-lg font-bold text-violet-soft">{toClock(preview.avg_per100)} <span className="text-[10px] text-text-faint">/100m</span></p>
+            <p className="mono mt-0.5 text-lg font-bold text-accent-soft">{toClock(preview.avg_per100)} <span className="text-[10px] text-text-faint">/100m</span></p>
           </div>
           <div>
             <p className="card-title !text-[9px]">Consistencia</p>

@@ -94,7 +94,7 @@ export function AerobicPage() {
                     key={t.id}
                     onClick={() => setSelectedTest(t.id)}
                     className={`group flex items-center justify-between rounded-xl border px-3 py-2.5 text-left transition-all duration-200 ${
-                      active ? 'border-[rgba(139,92,246,.45)] bg-[rgba(139,92,246,.1)]' : 'border-transparent hover:bg-surface-2'
+                      active ? 'border-[rgba(59,130,246,.45)] bg-[rgba(59,130,246,.1)]' : 'border-transparent hover:bg-surface-2'
                     }`}
                   >
                     <div>
@@ -108,7 +108,7 @@ export function AerobicPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="text-right">
-                        <p className="mono text-[12.5px] font-bold text-violet-soft">{toClock(t.avg_per100)}</p>
+                        <p className="mono text-[12.5px] font-bold text-accent-soft">{toClock(t.avg_per100)}</p>
                         {trend && (
                           <p className="flex items-center justify-end gap-1 text-[9px]" style={{ color: trend.color }}>
                             <trend.icon size={9} /> {trend.label}
@@ -152,7 +152,7 @@ function TestDetail({ test, previous }: { test: AerobicTest; previous: AerobicTe
       <div className="grid grid-cols-3 gap-4">
         <Card className="card-hover">
           <p className="card-title">Base aeróbica</p>
-          <p className="display mt-1.5 text-[26px] font-bold text-violet-soft">{toClock(test.avg_per100)}</p>
+          <p className="display mt-1.5 text-[26px] font-bold text-accent-soft">{toClock(test.avg_per100)}</p>
           <p className="text-[10.5px] text-text-faint">por 100m</p>
         </Card>
         <Card className="card-hover">

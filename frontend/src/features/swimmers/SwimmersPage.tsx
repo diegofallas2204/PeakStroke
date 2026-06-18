@@ -11,7 +11,7 @@ import { Card, Chip, EmptyState, Spinner } from '../../components/ui/primitives'
 import { SwimmerForm } from './SwimmerForm'
 
 const SPECIALTY_COLOR: Record<string, string> = {
-  velocidad: '#fb7185', medio_fondo: '#8b5cf6', fondo: '#22d3ee', aguas_abiertas: '#34d399',
+  velocidad: '#fb7185', medio_fondo: '#3b82f6', fondo: '#22d3ee', aguas_abiertas: '#34d399',
 }
 
 function initials(name: string): string {
@@ -70,7 +70,7 @@ export function SwimmersPage() {
       ) : (
         <div className="grid grid-cols-3 gap-4">
           {swimmers.map((swimmer) => {
-            const color = SPECIALTY_COLOR[swimmer.specialty] ?? '#8b5cf6'
+            const color = SPECIALTY_COLOR[swimmer.specialty] ?? '#3b82f6'
             return (
               <Card key={swimmer.id} className="card-hover group">
                 <div className="flex items-start gap-3.5">

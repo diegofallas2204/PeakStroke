@@ -1,7 +1,7 @@
 """Lógica de negocio del módulo plans: CRUD + orquestación del motor."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +33,22 @@ def current_week_of(plan: Plan, today: date | None = None) -> int | None:
     return min(delta_weeks, plan.total_weeks)
 
 
+def effective_status(plan: Plan, today: date | None = None) -> str:
+    """Estado mostrado al entrenador.
+
+    Suspendido / inactivo (draft) / completado (finished) son overrides manuales
+    y mandan tal cual. Si el macrociclo está vigente (active) pero su última
+    semana ya pasó, se auto-marca como completado por fecha.
+    """
+    if plan.status in ("suspended", "draft", "finished"):
+        return plan.status
+    today = today or date.today()
+    last_week_end = progression.monday_of(plan.start_date, plan.total_weeks) + timedelta(days=6)
+    if today > last_week_end:
+        return "finished"
+    return "active"
+
+
 async def _swimmer_map(db: AsyncSession, ids: list[int]) -> dict[int, Swimmer]:
     if not ids:
         return {}
@@ -43,6 +59,7 @@ async def _swimmer_map(db: AsyncSession, ids: list[int]) -> dict[int, Swimmer]:
 async def to_plan_response(db: AsyncSession, plan: Plan) -> PlanResponse:
     resp = PlanResponse.model_validate(plan)
     resp.current_week = current_week_of(plan)
+    resp.effective_status = effective_status(plan)
     swimmers = await _swimmer_map(db, [ap.swimmer_id for ap in plan.athlete_plans])
     athletes = []
     for ap in plan.athlete_plans:
