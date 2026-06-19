@@ -1,14 +1,28 @@
-"""Zonas de entrenamiento — fuente de verdad única.
+"""Zonas de entrenamiento — adaptador sobre el motor de dominio.
 
-Factores por banda de distancia derivados de la calculadora de pronósticos
-('pronosticos PABLO belen.xlsx') y validados contra la teoría (Maglischo,
-Fernandes et al.). Cada zona tiene un rango (min, max) que se aplica sobre el
-pace por 100m del tiempo meta de la prueba: a mayor distancia de prueba, los
-factores se comprimen porque el ritmo de competencia ya es cercano al aeróbico.
+Las zonas se calculan con el modelo CALIBRADO del sandbox (`app.domain`):
 
-Jerarquía (de más lento a más rápido): R1 > R2 > MVO2 > RL > V.
+    zona_pace = ritmo_carrera × factor[perfil][distancia] (+ corrección estilo) × piscina
+
+`pace_100m` es el ritmo de carrera por 100m del tiempo (esperado/recalc) de la
+semana — exactamente el ancla que usa el dominio. El perfil se infiere de la
+distancia (velocidad/medio fondo/fondo); el estilo aplica su corrección s/100m.
+
+La forma de salida {min, mid, max} se conserva para el frontend: `mid` es el
+objetivo científico del dominio; `min`/`max` son una tolerancia de visualización
+de ±1% alrededor del objetivo (no es ciencia, es ancho de banda para la UI).
+
+Fuente de verdad del modelo: `app/domain/engine.py` (port del sandbox).
 """
 from __future__ import annotations
+
+from app.domain import (
+    STROKE_ALIASES,
+    STROKE_TPACE_CORRECTION_S,
+    pool_factor,
+    profile_for_event,
+    zone_factors,
+)
 
 ZONE_ORDER = ["R1", "R2", "MVO2", "RL", "V"]
 
@@ -20,34 +34,8 @@ ZONE_LABELS = {
     "V": "Velocidad pura",
 }
 
-# Bandas: (distancia_max_inclusive, {zona: (factor_min, factor_max)})
-# None = la zona no se prescribe para esa distancia de prueba.
-_ZONE_BANDS: list[tuple[int, dict[str, tuple[float, float] | None]]] = [
-    (50, {
-        "R1": (1.26, 1.35), "R2": (1.20, 1.25), "MVO2": (1.15, 1.20),
-        "RL": (1.06, 1.12), "V": (1.02, 1.05),
-    }),
-    (100, {
-        "R1": (1.21, 1.30), "R2": (1.15, 1.20), "MVO2": (1.15, 1.20),
-        "RL": (1.06, 1.12), "V": (1.02, 1.05),
-    }),
-    (200, {
-        "R1": (1.20, 1.30), "R2": (1.12, 1.18), "MVO2": (1.10, 1.15),
-        "RL": (1.05, 1.10), "V": (1.02, 1.05),
-    }),
-    (500, {
-        "R1": (1.15, 1.20), "R2": (1.10, 1.12), "MVO2": (1.08, 1.10),
-        "RL": None, "V": None,
-    }),
-    (1000, {
-        "R1": (1.11, 1.15), "R2": (1.05, 1.10), "MVO2": (1.05, 1.10),
-        "RL": None, "V": None,
-    }),
-    (10000, {
-        "R1": (1.10, 1.12), "R2": (1.05, 1.10), "MVO2": None,
-        "RL": None, "V": None,
-    }),
-]
+# Tolerancia de visualización alrededor del objetivo de zona (solo UI).
+_ZONE_DISPLAY_TOLERANCE = 0.01  # ±1%
 
 # Distribución recomendada del volumen semanal por especialidad del atleta
 # (Seiler 2010, Issurin 2008). Claves = zonas; valores = fracción del km semanal.
@@ -66,32 +54,35 @@ SPECIALTY_LABELS = {
 }
 
 
-def zone_factors_for(distance: int) -> dict[str, tuple[float, float] | None]:
-    """Retorna los rangos de factores de zona para una distancia de prueba."""
-    for max_dist, factors in _ZONE_BANDS:
-        if distance <= max_dist:
-            return factors
-    return _ZONE_BANDS[-1][1]
+def calc_zones(
+    pace_100m: float,
+    distance: int,
+    stroke: str = "freestyle",
+    pool: str = "50",
+) -> dict[str, dict[str, float] | None]:
+    """Tiempos objetivo por 100m para cada zona (con rango min/mid/max).
 
-
-def calc_zones(pace_100m: float, distance: int) -> dict[str, dict[str, float] | None]:
-    """Tiempos objetivo por 100m para cada zona, con rango min/mid/max.
-
-    `pace_100m` es el pace del tiempo esperado de la semana; los factores
-    dependen de la distancia de la prueba (banda del Excel de pronósticos).
+    Usa los factores por perfil×distancia del dominio (calibrados con el pool
+    nacional), la corrección de estilo y el factor de piscina. `pace_100m` es el
+    ritmo de carrera por 100m de la semana.
     """
-    factors = zone_factors_for(distance)
+    profile = profile_for_event(distance)
+    factors = zone_factors(profile, distance)
+    stroke_key = STROKE_ALIASES.get(stroke.lower().strip(), "freestyle")
+    corr = STROKE_TPACE_CORRECTION_S.get(stroke_key, 0.0)
+    pf = pool_factor(profile, pool)
+
     zones: dict[str, dict[str, float] | None] = {}
     for zone in ZONE_ORDER:
-        rng = factors.get(zone)
-        if rng is None:
+        factor = factors.get(zone)
+        if factor is None:
             zones[zone] = None
             continue
-        lo, hi = rng
+        target = (pace_100m * factor + corr) * pf
         zones[zone] = {
-            "min": round(pace_100m * lo, 2),
-            "mid": round(pace_100m * (lo + hi) / 2, 2),
-            "max": round(pace_100m * hi, 2),
+            "min": round(target * (1 - _ZONE_DISPLAY_TOLERANCE), 2),
+            "mid": round(target, 2),
+            "max": round(target * (1 + _ZONE_DISPLAY_TOLERANCE), 2),
         }
     return zones
 

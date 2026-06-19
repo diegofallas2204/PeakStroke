@@ -52,6 +52,7 @@ class CompetitionInfo(BaseModel):
 class DashboardSummary(BaseModel):
     plan_id: int
     plan_name: str
+    plan_status: str = "active"       # estado efectivo: active|finished|draft|suspended
     start_date: date
     total_weeks: int
     current_week: int | None

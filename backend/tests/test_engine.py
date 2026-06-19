@@ -11,7 +11,7 @@ from app.engine.progression import (
     WeekEntry, generate_plan, performance_status, recalculate_remaining,
 )
 from app.engine.time_utils import to_clock, to_seconds
-from app.engine.zones import calc_zones, zone_factors_for
+from app.engine.zones import calc_zones
 
 
 class TestTimeUtils:
@@ -43,25 +43,33 @@ class TestCurves:
 
 class TestZones:
     def test_hierarchy_r1_slowest(self):
-        # En el Excel, R2 y MVO2 comparten rango en 100m: se compara el punto medio.
+        # Modelo del dominio (perfil×distancia): R1 el más lento, V el más rápido.
         zones = calc_zones(70.0, 100)
-        assert zones["R1"]["mid"] > zones["R2"]["mid"] >= zones["MVO2"]["mid"] > \
+        assert zones["R1"]["mid"] > zones["R2"]["mid"] > zones["MVO2"]["mid"] > \
             zones["RL"]["mid"] > zones["V"]["mid"]
 
-    def test_distance_bands_compress(self):
-        sprint = zone_factors_for(50)["R1"]
-        distance = zone_factors_for(1500)["R1"]
-        assert sprint[0] > distance[0]
+    def test_anchored_to_race_pace(self):
+        # R1 de 100m libre = ritmo × factor velocidad/100 (1.419), ±1% en min/max.
+        zones = calc_zones(70.0, 100)
+        assert zones["R1"]["mid"] == pytest.approx(70.0 * 1.419, abs=0.05)
+        assert zones["R1"]["min"] < zones["R1"]["mid"] < zones["R1"]["max"]
 
-    def test_long_distance_drops_speed_zones(self):
+    def test_stroke_correction_slows_zones(self):
+        # Espalda suma corrección s/100m → zonas más lentas que libre.
+        libre = calc_zones(70.0, 100, "libre")
+        espalda = calc_zones(70.0, 100, "espalda")
+        assert espalda["R1"]["mid"] > libre["R1"]["mid"]
+
+    def test_pool_25_is_faster(self):
+        # Piscina de 25m: ritmo más rápido (factor < 1) que la de 50m.
+        lcm = calc_zones(70.0, 200, "libre", "50")
+        scm = calc_zones(70.0, 200, "libre", "25")
+        assert scm["R1"]["mid"] < lcm["R1"]["mid"]
+
+    def test_all_zones_present_for_long_distance(self):
+        # El dominio prescribe todas las zonas en todas las distancias.
         zones = calc_zones(75.0, 1500)
-        assert zones["V"] is None and zones["RL"] is None and zones["MVO2"] is None
-
-    def test_excel_factors_50m(self):
-        # Del Excel de pronósticos: RI de 50m = meta × 1.26..1.35
-        zones = calc_zones(60.0, 50)
-        assert zones["R1"]["min"] == pytest.approx(60.0 * 1.26)
-        assert zones["R1"]["max"] == pytest.approx(60.0 * 1.35)
+        assert all(zones[z] is not None for z in ("R1", "R2", "MVO2", "RL", "V"))
 
 
 class TestKmDistribution:
@@ -80,19 +88,20 @@ class TestKmDistribution:
 
 
 class TestFeasibility:
-    def test_realistic_sprint_goal(self):
-        result = analyze_feasibility(100, "mariposa", 67.8, 66.5, 12, 4)
+    def test_realistic_goal_ok(self):
+        result = analyze_feasibility(100, "libre", 60.0, 59.8, 12, 4)
         assert result.status == "ok" and result.tier == 2
+        assert "level" in result.detail
 
     def test_aggressive_goal_recommends_weeks(self):
-        result = analyze_feasibility(100, "mariposa", 67.8, 60.0, 12, 4)
+        result = analyze_feasibility(100, "libre", 60.0, 52.0, 12, 4)
         assert result.status == "aggressive"
         assert result.recommended_weeks and result.recommended_weeks > 12
 
-    def test_tier1_uses_aerobic_rule(self):
+    def test_tier1_label_for_long_distance(self):
         result = analyze_feasibility(800, "libre", 570.0, 552.0, 12, 4)
         assert result.tier == 1
-        assert "aerobic_ratio" in result.detail
+        assert "level" in result.detail
 
     def test_goal_already_met(self):
         result = analyze_feasibility(100, "libre", 55.0, 56.0, 12, 4)

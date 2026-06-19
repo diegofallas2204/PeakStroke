@@ -1,42 +1,55 @@
-// Navegación lateral con indicador activo y chip del macrociclo en curso.
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, CalendarRange, Users, Timer, Table2,
-  ListChecks, GitCompareArrows, FlaskConical, Waves,
+  ListChecks, GitCompareArrows, FlaskConical, Waves, ChevronsUpDown,
+  type LucideIcon,
 } from 'lucide-react'
 import { api } from '../../lib/api'
+import { SECTION_ACCENT } from '../../lib/constants'
+import { useSelectedPlanId } from '../../hooks/useSelectedPlan'
+import { MacroSwitcherModal } from '../../features/plans/MacroSwitcherModal'
+import { ThemeSwitcher } from '../../features/settings/ThemeSwitcher'
 
-const MAIN_NAV = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/macrociclos', label: 'Macrociclos', icon: CalendarRange },
-  { to: '/atletas', label: 'Atletas', icon: Users },
+type NavItem = { to: string; label: string; icon: LucideIcon; color: string }
+
+const item = (to: string, label: string, icon: LucideIcon): NavItem =>
+  ({ to, label, icon, color: SECTION_ACCENT[to] })
+
+const MAIN_NAV: NavItem[] = [
+  item('/', 'Dashboard', LayoutDashboard),
+  item('/macrociclos', 'Macrociclos', CalendarRange),
+  item('/atletas', 'Atletas', Users),
 ]
 
-const ANALYSIS_NAV = [
-  { to: '/pruebas', label: 'Base aeróbica', icon: Timer },
-  { to: '/plan-semanal', label: 'Plan semanal', icon: ListChecks },
-  { to: '/equipo', label: 'Tabla del equipo', icon: Table2 },
-  { to: '/comparacion', label: 'Comparación', icon: GitCompareArrows },
-  { to: '/simulador', label: 'Simulador', icon: FlaskConical },
+const ANALYSIS_NAV: NavItem[] = [
+  item('/pruebas', 'Base aeróbica', Timer),
+  item('/plan-semanal', 'Plan semanal', ListChecks),
+  item('/equipo', 'Tabla del equipo', Table2),
+  item('/comparacion', 'Comparación', GitCompareArrows),
+  item('/simulador', 'Simulador', FlaskConical),
 ]
 
-function NavSection({ title, items }: { title: string; items: typeof MAIN_NAV }) {
+function NavSection({ title, items }: { title: string; items: NavItem[] }) {
   return (
     <>
-      <p className="mt-5 mb-1.5 px-5 text-[9.5px] font-bold uppercase tracking-[0.16em] text-text-faint">
+      <p className="mt-5 mb-1.5 px-5 flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.18em] text-text-faint">
+        <span className="inline-block h-px w-3 shrink-0 rounded-full bg-line-strong" />
         {title}
       </p>
-      {items.map(({ to, label, icon: Icon }) => (
+      {items.map(({ to, label, icon: Icon, color }) => (
         <NavLink
           key={to}
           to={to}
           end={to === '/'}
+          style={({ isActive }) => ({
+            '--nav-item-color': color,
+            ...(isActive ? { background: `${color}16`, color } : {}),
+          } as React.CSSProperties)}
           className={({ isActive }) =>
-            `group relative mx-2.5 flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[12.5px] font-medium transition-all duration-200 ${
-              isActive
-                ? 'bg-[rgba(139,92,246,.13)] text-violet-soft'
-                : 'text-text-dim hover:bg-surface-2 hover:text-text'
+            `nav-item group relative mx-2.5 flex items-center gap-2.5 rounded-[10px] px-3 py-[9px] text-[12.5px] font-medium transition-all duration-200 ${
+              isActive ? 'nav-item--active' : 'text-text-dim'
             }`
           }
         >
@@ -44,12 +57,17 @@ function NavSection({ title, items }: { title: string; items: typeof MAIN_NAV })
             <>
               {isActive && (
                 <span
-                  className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full"
-                  style={{ background: 'linear-gradient(180deg,#8b5cf6,#22d3ee)' }}
+                  className="nav-indicator absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full"
+                  style={{ background: color, boxShadow: `0 0 10px 2px ${color}55` }}
                 />
               )}
-              <Icon size={15.5} strokeWidth={2.1} className="shrink-0 transition-transform duration-200 group-hover:scale-110" />
-              {label}
+              <span
+                className="flex size-[28px] shrink-0 items-center justify-center rounded-lg transition-all duration-200"
+                style={isActive ? { background: `${color}20` } : {}}
+              >
+                <Icon size={14.5} strokeWidth={2.1} />
+              </span>
+              <span className="flex-1 leading-none">{label}</span>
             </>
           )}
         </NavLink>
@@ -59,24 +77,39 @@ function NavSection({ title, items }: { title: string; items: typeof MAIN_NAV })
 }
 
 export function Sidebar() {
+  const selectedId = useSelectedPlanId()
+  const [switcherOpen, setSwitcherOpen] = useState(false)
   const { data: summary } = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: () => api.dashboard.summary(),
+    queryKey: ['dashboard', selectedId],
+    queryFn: () => api.dashboard.summary(selectedId ?? undefined),
     retry: false,
   })
 
   return (
-    <aside className="relative z-10 flex w-[228px] shrink-0 flex-col border-r border-line bg-[rgba(10,11,18,.82)] backdrop-blur-xl">
+    <aside className="relative z-10 flex w-[228px] shrink-0 flex-col border-r border-line bg-[var(--color-sidebar)] backdrop-blur-xl">
+      {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 pb-5 pt-6">
         <span
           className="flex size-9 items-center justify-center rounded-xl"
-          style={{ background: 'linear-gradient(135deg,rgba(139,92,246,.25),rgba(34,211,238,.18))', border: '1px solid rgba(139,92,246,.3)' }}
+          style={{
+            background: 'linear-gradient(135deg,rgba(59,130,246,.25),rgba(34,211,238,.18))',
+            border: '1px solid rgba(59,130,246,.3)',
+          }}
         >
-          <Waves size={18} className="text-violet-soft" />
+          <Waves size={18} className="text-accent-soft" />
         </span>
         <div>
           <p className="display text-[15.5px] font-bold leading-none tracking-tight">
-            Peak<span className="text-violet-soft">Stroke</span>
+            Peak
+            <span
+              style={{
+                background: 'linear-gradient(135deg,#3b82f6,#22d3ee)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              Stroke
+            </span>
           </p>
           <p className="mt-1 text-[9px] uppercase tracking-[0.22em] text-text-faint">
             Performance Planner
@@ -84,29 +117,41 @@ export function Sidebar() {
         </div>
       </div>
 
+      {/* Macro activo */}
       {summary && (
-        <div className="card mx-3 px-3.5 py-3" data-animate>
-          <div className="flex items-center gap-1.5">
-            <span className="pulse-dot size-1.5 rounded-full bg-mint" />
-            <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-text-faint">
-              Macrociclo activo
-            </p>
+        <button
+          type="button"
+          onClick={() => setSwitcherOpen(true)}
+          className="card card-hover mx-3 px-3.5 py-3 text-left transition-all"
+          data-animate
+          aria-label="Cambiar macrociclo de trabajo"
+        >
+          <div className="flex items-center justify-between gap-1.5">
+            <span className="flex items-center gap-1.5">
+              <span className="pulse-dot size-1.5 rounded-full bg-mint" />
+              <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-text-faint">
+                Macrociclo activo
+              </span>
+            </span>
+            <ChevronsUpDown size={12} className="text-text-faint" />
           </div>
-          <p className="mt-1 truncate text-[12.5px] font-semibold">{summary.plan_name}</p>
+          <p className="mt-1.5 truncate text-[12.5px] font-semibold leading-tight">{summary.plan_name}</p>
           <p className="mt-0.5 text-[10.5px] text-text-dim">
-            Semana {summary.current_week ?? '—'} / {summary.total_weeks} · {summary.athletes_total} atletas
+            Sem. {summary.current_week ?? '—'}/{summary.total_weeks} · {summary.athletes_total} atletas
           </p>
-          <div className="mt-2 h-1 overflow-hidden rounded-full bg-surface-3">
+          <div className="mt-2.5 h-[3px] overflow-hidden rounded-full bg-surface-3">
             <div
               className="h-full rounded-full transition-all duration-700"
               style={{
                 width: `${((summary.current_week ?? 0) / summary.total_weeks) * 100}%`,
-                background: 'linear-gradient(90deg,#8b5cf6,#22d3ee)',
+                background: 'linear-gradient(90deg,#3b82f6,#22d3ee)',
               }}
             />
           </div>
-        </div>
+        </button>
       )}
+
+      <MacroSwitcherModal open={switcherOpen} onClose={() => setSwitcherOpen(false)} />
 
       <nav className="flex-1 overflow-y-auto pb-4">
         <NavSection title="Principal" items={MAIN_NAV} />
@@ -114,7 +159,8 @@ export function Sidebar() {
       </nav>
 
       <footer className="border-t border-line px-5 py-3.5">
-        <p className="text-[9.5px] text-text-faint">v0.1 · local-first</p>
+        <ThemeSwitcher />
+        <p className="mt-3.5 text-[9px] text-text-faint">v0.1 · local-first</p>
       </footer>
     </aside>
   )

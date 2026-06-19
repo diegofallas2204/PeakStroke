@@ -19,9 +19,10 @@ class Plan(Base):
     weeks_per_micro: Mapped[int] = mapped_column(Integer, default=4)
     total_km: Mapped[float] = mapped_column(Float)
     progression_curve: Mapped[str] = mapped_column(String(20), default="sigmoid")
+    pool: Mapped[str] = mapped_column(String(2), default="50")  # "50" larga | "25" corta
     main_event: Mapped[str | None] = mapped_column(String(60))
     notes: Mapped[str | None] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(12), default="active")  # active|draft|finished
+    status: Mapped[str] = mapped_column(String(12), default="active")  # active|draft|finished|suspended
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     phases: Mapped[list[PlanPhase]] = relationship(

@@ -1,6 +1,6 @@
 // Tabla del equipo: todos los atletas en una semana del macrociclo con sus
 // tiempos objetivo por zona. Incluye gráfico colapsable de progreso promedio.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Table2 } from 'lucide-react'
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -8,23 +8,31 @@ import { api } from '../../lib/api'
 import { SPECIALTY_LABEL, ZONE_META, ZONE_ORDER } from '../../lib/constants'
 import { toClock } from '../../lib/format'
 import { usePageEnter } from '../../hooks/usePageEnter'
+import { useSelectedPlanId } from '../../hooks/useSelectedPlan'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card, EmptyState, Spinner, StatusBadge } from '../../components/ui/primitives'
 
 export function TeamPage() {
+  const selectedId = useSelectedPlanId()
   const [week, setWeek] = useState<number | null>(null)
   const [showChart, setShowChart] = useState(true)
 
+  // Comparte la query del macrociclo de trabajo con el resto del sistema:
+  // misma key ['dashboard', selectedId] que el sidebar y el dashboard.
   const { data: summary } = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: () => api.dashboard.summary(),
+    queryKey: ['dashboard', selectedId],
+    queryFn: () => api.dashboard.summary(selectedId ?? undefined),
     retry: false,
   })
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['team-week', week],
-    queryFn: () => api.dashboard.teamWeek(undefined, week ?? undefined),
+    queryKey: ['team-week', selectedId, week],
+    queryFn: () => api.dashboard.teamWeek(selectedId ?? undefined, week ?? undefined),
     retry: false,
   })
+
+  // Al cambiar el macrociclo de trabajo, vuelve a la semana por defecto del nuevo
+  // plan (la semana navegada manualmente podría no existir en el otro macro).
+  useEffect(() => { setWeek(null) }, [selectedId])
 
   const ref = usePageEnter([data?.week_number, isLoading])
 
@@ -84,29 +92,29 @@ export function TeamPage() {
               <AreaChart data={summary.progression} margin={{ top: 4, right: 8, left: -22, bottom: 0 }}>
                 <defs>
                   <linearGradient id="teamGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#22d3ee" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor="var(--color-cyan)" stopOpacity={0.38} />
+                    <stop offset="100%" stopColor="var(--color-cyan)" stopOpacity={0.04} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="date_label" tick={{ fill: '#8b93b8', fontSize: 9.5, fontFamily: "'JetBrains Mono', monospace" }} tickLine={false} axisLine={false} />
-                <YAxis unit="%" tick={{ fill: '#8b93b8', fontSize: 9.5 }} tickLine={false} axisLine={false} />
+                <XAxis dataKey="date_label" tick={{ fill: 'var(--color-text-dim)', fontSize: 9.5, fontFamily: "'JetBrains Mono', monospace" }} tickLine={false} axisLine={false} />
+                <YAxis unit="%" tick={{ fill: 'var(--color-text-dim)', fontSize: 9.5 }} tickLine={false} axisLine={false} />
                 <Tooltip
                   content={({ active, payload, label }) => active && payload?.length ? (
-                    <div className="card px-3 py-2 text-[11px]" style={{ background: '#11131f' }}>
+                    <div className="card px-3 py-2 text-[11px]">
                       <span className="text-text-dim">{label}: </span>
                       <span className="mono font-bold">{(payload[0].value as number)?.toFixed(1)}%</span>
                     </div>
                   ) : null}
                 />
-                <Area type="monotone" dataKey="expected_progress" name="Planificado" stroke="#8b5cf6" strokeWidth={1.6} fill="transparent" dot={false} strokeDasharray="5 4" />
-                <Area type="monotone" dataKey="real_progress" name="Real" stroke="#22d3ee" strokeWidth={2.2} fill="url(#teamGrad)" connectNulls dot={false} />
+                <Area type="monotone" dataKey="expected_progress" name="Planificado" stroke="var(--color-accent)" strokeWidth={1.6} fill="transparent" dot={false} strokeDasharray="5 4" />
+                <Area type="monotone" dataKey="real_progress" name="Real" stroke="var(--color-cyan)" strokeWidth={2.2} fill="url(#teamGrad)" connectNulls dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           )}
         </Card>
       )}
 
-      <Card className="card-hover !p-0" animate>
+      <Card className="card-hover" animate flush>
         <div className="overflow-x-auto">
           <table className="tbl">
             <thead>
@@ -127,7 +135,7 @@ export function TeamPage() {
                   </td>
                   <td className="text-text-dim">{row.event_label}</td>
                   <td className="mono">{toClock(row.expected_time)}</td>
-                  <td className="mono font-semibold text-violet-soft">{toClock(row.pace_100m)}</td>
+                  <td className="mono font-semibold text-accent-soft">{toClock(row.pace_100m)}</td>
                   {ZONE_ORDER.map((zone) => {
                     const range = row.zones?.[zone]
                     return (

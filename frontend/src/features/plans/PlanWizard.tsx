@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ArrowRight, Check, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
-import { CURVES, PHASE_COLORS } from '../../lib/constants'
+import { CURVES, PHASE_COLORS, POOLS } from '../../lib/constants'
 import { Field, Modal } from '../../components/ui/primitives'
 
 interface PhaseDraft { name: string; type: string; week_start: number; week_end: number; color: string }
@@ -31,7 +31,7 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
   const [error, setError] = useState('')
   const [form, setForm] = useState({
     name: '', start_date: '', total_weeks: 12, weeks_per_micro: 4,
-    total_km: 320, progression_curve: 'sigmoid', main_event: '', notes: '',
+    total_km: 320, progression_curve: 'sigmoid', pool: '50', main_event: '', notes: '',
   })
   const [phases, setPhases] = useState<PhaseDraft[]>(defaultPhases(12))
   const [comps, setComps] = useState<CompDraft[]>([])
@@ -87,7 +87,7 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
           <div key={label} className="flex flex-1 items-center gap-2">
             <span
               className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[10.5px] font-bold transition-all duration-300 ${
-                i < step ? 'bg-mint text-ink' : i === step ? 'bg-violet text-white' : 'bg-surface-3 text-text-faint'
+                i < step ? 'bg-mint text-ink' : i === step ? 'bg-accent text-white' : 'bg-surface-3 text-text-faint'
               }`}
             >
               {i < step ? <Check size={12} /> : i + 1}
@@ -125,6 +125,11 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
               {CURVES.map((c) => <option key={c.value} value={c.value}>{c.label}{c.value === 'sigmoid' ? ' (recomendada)' : ''}</option>)}
             </select>
           </Field>
+          <Field label="Piscina">
+            <select className="field" value={form.pool} onChange={set('pool')}>
+              {POOLS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </Field>
           <Field label="Evento objetivo">
             <input className="field" value={form.main_event} onChange={set('main_event')} placeholder="Ej. Nacional Juvenil" />
           </Field>
@@ -141,7 +146,7 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
               <span className="card-title">Fases ({form.total_weeks} semanas)</span>
               <button
                 className="btn btn-ghost !px-2.5 !py-1.5 text-[11px]"
-                onClick={() => setPhases((p) => [...p, { name: 'Nueva fase', type: 'build', week_start: 1, week_end: 1, color: '#8b5cf6' }])}
+                onClick={() => setPhases((p) => [...p, { name: 'Nueva fase', type: 'build', week_start: 1, week_end: 1, color: '#3b82f6' }])}
               >
                 <Plus size={12} /> Fase
               </button>
@@ -220,6 +225,7 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
               ['Duración', `${form.total_weeks} semanas · micros de ${form.weeks_per_micro}`],
               ['Kilometraje', `${form.total_km} km`],
               ['Curva', CURVES.find((c) => c.value === form.progression_curve)?.label ?? ''],
+              ['Piscina', POOLS.find((p) => p.value === form.pool)?.label ?? ''],
               ['Evento', form.main_event || '—'],
             ].map(([k, v]) => (
               <div key={k} className="rounded-xl border border-line bg-surface-2 px-3.5 py-2.5">

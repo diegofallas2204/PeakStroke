@@ -1,38 +1,29 @@
-"""Análisis de factibilidad del objetivo del macrociclo.
+"""Análisis de factibilidad del objetivo — adaptador sobre el motor de dominio.
 
-Dos regímenes según la fisiología de la prueba:
-- Tier 1 (>= 400m): la mejora la gobierna la base aeróbica. Regla empírica:
-  1 s/microciclo en R1, escalada por factores de distancia, estilo y la
-  proporción aeróbica de la prueba.
-- Tier 2 (< 400m): mejora por ventana fraccionada según distancia+estilo
-  (ventanas realistas de s/microciclo observadas en pruebas de velocidad).
+Usa la ciencia de I_max del sandbox (`app.domain`): compara la mejora pedida
+contra el techo científico del nivel del atleta para la prueba, escalado por el
+número de mesociclos del macro. Reemplaza las bandas/ventanas anteriores.
+
+- nivel = clasificación por umbral (ritmo de carrera × factor MVO2), §2.4
+- techo  = I_MAX_TABLE[nivel][evento] × (semanas / 5)                  §4.2 / §5.3
+- ratio  = mejora_pedida% / techo% → ok (≤0.85) | warning (≤1.15) | aggressive
+
+Tier (1 = ≥400m aeróbico, 2 = <400m velocidad) se conserva solo como etiqueta.
 """
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
 
+from app.domain import I_MAX_TABLE, classify_level, profile_for_event, zone_factors
+
 TIER1_THRESHOLD = 400
-
-DISTANCE_FACTORS = {50: 0.15, 100: 0.45, 200: 1.80, 400: 4.00, 800: 8.00, 1500: 15.0}
-AEROBIC_RATIO = {50: 0.15, 100: 0.325, 200: 0.625, 400: 0.875, 800: 0.925, 1500: 0.96}
-STROKE_FACTORS = {
-    "libre": 1.00, "espalda": 0.90, "mariposa": 0.76,
-    "pecho": 0.68, "combinado": 0.80,
-}
-
-# Ventanas (min, max) de mejora realista en s/microciclo para pruebas Tier 2.
-SPEED_WINDOWS: dict[tuple[int, str], tuple[float, float]] = {
-    (100, "libre"): (0.40, 0.60), (100, "mariposa"): (0.30, 0.50),
-    (100, "espalda"): (0.35, 0.50), (100, "pecho"): (0.25, 0.45),
-    (100, "combinado"): (0.30, 0.50),
-    (50, "libre"): (0.10, 0.25), (50, "mariposa"): (0.08, 0.20),
-    (50, "espalda"): (0.10, 0.22), (50, "pecho"): (0.08, 0.18),
-    (200, "libre"): (0.80, 1.20), (200, "mariposa"): (0.50, 0.80),
-    (200, "espalda"): (0.60, 0.90), (200, "pecho"): (0.45, 0.70),
-    (200, "combinado"): (0.55, 0.85),
-}
-_DEFAULT_WINDOW = (0.20, 0.50)
+OK_RATIO = 0.85
+WARNING_RATIO = 1.15
+# Tope de semanas de extensión (≈2 macros) — coincide con el motor de dominio
+# (ScienceEngine.MAX_EXTENSION_WEEKS). Evita "semanas necesarias" desorbitadas
+# cuando la meta es muy agresiva: el techo informa, no fantasea con 80 semanas.
+MAX_EXTENSION_WEEKS = 26
 
 
 @dataclass
@@ -44,8 +35,24 @@ class FeasibilityResult:
     improvement_per_micro: float     # s/microciclo requerido
     window_min: float | None
     window_max: float                 # techo recomendado s/micro
-    recommended_weeks: int | None     # si aggressive: semanas sugeridas
+    recommended_weeks: int | None     # si aggressive: semanas TOTALES sugeridas (macro + extensión)
+    extension_weeks: int | None       # solo las semanas EXTRA tras el macro (capadas)
+    realistic_ceiling: float          # mejor tiempo realista al cerrar el macro (s)
+    safe_rate_per_week: float         # mejora segura media por semana (s/sem)
     detail: dict
+
+
+def _nearest_event(distance: int) -> int:
+    known = sorted(I_MAX_TABLE["elite"].keys())
+    return min(known, key=lambda d: abs(d - distance))
+
+
+def _level_for(distance: int, current_time: float) -> str:
+    """Clasifica el nivel por el umbral (ritmo de carrera × factor MVO2)."""
+    profile = profile_for_event(distance)
+    race_pace_0 = current_time / (distance / 100.0)
+    threshold = race_pace_0 * zone_factors(profile, distance)["MVO2"]
+    return classify_level(threshold)
 
 
 def analyze_feasibility(
@@ -59,77 +66,71 @@ def analyze_feasibility(
     total_improvement = current_time - goal_time
     num_micros = max(total_weeks / weeks_per_micro, 0.001)
     per_micro = total_improvement / num_micros
+    tier = 1 if distance >= TIER1_THRESHOLD else 2
 
     if total_improvement <= 0:
         return FeasibilityResult(
             status="ok",
             message="El tiempo meta ya fue alcanzado: el plan será de mantenimiento.",
-            tier=1 if distance >= TIER1_THRESHOLD else 2,
-            improvement_total=total_improvement, improvement_per_micro=0.0,
-            window_min=None, window_max=0.0, recommended_weeks=None, detail={},
+            tier=tier, improvement_total=total_improvement, improvement_per_micro=0.0,
+            window_min=None, window_max=0.0, recommended_weeks=None,
+            extension_weeks=None, realistic_ceiling=current_time,
+            safe_rate_per_week=0.0, detail={},
         )
 
-    if distance >= TIER1_THRESHOLD:
-        return _tier1(distance, stroke, total_improvement, per_micro, weeks_per_micro)
-    return _tier2(distance, stroke, total_improvement, per_micro, weeks_per_micro)
+    event = _nearest_event(distance)
+    level = _level_for(distance, current_time)
+    i_max_meso = I_MAX_TABLE[level][event]
+    num_meso = total_weeks / 5.0
+    i_max_total = i_max_meso * num_meso                 # techo de mejora (fracción)
 
+    pct = total_improvement / current_time
+    ratio = pct / i_max_total if i_max_total else 999.0
 
-def _recommend_weeks(total_improvement: float, ceiling_per_micro: float, weeks_per_micro: int) -> int:
-    micros_needed = total_improvement / max(ceiling_per_micro, 0.001)
-    return int(math.ceil(micros_needed * weeks_per_micro))
+    safe_total_s = current_time * i_max_total           # mejora máx creíble en el macro (s)
+    ceiling_per_micro = safe_total_s / num_micros       # techo s/micro
+    # Modelo de EXTENSIÓN (espejo del motor de dominio, §5.3): el macro cierra en
+    # el techo realista y, si la meta lo supera, se añaden semanas extra al ritmo
+    # seguro medio por semana hasta alcanzarla. Esto reemplaza la antigua fórmula
+    # lineal `ceil(pct / (i_max_meso/5))`, que disparaba semanas absurdas.
+    realistic_ceiling = current_time - safe_total_s     # mejor tiempo realista al cerrar el macro
+    safe_rate_per_week = safe_total_s / total_weeks if total_weeks else 0.0
 
+    detail = {
+        "level": level, "event": event, "i_max_meso": round(i_max_meso, 4),
+        "i_max_total_pct": round(i_max_total * 100, 2), "ratio": round(ratio, 3),
+        "requested_pct": round(pct * 100, 2),
+    }
 
-def _tier1(distance: int, stroke: str, total_imp: float, per_micro: float,
-           weeks_per_micro: int) -> FeasibilityResult:
-    dist_f = DISTANCE_FACTORS.get(distance, distance / 100)
-    stroke_f = STROKE_FACTORS.get(stroke, 0.80)
-    aero_r = AEROBIC_RATIO.get(distance, 0.85)
-    expected = 1.0 * dist_f * stroke_f * aero_r   # regla: 1 s/micro en R1
-    ceiling = expected * 1.5
-
-    if per_micro <= expected:
+    if ratio <= OK_RATIO:
         status = "ok"
-        message = (f"Objetivo realista. La regla aeróbica permite hasta "
-                   f"{expected:.2f} s/micro y el plan requiere {per_micro:.2f} s/micro.")
-    elif per_micro <= ceiling:
+        message = (f"Realista — pides {pct*100:.2f}% y el techo científico para "
+                   f"{level}/{event}m en {total_weeks} sem es {i_max_total*100:.2f}% "
+                   f"(uso {ratio*100:.0f}%).")
+        recommended = None
+        n_ext = None
+    elif ratio <= WARNING_RATIO:
         status = "warning"
-        message = (f"Exigente pero posible: requiere {per_micro:.2f} s/micro frente a un "
-                   f"máximo recomendado de {expected:.2f} s/micro.")
+        message = (f"Exigente — pides {pct*100:.2f}%, cerca del techo "
+                   f"{i_max_total*100:.2f}% ({ratio*100:.0f}% del máximo).")
+        recommended = None
+        n_ext = None
     else:
         status = "aggressive"
-        message = (f"Objetivo agresivo: {per_micro:.2f} s/micro supera el techo de "
-                   f"{ceiling:.2f} s/micro. Amplía el macrociclo o ajusta la meta.")
-    return FeasibilityResult(
-        status=status, message=message, tier=1,
-        improvement_total=total_imp, improvement_per_micro=per_micro,
-        window_min=None, window_max=expected,
-        recommended_weeks=_recommend_weeks(total_imp, expected, weeks_per_micro)
-        if status == "aggressive" else None,
-        detail={"distance_factor": dist_f, "stroke_factor": stroke_f,
-                "aerobic_ratio": aero_r, "expected_per_micro": expected},
-    )
+        remaining = realistic_ceiling - goal_time       # lo que falta tras el macro (s)
+        n_ext = math.ceil(remaining / safe_rate_per_week) if safe_rate_per_week > 0 else 0
+        n_ext = max(0, min(n_ext, MAX_EXTENSION_WEEKS))
+        recommended = total_weeks + n_ext
+        capped = " (tope alcanzado; la meta sigue siendo muy exigente)" if n_ext == MAX_EXTENSION_WEEKS else ""
+        message = (f"Agresivo — pides {pct*100:.2f}%, supera el techo "
+                   f"{i_max_total*100:.2f}% ({ratio*100:.0f}%). El motor estima "
+                   f"~{recommended} semanas en total ({n_ext} extra){capped}.")
 
-
-def _tier2(distance: int, stroke: str, total_imp: float, per_micro: float,
-           weeks_per_micro: int) -> FeasibilityResult:
-    w_min, w_max = SPEED_WINDOWS.get((distance, stroke), _DEFAULT_WINDOW)
-    if per_micro <= w_max:
-        status = "ok"
-        message = (f"Dentro de la ventana realista ({w_min:.2f}-{w_max:.2f} s/micro) "
-                   f"para {distance}m {stroke}.")
-    elif per_micro <= w_max * 1.5:
-        status = "warning"
-        message = (f"Exigente: requiere {per_micro:.2f} s/micro con un techo de "
-                   f"{w_max:.2f} s/micro para {distance}m {stroke}.")
-    else:
-        status = "aggressive"
-        message = (f"Agresivo: {per_micro:.2f} s/micro supera el techo de {w_max:.2f} "
-                   f"s/micro para {distance}m {stroke}. Extiende el macrociclo o ajusta la meta.")
     return FeasibilityResult(
-        status=status, message=message, tier=2,
-        improvement_total=total_imp, improvement_per_micro=per_micro,
-        window_min=w_min, window_max=w_max,
-        recommended_weeks=_recommend_weeks(total_imp, w_max, weeks_per_micro)
-        if status == "aggressive" else None,
-        detail={"window": [w_min, w_max]},
+        status=status, message=message, tier=tier,
+        improvement_total=total_improvement, improvement_per_micro=per_micro,
+        window_min=None, window_max=round(ceiling_per_micro, 3),
+        recommended_weeks=recommended, extension_weeks=n_ext,
+        realistic_ceiling=round(realistic_ceiling, 2),
+        safe_rate_per_week=round(safe_rate_per_week, 4), detail=detail,
     )

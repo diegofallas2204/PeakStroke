@@ -30,7 +30,7 @@ cd backend && .venv\Scripts\python seed.py
 ## Reglas de código (NO negociables)
 - Toda feature backend nueva: `backend/app/modules/<feature>/` con models.py / schemas.py / service.py / router.py
 - `router.py` nunca tiene lógica de negocio — recibe, delega al service, retorna
-- El motor (`backend/app/engine/`) son funciones puras: jamás importan DB ni modelos
+- El motor científico vive en `backend/app/domain/` (port verbatim del sandbox, FUENTE DE VERDAD). `backend/app/engine/` lo adapta a los consumidores (zones, feasibility, progression). Ambos son funciones puras: jamás importan DB ni modelos
 - Módulos no se importan entre sí salvo lecturas explícitas de modelos; nunca lógica cruzada
 - Ningún archivo supera ~300 líneas; si crece, extraer submódulo
 - Type hints en todo Python; TypeScript strict en el frontend
@@ -38,8 +38,10 @@ cd backend && .venv\Scripts\python seed.py
 
 ## Reglas de dominio (natación)
 - `pace_100m` es la unidad central de todos los cálculos de zonas
-- Zonas con factores POR DISTANCIA de prueba (rangos min/max del Excel de
-  pronósticos): fuente de verdad única `backend/app/engine/zones.py`
+- Zonas ancladas al RITMO DE CARRERA × factor[perfil][distancia] (+ corrección de
+  estilo, × factor piscina), calibradas con el pool nacional. Fuente de verdad:
+  `backend/app/domain/engine.py` (`ZONE_OVER_RACE`); `engine/zones.py` lo adapta a
+  la forma {min,mid,max} que consume el frontend
 - Jerarquía de zonas (lento -> rápido): R1 > R2 > MVO2 > RL > V
 - Pruebas >= 400m = Tier 1 (regla aeróbica); < 400m = Tier 2 (ventanas de velocidad)
 - Eje X de TODOS los gráficos: fechas reales DD/MM, nunca números de semana

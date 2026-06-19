@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from app.engine.events import allowed_strokes, is_valid_event
 
 
 # ── Fases y competencias ─────────────────────────────────────────────
@@ -41,6 +44,7 @@ class PlanCreate(BaseModel):
     weeks_per_micro: int = Field(default=4, ge=3, le=6)
     total_km: float = Field(gt=0)
     progression_curve: str = "sigmoid"
+    pool: Literal["25", "50"] = "50"
     main_event: str | None = None
     notes: str | None = None
     phases: list[PhaseInput] = []
@@ -52,6 +56,7 @@ class PlanUpdate(BaseModel):
     notes: str | None = None
     status: str | None = None
     main_event: str | None = None
+    pool: Literal["25", "50"] | None = None
 
 
 class EventInput(BaseModel):
@@ -60,6 +65,16 @@ class EventInput(BaseModel):
     stroke: str
     current_time: float = Field(gt=0)
     goal_time: float = Field(gt=0)
+
+    @model_validator(mode="after")
+    def _valid_event(self) -> "EventInput":
+        if not is_valid_event(self.distance, self.stroke):
+            opciones = ", ".join(allowed_strokes(self.distance))
+            raise ValueError(
+                f"{self.distance}m {self.stroke} no es una prueba válida. "
+                f"Para {self.distance}m: {opciones}."
+            )
+        return self
 
 
 class EventResponse(EventInput):
@@ -94,9 +109,11 @@ class PlanResponse(BaseModel):
     weeks_per_micro: int
     total_km: float
     progression_curve: str
+    pool: str = "50"
     main_event: str | None
     notes: str | None
-    status: str
+    status: str                   # crudo en BD: active|draft|finished|suspended
+    effective_status: str = "active"  # derivado por fecha (auto-completado) + override manual
     phases: list[PhaseResponse]
     competitions: list[CompetitionResponse]
     athletes: list[AthletePlanResponse] = []

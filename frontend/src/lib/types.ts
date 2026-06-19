@@ -62,9 +62,11 @@ export interface Plan {
   weeks_per_micro: number
   total_km: number
   progression_curve: string
+  pool: string
   main_event: string | null
   notes: string | null
   status: string
+  effective_status: string
   phases: Phase[]
   competitions: Competition[]
   athletes: AthletePlan[]
@@ -121,6 +123,9 @@ export interface Feasibility {
   window_min: number | null
   window_max: number
   recommended_weeks: number | null
+  extension_weeks: number | null
+  realistic_ceiling: number
+  safe_rate_per_week: number
   detail: Record<string, unknown>
 }
 
@@ -140,6 +145,7 @@ export interface SimWeek {
 export interface SimulationResult {
   feasibility: Feasibility
   weeks: SimWeek[]
+  extension_weeks: SimWeek[]
   curves: Record<string, number[]>
 }
 
@@ -171,6 +177,7 @@ export interface AthleteStatusRow {
 export interface DashboardSummary {
   plan_id: number
   plan_name: string
+  plan_status: string
   start_date: string
   total_weeks: number
   current_week: number | null

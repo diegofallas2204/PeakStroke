@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from app.engine.events import allowed_strokes, is_valid_event
 
 
 class SimulationRequest(BaseModel):
@@ -15,8 +18,19 @@ class SimulationRequest(BaseModel):
     weeks_per_micro: int = Field(default=4, ge=3, le=6)
     total_km: float = Field(gt=0)
     curve: str = "sigmoid"
+    pool: Literal["25", "50"] = "50"
     start_date: date | None = None
     specialty: str = "medio_fondo"
+
+    @model_validator(mode="after")
+    def _valid_event(self) -> "SimulationRequest":
+        if not is_valid_event(self.distance, self.stroke):
+            opciones = ", ".join(allowed_strokes(self.distance))
+            raise ValueError(
+                f"{self.distance}m {self.stroke} no es una prueba válida. "
+                f"Para {self.distance}m: {opciones}."
+            )
+        return self
 
 
 class SimWeek(BaseModel):
@@ -41,10 +55,14 @@ class FeasibilityResponse(BaseModel):
     window_min: float | None
     window_max: float
     recommended_weeks: int | None
+    extension_weeks: int | None
+    realistic_ceiling: float
+    safe_rate_per_week: float
     detail: dict
 
 
 class SimulationResponse(BaseModel):
     feasibility: FeasibilityResponse
     weeks: list[SimWeek]
+    extension_weeks: list[SimWeek]   # semanas extra realistas (vacío si la meta es factible)
     curves: dict[str, list[float]]   # nombre de curva -> tiempos esperados

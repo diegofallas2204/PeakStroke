@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, UserPlus, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { Feasibility, Plan } from '../../lib/types'
-import { DISTANCES, STROKES } from '../../lib/constants'
+import { DISTANCES, coerceStroke, strokeOptionsForDistance } from '../../lib/constants'
 import { tryToSeconds } from '../../lib/format'
 import { Field, Modal } from '../../components/ui/primitives'
 
@@ -164,14 +164,19 @@ export function AssignAthleteModal({ plan, onClose }: { plan: Plan | null; onClo
               <div className="grid grid-cols-[90px_120px_1fr_1fr_34px] items-end gap-2.5">
                 <Field label="Distancia">
                   <select className="field !py-1.5" value={ev.distance}
-                    onChange={(e) => setEvents((evs) => evs.map((x, j) => j === i ? { ...x, distance: Number(e.target.value) } : x))}>
+                    onChange={(e) => setEvents((evs) => evs.map((x, j) => {
+                      if (j !== i) return x
+                      const distance = Number(e.target.value)
+                      // Autocorrige el estilo si la nueva distancia lo invalida (p. ej. 400 mariposa → libre).
+                      return { ...x, distance, stroke: coerceStroke(distance, x.stroke) }
+                    }))}>
                     {DISTANCES.map((d) => <option key={d} value={d}>{d}m</option>)}
                   </select>
                 </Field>
                 <Field label="Estilo">
                   <select className="field !py-1.5" value={ev.stroke}
                     onChange={(e) => setEvents((evs) => evs.map((x, j) => j === i ? { ...x, stroke: e.target.value } : x))}>
-                    {STROKES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    {strokeOptionsForDistance(ev.distance).map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                   </select>
                 </Field>
                 <Field label="Tiempo actual">

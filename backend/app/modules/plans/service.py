@@ -1,7 +1,7 @@
 """Lógica de negocio del módulo plans: CRUD + orquestación del motor."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +33,22 @@ def current_week_of(plan: Plan, today: date | None = None) -> int | None:
     return min(delta_weeks, plan.total_weeks)
 
 
+def effective_status(plan: Plan, today: date | None = None) -> str:
+    """Estado mostrado al entrenador.
+
+    Suspendido / inactivo (draft) / completado (finished) son overrides manuales
+    y mandan tal cual. Si el macrociclo está vigente (active) pero su última
+    semana ya pasó, se auto-marca como completado por fecha.
+    """
+    if plan.status in ("suspended", "draft", "finished"):
+        return plan.status
+    today = today or date.today()
+    last_week_end = progression.monday_of(plan.start_date, plan.total_weeks) + timedelta(days=6)
+    if today > last_week_end:
+        return "finished"
+    return "active"
+
+
 async def _swimmer_map(db: AsyncSession, ids: list[int]) -> dict[int, Swimmer]:
     if not ids:
         return {}
@@ -43,6 +59,7 @@ async def _swimmer_map(db: AsyncSession, ids: list[int]) -> dict[int, Swimmer]:
 async def to_plan_response(db: AsyncSession, plan: Plan) -> PlanResponse:
     resp = PlanResponse.model_validate(plan)
     resp.current_week = current_week_of(plan)
+    resp.effective_status = effective_status(plan)
     swimmers = await _swimmer_map(db, [ap.swimmer_id for ap in plan.athlete_plans])
     athletes = []
     for ap in plan.athlete_plans:
@@ -111,7 +128,7 @@ async def add_athlete(db: AsyncSession, plan: Plan, data: AddAthleteRequest) -> 
             goal_time=event.goal_time, total_weeks=plan.total_weeks,
             total_km=plan.total_km, curve=plan.progression_curve,
             start_date=plan.start_date, weeks_per_micro=plan.weeks_per_micro,
-            phases=phases or None,
+            phases=phases or None, stroke=event.stroke, pool=plan.pool,
         )
         for w in weeks:
             event.weeks.append(WeeklyPlan(
@@ -151,6 +168,7 @@ async def get_event(db: AsyncSession, event_id: int) -> AthleteEvent | None:
 async def event_weeks_response(db: AsyncSession, event: AthleteEvent) -> list[WeekResponse]:
     swimmer = await db.get(Swimmer, event.athlete_plan.swimmer_id)
     specialty = swimmer.specialty if swimmer else "medio_fondo"
+    pool = event.athlete_plan.plan.pool
     comp_weeks = {c.week_number for c in event.athlete_plan.plan.competitions}
     result = []
     for w in sorted(event.weeks, key=lambda x: x.week_number):
@@ -166,7 +184,7 @@ async def event_weeks_response(db: AsyncSession, event: AthleteEvent) -> list[We
             date_label=w.week_date.strftime("%d/%m"),
             planned_km=w.planned_km, expected_time=w.expected_time,
             recalc_time=w.recalc_time, pace_100m=round(pace, 2),
-            zones=calc_zones(pace, event.distance),
+            zones=calc_zones(pace, event.distance, event.stroke, pool),
             zone_km=zone_km_distribution(specialty, w.planned_km),
             real_time=w.real_time, status=status,
             diff_seconds=diff_s, diff_percent=diff_p,
@@ -229,7 +247,8 @@ async def _recalculate_event(db: AsyncSession, event: AthleteEvent) -> None:
     progression.recalculate_remaining(
         entries, from_week=anchor_week + 1, anchor_time=float(anchor_time),
         goal_time=event.goal_time, curve=plan.progression_curve,
-        distance=event.distance, disabled_weeks=disabled,
+        distance=event.distance, disabled_weeks=disabled, stroke=event.stroke,
+        pool=plan.pool,
     )
     recalc_map = {e.week_number: e.expected_time for e in entries
                   if e.week_number > anchor_week}

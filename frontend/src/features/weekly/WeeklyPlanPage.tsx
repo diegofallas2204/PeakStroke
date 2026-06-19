@@ -129,7 +129,7 @@ export function WeeklyPlanPage() {
                 currentWeek={selection.plan.current_week}
               />
               <div className="mt-2 flex gap-5 text-[10.5px] text-text-dim">
-                <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded bg-violet" /> Plan ideal</span>
+                <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded bg-accent" /> Plan ideal</span>
                 <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded border-t-2 border-dashed border-cyan" /> Proyección ajustada</span>
                 <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-mint" /> Tiempo real</span>
               </div>
@@ -137,7 +137,7 @@ export function WeeklyPlanPage() {
             <ZonePanel week={focusWeek} specialty={selection.athlete.specialty} />
           </div>
 
-          <Card title="Plan generado por el motor · click en una fila para ver sus zonas" className="card-hover !p-0">
+          <Card title="Plan generado por el motor · click en una fila para ver sus zonas" className="card-hover" flush>
             <div className="overflow-x-auto">
               <table className="tbl">
                 <thead>
@@ -157,7 +157,7 @@ export function WeeklyPlanPage() {
                         onClick={() => setSelectedWeek(week.week_number)}
                         className="cursor-pointer"
                         style={{
-                          background: isFocus ? 'rgba(139,92,246,.08)' : isCurrent ? 'rgba(34,211,238,.05)' : undefined,
+                          background: isFocus ? 'rgba(59,130,246,.08)' : isCurrent ? 'rgba(34,211,238,.05)' : undefined,
                           opacity: week.disabled ? 0.45 : 1,
                         }}
                       >
@@ -172,7 +172,7 @@ export function WeeklyPlanPage() {
                         <td className="text-text-dim">{week.phase}{week.disabled && ` · ${week.disable_reason ?? 'parón'}`}</td>
                         <td className="mono">{week.planned_km}</td>
                         <td className="mono">{toClock(week.expected_time)}</td>
-                        <td className="mono font-semibold text-violet-soft">{toClock(week.pace_100m)}</td>
+                        <td className="mono font-semibold text-accent-soft">{toClock(week.pace_100m)}</td>
                         <td className="mono text-text-dim">
                           {week.recalc_time != null
                             ? <span className="text-cyan">{toClock(week.recalc_time)}</span>

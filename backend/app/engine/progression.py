@@ -81,6 +81,8 @@ def generate_plan(
     start_date: date,
     weeks_per_micro: int = 4,
     phases: list[dict] | None = None,
+    stroke: str = "freestyle",
+    pool: str = "50",
 ) -> list[WeekEntry]:
     """Genera el plan completo semana a semana para una prueba de un atleta."""
     phases = phases or default_phase_ranges(total_weeks)
@@ -101,9 +103,50 @@ def generate_plan(
             phase=_phase_for_week(i + 1, phases),
             improvement_vs_prev=round(expected - prev, 2),
             cumulative_improvement=round(current_time - expected, 2),
-            zones=calc_zones(pace, distance),
+            zones=calc_zones(pace, distance, stroke, pool),
         )
         weeks.append(entry)
+        prev = expected
+    return weeks
+
+
+def generate_extension(
+    distance: int,
+    current_time: float,
+    realistic_ceiling: float,
+    goal_time: float,
+    safe_rate: float,
+    n_ext: int,
+    start_date: date,
+    macro_weeks: int,
+    weekly_km: float,
+    stroke: str = "freestyle",
+    pool: str = "50",
+) -> list[WeekEntry]:
+    """Semanas de EXTENSIÓN tras el macro para metas que superan el techo realista.
+
+    Mientras el plan principal de `macro_weeks` semanas comprime la mejora pedida,
+    estas filas muestran la continuación REALISTA del motor: parten del techo del
+    macro (`realistic_ceiling`) y bajan al ritmo seguro `safe_rate` por semana hasta
+    tocar la meta. Numeradas a continuación del macro (macro_weeks+1 …).
+    """
+    weeks: list[WeekEntry] = []
+    prev = realistic_ceiling
+    for j in range(1, n_ext + 1):
+        abs_week = macro_weeks + j
+        expected = max(realistic_ceiling - safe_rate * j, goal_time)
+        pace = expected / (distance / 100)
+        weeks.append(WeekEntry(
+            week_number=abs_week,
+            week_date=monday_of(start_date, abs_week),
+            expected_time=round(expected, 2),
+            pace_100m=round(pace, 2),
+            planned_km=weekly_km,
+            phase="Extensión",
+            improvement_vs_prev=round(expected - prev, 2),
+            cumulative_improvement=round(current_time - expected, 2),
+            zones=calc_zones(pace, distance, stroke, pool),
+        ))
         prev = expected
     return weeks
 
@@ -116,6 +159,8 @@ def recalculate_remaining(
     curve: str,
     distance: int,
     disabled_weeks: set[int] | None = None,
+    stroke: str = "freestyle",
+    pool: str = "50",
 ) -> list[WeekEntry]:
     """Recalcula la curva desde `from_week` anclada en un tiempo real/actual.
 
@@ -148,7 +193,7 @@ def recalculate_remaining(
             prev_expected = expected
         pace = week.expected_time / (distance / 100)
         week.pace_100m = round(pace, 2)
-        week.zones = calc_zones(pace, distance)
+        week.zones = calc_zones(pace, distance, stroke, pool)
     return weeks
 
 

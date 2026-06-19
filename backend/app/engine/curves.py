@@ -20,6 +20,14 @@ CURVE_LABELS = {
     "logarithmic": "Logarítmica",
 }
 
+# Parámetros de forma de las curvas (ajustables — ver manual de tuning).
+# EXP_K: cuanto más alto, más adelantada la mejora (front-loaded).
+# LOG_SCALE: cuanto más alto, más pronunciada la mejora temprana logarítmica.
+# SIGMOID_STEEPNESS: cuanto más alto, más plano el inicio/fin y más brusco el centro.
+EXP_K = 4.0
+LOG_SCALE = 9.0
+SIGMOID_STEEPNESS = 10.0
+
 
 def curve_progress(x: float, curve: str) -> float:
     """Fracción de mejora acumulada [0..1] en el punto x [0..1]."""
@@ -27,12 +35,11 @@ def curve_progress(x: float, curve: str) -> float:
     if curve == "linear":
         return x
     if curve == "exponential":
-        k = 4.0
-        return (1 - math.exp(-k * x)) / (1 - math.exp(-k))
+        return (1 - math.exp(-EXP_K * x)) / (1 - math.exp(-EXP_K))
     if curve == "logarithmic":
-        return math.log(1 + 9 * x) / math.log(10)
+        return math.log(1 + LOG_SCALE * x) / math.log(1 + LOG_SCALE)
     if curve == "sigmoid":
         def sig(t: float) -> float:
-            return 1 / (1 + math.exp(-10 * (t - 0.5)))
+            return 1 / (1 + math.exp(-SIGMOID_STEEPNESS * (t - 0.5)))
         return (sig(x) - sig(0)) / (sig(1) - sig(0))
     return x

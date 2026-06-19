@@ -34,41 +34,41 @@ export function ProgressionChart({
   return (
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
-        <CartesianGrid stroke="rgba(148,163,224,.06)" vertical={false} />
+        <CartesianGrid stroke="var(--color-grid)" vertical={false} />
         <XAxis
           dataKey="date_label"
-          tick={{ fill: '#8b93b8', fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}
+          tick={{ fill: 'var(--color-text-dim)', fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}
           tickLine={false} axisLine={false}
         />
         <YAxis
           reversed
           domain={[min - pad, max + pad]}
           tickFormatter={(v: number) => toClock(v, 1)}
-          tick={{ fill: '#8b93b8', fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}
+          tick={{ fill: 'var(--color-text-dim)', fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}
           tickLine={false} axisLine={false} width={52}
         />
         <Tooltip content={<ChartTooltip formatter={(v) => toClock(v)} />} />
         <ReferenceLine
-          y={goalTime} stroke="#fbbf24" strokeDasharray="5 4" strokeOpacity={0.8}
-          label={{ value: `Meta ${toClock(goalTime)}`, fill: '#fbbf24', fontSize: 10, position: 'insideBottomRight' }}
+          y={goalTime} stroke="var(--color-amber)" strokeDasharray="5 4" strokeOpacity={0.8}
+          label={{ value: `Meta ${toClock(goalTime)}`, fill: 'var(--color-amber)', fontSize: 10, position: 'insideBottomRight' }}
         />
         {currentLabel && (
-          <ReferenceLine x={currentLabel} stroke="#8b93b8" strokeDasharray="3 4" strokeOpacity={0.5}
-            label={{ value: 'Hoy', fill: '#8b93b8', fontSize: 9.5, position: 'top' }} />
+          <ReferenceLine x={currentLabel} stroke="var(--color-text-dim)" strokeDasharray="3 4" strokeOpacity={0.5}
+            label={{ value: 'Hoy', fill: 'var(--color-text-dim)', fontSize: 9.5, position: 'top' }} />
         )}
         <Line
           type="monotone" dataKey="ideal" name="Plan ideal"
-          stroke="#8b5cf6" strokeWidth={2} dot={false}
+          stroke="var(--color-accent)" strokeWidth={2} dot={false}
           strokeOpacity={0.85}
         />
         <Line
           type="monotone" dataKey="recalc" name="Proyección ajustada"
-          stroke="#22d3ee" strokeWidth={2.2} strokeDasharray="6 4"
+          stroke="var(--color-cyan)" strokeWidth={2.2} strokeDasharray="6 4"
           dot={false} connectNulls
         />
-        <Scatter dataKey="real" name="Tiempo real" fill="#34d399" shape={(props: { cx?: number; cy?: number }) => (
+        <Scatter dataKey="real" name="Tiempo real" fill="var(--color-mint)" shape={(props: { cx?: number; cy?: number }) => (
           props.cx != null && props.cy != null
-            ? <circle cx={props.cx} cy={props.cy} r={4} fill="#34d399" stroke="#06070b" strokeWidth={1.5} style={{ filter: 'drop-shadow(0 0 5px rgba(52,211,153,.8))' }} />
+            ? <circle cx={props.cx} cy={props.cy} r={4} fill="var(--color-mint)" stroke="var(--color-surface)" strokeWidth={1.5} style={{ filter: 'drop-shadow(0 0 5px rgba(52,211,153,.8))' }} />
             : <g />
         )} />
       </ComposedChart>

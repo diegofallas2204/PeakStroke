@@ -1,26 +1,31 @@
-// Dashboard: pulso general del macrociclo activo.
+// Dashboard: pulso general del macrociclo de trabajo.
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
-  Users, CalendarRange, TrendingUp, Trophy, ArrowRight, Waves,
+  Users, CalendarRange, TrendingUp, Trophy, ArrowRight, Waves, ChevronsUpDown,
 } from 'lucide-react'
 import {
   Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import { api } from '../../lib/api'
 import { toClock, signed } from '../../lib/format'
-import { SPECIALTY_LABEL } from '../../lib/constants'
+import { SPECIALTY_LABEL, PLAN_STATUS_META } from '../../lib/constants'
 import { usePageEnter } from '../../hooks/usePageEnter'
+import { useSelectedPlanId } from '../../hooks/useSelectedPlan'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card, EmptyState, Spinner, StatusBadge, Chip } from '../../components/ui/primitives'
 import { StatCard } from '../../components/ui/StatCard'
 import { RingGauge } from '../../components/ui/RingGauge'
 import { PhaseStrip } from './PhaseStrip'
+import { MacroSwitcherModal } from '../plans/MacroSwitcherModal'
 
 export function DashboardPage() {
+  const selectedId = useSelectedPlanId()
+  const [switcherOpen, setSwitcherOpen] = useState(false)
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: () => api.dashboard.summary(),
+    queryKey: ['dashboard', selectedId],
+    queryFn: () => api.dashboard.summary(selectedId ?? undefined),
     retry: false,
   })
   const ref = usePageEnter([data?.plan_id])
@@ -48,24 +53,37 @@ export function DashboardPage() {
       <PageHeader
         title="Dashboard"
         subtitle={
+          <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
+            <span>{data.plan_name} · Semana {data.current_week ?? '—'} de {data.total_weeks}</span>
+            {data.current_phase && <span> · Fase <span className="font-semibold text-accent-soft">{data.current_phase}</span></span>}
+            <Chip color={(PLAN_STATUS_META[data.plan_status] ?? PLAN_STATUS_META.draft).color}>
+              {(PLAN_STATUS_META[data.plan_status] ?? PLAN_STATUS_META.draft).label}
+            </Chip>
+          </span>
+        }
+        actions={
           <>
-            {data.plan_name} · Semana {data.current_week ?? '—'} de {data.total_weeks}
-            {data.current_phase && <> · Fase <span className="font-semibold text-violet-soft">{data.current_phase}</span></>}
+            <button className="btn btn-ghost" onClick={() => setSwitcherOpen(true)}>
+              <ChevronsUpDown size={14} /> Cambiar macrociclo
+            </button>
+            <Link to="/equipo" className="btn btn-primary">Tabla del equipo <ArrowRight size={14} /></Link>
           </>
         }
-        actions={<Link to="/equipo" className="btn btn-primary">Tabla del equipo <ArrowRight size={14} /></Link>}
       />
+      <MacroSwitcherModal open={switcherOpen} onClose={() => setSwitcherOpen(false)} />
 
       <div className="grid grid-cols-4 gap-4">
         <StatCard
-          label="Atletas en plan" value={data.athletes_total} accent="#8b5cf6"
+          label="Atletas en plan" value={data.athletes_total} accent="#3b82f6"
           icon={<Users size={15} />}
           sub={`${data.events_total} pruebas objetivo activas`}
+          to="/equipo"
         />
         <StatCard
           label="Semana actual" value={data.current_week ?? 0} suffix={`/ ${data.total_weeks}`}
           accent="#22d3ee" icon={<CalendarRange size={15} />}
           sub={data.current_phase ? `Fase ${data.current_phase}` : 'Fuera de calendario'}
+          to="/plan-semanal"
         />
         <StatCard
           label="Estado del equipo" value={data.ahead} suffix="adelantados"
@@ -77,37 +95,40 @@ export function DashboardPage() {
               <span className="text-coral">{data.behind} atrasados</span>
             </span>
           }
+          to="/comparacion"
         />
         <StatCard
           label="Desviación media" value={data.avg_deviation_percent ?? 0} suffix="%" decimals={2}
           accent={data.avg_deviation_percent != null && data.avg_deviation_percent > 0 ? '#fb7185' : '#34d399'}
           icon={<Trophy size={15} />}
           sub="Real vs. plan (negativo = más rápido)"
+          to="/comparacion"
         />
       </div>
 
       <div className="grid grid-cols-[1fr_300px] gap-4">
-        <Card title="Progresión del equipo · % de mejora acumulada" className="card-hover">
-          <ResponsiveContainer width="100%" height={252}>
-            <AreaChart data={data.progression} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
+        <Card title="Progresión del equipo · % de mejora acumulada" className="card-hover flex flex-col">
+          <div className="min-h-[252px] flex-1">
+            <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data.progression} margin={{ top: 20, right: 8, left: -18, bottom: 6 }}>
               <defs>
                 <linearGradient id="gradExpected" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.02} />
+                  <stop offset="0%" stopColor="var(--color-accent)" stopOpacity={0.4} />
+                  <stop offset="100%" stopColor="var(--color-accent)" stopOpacity={0.04} />
                 </linearGradient>
                 <linearGradient id="gradReal" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#22d3ee" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="#22d3ee" stopOpacity={0.02} />
+                  <stop offset="0%" stopColor="var(--color-cyan)" stopOpacity={0.45} />
+                  <stop offset="100%" stopColor="var(--color-cyan)" stopOpacity={0.04} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="rgba(148,163,224,.06)" vertical={false} />
-              <XAxis dataKey="date_label" tick={{ fill: '#8b93b8', fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }} tickLine={false} axisLine={false} />
-              <YAxis unit="%" tick={{ fill: '#8b93b8', fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }} tickLine={false} axisLine={false} />
+              <CartesianGrid stroke="var(--color-grid)" vertical={false} />
+              <XAxis dataKey="date_label" tick={{ fill: 'var(--color-text-dim)', fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }} tickLine={false} axisLine={false} />
+              <YAxis unit="%" tick={{ fill: 'var(--color-text-dim)', fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }} tickLine={false} axisLine={false} />
               <Tooltip
                 content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null
                   return (
-                    <div className="card px-3.5 py-2.5 text-xs" style={{ background: '#11131f' }}>
+                    <div className="card px-3.5 py-2.5 text-xs">
                       <p className="mono mb-1 text-[10px] uppercase text-text-dim">{label}</p>
                       {payload.map((p) => (
                         <p key={String(p.dataKey)} className="flex items-center gap-2">
@@ -123,14 +144,15 @@ export function DashboardPage() {
               {data.current_week && (
                 <ReferenceLine
                   x={data.progression.find((p) => p.is_current)?.date_label}
-                  stroke="#fbbf24" strokeDasharray="4 4" strokeOpacity={0.7}
-                  label={{ value: 'Hoy', fill: '#fbbf24', fontSize: 10, position: 'top' }}
+                  stroke="var(--color-amber)" strokeDasharray="4 4" strokeOpacity={0.7}
+                  label={{ value: 'Hoy', fill: 'var(--color-amber)', fontSize: 10, position: 'top' }}
                 />
               )}
-              <Area type="monotone" dataKey="expected_progress" name="Planificado" stroke="#8b5cf6" strokeWidth={2} fill="url(#gradExpected)" dot={false} />
-              <Area type="monotone" dataKey="real_progress" name="Real" stroke="#22d3ee" strokeWidth={2.5} fill="url(#gradReal)" connectNulls dot={{ r: 2.5, fill: '#22d3ee', strokeWidth: 0 }} />
+              <Area type="monotone" dataKey="expected_progress" name="Planificado" stroke="var(--color-accent)" strokeWidth={2} fill="url(#gradExpected)" dot={false} />
+              <Area type="monotone" dataKey="real_progress" name="Real" stroke="var(--color-cyan)" strokeWidth={2.5} fill="url(#gradReal)" connectNulls dot={{ r: 2.5, fill: 'var(--color-cyan)', strokeWidth: 0 }} />
             </AreaChart>
           </ResponsiveContainer>
+          </div>
         </Card>
 
         <div className="flex flex-col gap-4">
@@ -186,7 +208,7 @@ export function DashboardPage() {
                 <td className="text-text-dim">{row.event_label}</td>
                 <td className="mono">{toClock(row.expected_time)}</td>
                 <td className="mono font-semibold">{toClock(row.real_time)}</td>
-                <td className="mono" style={{ color: row.diff_seconds == null ? '#565e82' : row.diff_seconds <= 0 ? '#34d399' : '#fb7185' }}>
+                <td className="mono" style={{ color: row.diff_seconds == null ? 'var(--color-text-faint)' : row.diff_seconds <= 0 ? 'var(--color-mint)' : 'var(--color-coral)' }}>
                   {row.diff_seconds != null ? `${signed(row.diff_seconds)}s` : '—'}
                 </td>
                 <td>
@@ -196,7 +218,7 @@ export function DashboardPage() {
                         className="h-full rounded-full transition-all duration-700"
                         style={{
                           width: `${Math.min(row.progress_percent, 100)}%`,
-                          background: 'linear-gradient(90deg,#8b5cf6,#22d3ee)',
+                          background: 'linear-gradient(90deg,var(--color-accent),var(--color-cyan))',
                         }}
                       />
                     </div>

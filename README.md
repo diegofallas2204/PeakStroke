@@ -270,7 +270,31 @@ Del documento `macrociclos_natacion_investigacion.pdf`:
 
 ---
 
-## 9. Roadmap sugerido
+## 9. Simulador de ajuste de predicciones (consola)
+
+Herramienta de calibración en `backend/tools/` para afinar a mano la calidad de
+las predicciones sin tocar la app. Las constantes clave del motor
+(`curves.py`, `feasibility.py`) están externalizadas a un `tuning.json` editable.
+
+```bash
+cd backend
+# modo interactivo: editás tuning.json y presionás 'r' para recalcular
+.venv\Scripts\python -m tools.sim_cli
+# corrida única
+.venv\Scripts\python -m tools.sim_cli --actual 1:05.0 --meta 1:01.0 --distancia 100 --estilo libre --semanas 16
+```
+
+Muestra el veredicto (FACTIBLE / EXIGENTE / AGRESIVO), la curva semana a semana
+y la **matriz de tiempos de zona por semana** (R1/R2/MVO2/RL/V, igual que la tabla
+de cada atleta); con `z` se ve el detalle min·mid·max y el factor de una semana.
+Los factores de zona (`zones._ZONE_BANDS`) también están en `tuning.json` y se
+afinan en caliente.
+El **manual completo de ajuste** está en `backend/tools/Manual_Ajuste_Predicciones.pdf`
+(regenerable con `python -m tools.generate_manual`; requiere `reportlab`, solo dev).
+Una vez calibrado un valor en `tuning.json`, se porta a la constante del motor
+(mapeo en el manual, sección 7) y se valida con `pytest tests/`.
+
+## 10. Roadmap sugerido
 
 | Fase | Feature |
 |---|---|
@@ -283,6 +307,65 @@ Del documento `macrociclos_natacion_investigacion.pdf`:
 | v0.4 | Sugerencias automáticas de ajuste de carga cuando el atleta se desvía |
 | v0.4 | ML sobre el histórico de tests para afinar las ventanas de mejora |
 | v1.0 | App móvil (React Native, reutiliza el cliente API tipado) |
+
+## 11. Bitácora
+
+**17/06/2026 — Selector de macrociclo de trabajo + temas de interfaz**
+
+- **Macrociclo de trabajo (selección de cliente):** el recuadro "Macrociclo de
+  trabajo" del sidebar y un botón "Cambiar macrociclo" en la cabecera del
+  dashboard abren un modal con el perfil completo del macrociclo y la lista de
+  todos los del entrenador —activo, completado, inactivo o suspendido— para
+  cambiar cuál se visualiza. La selección es puramente de cliente
+  (`hooks/useSelectedPlan.ts`, persistida en `localStorage`); dashboard y sidebar
+  comparten la query `['dashboard', selectedId]`. Los cambios de estado sí
+  persisten en el servidor.
+- **Estado del macrociclo:** se agregó `suspended` y un estado *efectivo*
+  derivado (`plans/service.effective_status`): auto-completado cuando la última
+  semana ya pasó, con override manual (activar / completar / suspender) desde el
+  modal o la página de Macrociclos. Expuesto en `PlanResponse.effective_status`
+  y `DashboardSummary.plan_status`.
+- **Estética azul marino + cian:** se eliminó todo el morado (acento
+  `--color-accent` = `#3b82f6`; superficies con tinte navy). Cian se mantiene como
+  acento secundario.
+- **Temas (azul marino / negro / blanco):** tres temas vía `data-theme` en
+  `<html>` + variables CSS (`hooks/useTheme.ts`, persistido en `localStorage`).
+  El tema blanco da una variante clara de alto contraste. El selector vive en el
+  **footer del sidebar** (`features/settings/ThemeSwitcher.tsx`), no en el
+  dashboard. El fondo del sidebar usa `--color-sidebar` para adaptarse al tema.
+
+**17/06/2026 (tarde) — Ajustes a partir de feedback**
+
+- **Tema blanco** agregado para contraste; tokens de texto y superficie se
+  invierten en `[data-theme='white']`. Tooltips de gráficos y el aro de
+  `RingGauge` ahora usan tokens (`var(--color-*)`) para verse bien en claro.
+- **Control de tema movido al sidebar** (antes estaba al pie del dashboard).
+- **Fix modal del switcher:** el `<aside>` tiene `backdrop-filter`, que capturaba
+  el `position:fixed` del modal y lo comprimía a su ancho. El `Modal`
+  (`components/ui/primitives.tsx`) ahora se renderiza con `createPortal` a
+  `document.body`, quedando centrado a pantalla completa.
+- **Simulador:** parámetros reubicados en una fila superior a todo el ancho
+  (grid hasta 5 columnas) y resultados (factibilidad, curvas, zonas, plan
+  semanal) en lista vertical aprovechando el ancho de la página.
+- **Gráficos y fondo sensibles al tema:** los colores de Recharts (trazos,
+  rellenos, ejes, rejilla) y el `CURVE_COLORS` pasaron de hex fijos a
+  `var(--color-*)` — Chromium resuelve `var()` en atributos SVG. En el tema
+  blanco la paleta de acento se intensifica (azul `#2563eb`, cian `#0891b2`,
+  etc.) y se agregó `--color-grid`, para que los gráficos no se vean pálidos. El
+  fondo de ondas (`WaveBackground`) lee el tema y usa tonos más oscuros + mayor
+  opacidad en blanco.
+
+**17/06/2026 (pulido de UI)**
+
+- **Glow del `RingGauge`:** el SVG ahora es `overflow: visible` para que el
+  difuminado del aro no se recorte contra el borde.
+- **Switcher de macrociclo:** seleccionar otro macrociclo ya **no cierra** el
+  popup; solo actualiza el perfil mostrado, para poder leer los datos o volver
+  al anterior. Se cierra con la X o clic fuera.
+- **`Card` con prop `flush`:** reemplaza el hack `!p-0`. El cuerpo va a ras de
+  los bordes (tablas full-bleed) pero el encabezado conserva su padding, así el
+  título deja de quedar pegado/cortado por el borde (p. ej. "Plan semanal
+  generado" en el simulador). Aplicado también en plan semanal y tabla del equipo.
 
 ---
 

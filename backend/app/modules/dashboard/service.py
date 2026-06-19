@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.engine import progression
 from app.engine.zones import calc_zones, zone_km_distribution
 from app.modules.plans.models import AthleteEvent, AthletePlan, Plan
-from app.modules.plans.service import current_week_of, get_plan
+from app.modules.plans.service import current_week_of, effective_status, get_plan
 from app.modules.swimmers.models import Swimmer
 
 from .schemas import (
@@ -114,7 +114,8 @@ async def build_summary(db: AsyncSession, plan: Plan) -> DashboardSummary:
             current_phase = p.name
 
     return DashboardSummary(
-        plan_id=plan.id, plan_name=plan.name, start_date=plan.start_date,
+        plan_id=plan.id, plan_name=plan.name, plan_status=effective_status(plan),
+        start_date=plan.start_date,
         total_weeks=plan.total_weeks, current_week=current, current_phase=current_phase,
         athletes_total=len(plan.athlete_plans), events_total=len(events),
         ahead=counts["ahead"], on_track=counts["on_track"],
@@ -203,7 +204,7 @@ async def team_week(db: AsyncSession, plan: Plan, week_number: int) -> TeamWeekR
             real_time=week.real_time,
             status=progression.performance_status(week.real_time, week.expected_time)
             if week.real_time is not None else None,
-            zones=calc_zones(pace, event.distance),
+            zones=calc_zones(pace, event.distance, event.stroke, plan.pool),
             zone_km=zone_km_distribution(specialty, week.planned_km),
             planned_km=week.planned_km, disabled=week.disabled,
         ))

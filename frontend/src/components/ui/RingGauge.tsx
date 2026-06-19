@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 import gsap from 'gsap'
 
 export function RingGauge({
-  value, max = 100, size = 132, stroke = 10, color = '#8b5cf6', track = 'rgba(148,163,224,.1)',
+  value, max = 100, size = 132, stroke = 10, color = '#3b82f6', track = 'rgba(148,163,224,.1)',
   label, sublabel,
 }: {
   value: number
@@ -42,7 +42,7 @@ export function RingGauge({
 
   return (
     <div className="relative inline-flex flex-col items-center">
-      <svg width={size} height={size} className="-rotate-90">
+      <svg width={size} height={size} className="-rotate-90 overflow-visible">
         <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={track} strokeWidth={stroke} />
         <circle
           ref={circleRef}
@@ -57,7 +57,7 @@ export function RingGauge({
           className="display rotate-90"
           style={{ transformOrigin: 'center' }}
           textAnchor="middle" dominantBaseline="central"
-          fill="#e7eaf6" fontSize={size / 5.2} fontWeight={700}
+          fill="var(--color-text)" fontSize={size / 5.2} fontWeight={700}
         >
           0
         </text>
