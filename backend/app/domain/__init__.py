@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from .engine import (
     I_MAX_TABLE,
+    MACROCYCLE_DEGRADATION,
     POOL_FACTOR_25,
     STROKE_ALIASES,
     STROKE_TPACE_CORRECTION_S,
@@ -23,6 +24,7 @@ from .engine import (
     css_from_test,
     pool_factor,
     profile_for_event,
+    youth_imax_factor,
     zone_factors,
 )
 
@@ -36,7 +38,9 @@ __all__ = [
     "pool_factor",
     "classify_level",
     "css_from_test",
+    "youth_imax_factor",
     "I_MAX_TABLE",
+    "MACROCYCLE_DEGRADATION",
     "ZONE_OVER_RACE",
     "STROKE_TPACE_CORRECTION_S",
     "STROKE_ALIASES",

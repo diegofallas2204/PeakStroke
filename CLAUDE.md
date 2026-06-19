@@ -58,3 +58,17 @@ cd backend && .venv\Scripts\python seed.py
 - README.md — bitácora completa del proyecto
 - ../oficial/PLAN_IMPLEMENTACION.md — plan de fases SaaS
 - ../mockup.html — prototipo visual original (referencia, no copiar)
+
+## Agent skills
+
+### Issue tracker
+
+Issues y PRDs viven en GitHub Issues de `diegofallas2204/PeakStroke` (vía `gh`). Los PRs externos NO son superficie de triage. Ver `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Vocabulario canónico (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`); aún no existen en el repo — crear con `gh label create` la primera vez. Ver `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: un `CONTEXT.md` + `docs/adr/` en la raíz cubren todo el producto. Ver `docs/agents/domain.md`.

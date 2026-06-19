@@ -63,6 +63,7 @@ export interface Plan {
   total_km: number
   progression_curve: string
   pool: string
+  n_mac: number
   main_event: string | null
   notes: string | null
   status: string

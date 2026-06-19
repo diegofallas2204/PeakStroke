@@ -1,5 +1,5 @@
 // Formulario de alta/edición de atleta.
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import type { Swimmer } from '../../lib/types'
@@ -18,20 +18,25 @@ export function SwimmerForm({
   const [error, setError] = useState('')
   const queryClient = useQueryClient()
 
-  useEffect(() => {
-    if (!open) return
-    setError('')
-    setForm(swimmer ? {
-      name: swimmer.name,
-      birth_date: swimmer.birth_date ?? '',
-      gender: swimmer.gender ?? 'F',
-      specialty: swimmer.specialty,
-      main_stroke: swimmer.main_stroke,
-      weight_kg: swimmer.weight_kg?.toString() ?? '',
-      height_cm: swimmer.height_cm?.toString() ?? '',
-      notes: swimmer.notes ?? '',
-    } : EMPTY)
-  }, [open, swimmer])
+  // Al abrir el modal (o cambiar el atleta editado) se rellena el formulario.
+  // Ajuste de estado durante el render (patrón oficial de React) en vez de efecto.
+  const [prev, setPrev] = useState({ open, swimmer })
+  if (prev.open !== open || prev.swimmer !== swimmer) {
+    setPrev({ open, swimmer })
+    if (open) {
+      setError('')
+      setForm(swimmer ? {
+        name: swimmer.name,
+        birth_date: swimmer.birth_date ?? '',
+        gender: swimmer.gender ?? 'F',
+        specialty: swimmer.specialty,
+        main_stroke: swimmer.main_stroke,
+        weight_kg: swimmer.weight_kg?.toString() ?? '',
+        height_cm: swimmer.height_cm?.toString() ?? '',
+        notes: swimmer.notes ?? '',
+      } : EMPTY)
+    }
+  }
 
   const mutation = useMutation({
     mutationFn: (payload: Partial<Swimmer>) =>

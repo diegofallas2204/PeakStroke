@@ -12,7 +12,7 @@ class AerobicTestCreate(BaseModel):
     test_type: str = Field(pattern="^(T30|T15|CUSTOM|CSS|DIRECT)$")
     test_date: date
     # T30/T15/CUSTOM: tiempos de cada repetición en segundos
-    splits: list[float] = []
+    splits: list[float] = Field(default=[], max_length=200)
     rep_distance: int = Field(default=100, ge=25, le=2000)
     # DIRECT: parcial aeróbico ya calculado (s/100m)
     direct_per100: float | None = Field(default=None, gt=0)
@@ -47,7 +47,7 @@ class AerobicTestResponse(BaseModel):
 
 
 class AnalyzePreviewRequest(BaseModel):
-    splits: list[float] = Field(min_length=1)
+    splits: list[float] = Field(min_length=1, max_length=200)
     rep_distance: int = Field(default=100, ge=25, le=2000)
 
 

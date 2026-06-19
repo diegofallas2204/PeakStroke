@@ -27,8 +27,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Acotado a lo que el frontend realmente usa (defensa en profundidad) en vez de
+    # comodines: los 5 verbos del cliente HTTP y la única cabecera que envía.
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type"],
 )
 
 app.include_router(swimmers_router, prefix="/api/v1/swimmers", tags=["swimmers"])

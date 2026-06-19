@@ -21,6 +21,8 @@ class SimulationRequest(BaseModel):
     pool: Literal["25", "50"] = "50"
     start_date: date | None = None
     specialty: str = "medio_fondo"
+    n_mac: int = Field(default=1, ge=1, le=10)
+    swimmer_age: int | None = None
 
     @model_validator(mode="after")
     def _valid_event(self) -> "SimulationRequest":

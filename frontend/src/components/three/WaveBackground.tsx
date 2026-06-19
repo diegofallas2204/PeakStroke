@@ -67,8 +67,12 @@ export function WaveBackground() {
   const [theme] = useTheme()
   const mountRef = useRef<HTMLDivElement>(null)
   const materialRef = useRef<THREE.ShaderMaterial | null>(null)
+  // Espejo del tema para que el efecto de montaje (deps []) lea el valor inicial
+  // sin recrear la escena. Se sincroniza en un efecto, no durante el render.
   const themeRef = useRef<Theme>(theme)
-  themeRef.current = theme
+  useEffect(() => {
+    themeRef.current = theme
+  }, [theme])
 
   useEffect(() => {
     const mount = mountRef.current

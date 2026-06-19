@@ -45,6 +45,7 @@ class PlanCreate(BaseModel):
     total_km: float = Field(gt=0)
     progression_curve: str = "sigmoid"
     pool: Literal["25", "50"] = "50"
+    n_mac: int = Field(default=1, ge=1, le=10)
     main_event: str | None = None
     notes: str | None = None
     phases: list[PhaseInput] = []
@@ -52,11 +53,12 @@ class PlanCreate(BaseModel):
 
 
 class PlanUpdate(BaseModel):
-    name: str | None = None
+    name: str | None = Field(default=None, min_length=2, max_length=120)
     notes: str | None = None
-    status: str | None = None
+    status: Literal["active", "draft", "finished", "suspended"] | None = None
     main_event: str | None = None
     pool: Literal["25", "50"] | None = None
+    n_mac: int | None = Field(default=None, ge=1, le=10)
 
 
 class EventInput(BaseModel):
@@ -110,6 +112,7 @@ class PlanResponse(BaseModel):
     total_km: float
     progression_curve: str
     pool: str = "50"
+    n_mac: int = 1
     main_event: str | None
     notes: str | None
     status: str                   # crudo en BD: active|draft|finished|suspended

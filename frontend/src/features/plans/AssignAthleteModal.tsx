@@ -56,18 +56,23 @@ export function AssignAthleteModal({ plan, onClose }: { plan: Plan | null; onClo
     [swimmers, plan],
   )
 
-  useEffect(() => {
+  // Ajustes de estado durante el render (patrón oficial de React) en vez de efectos:
+  // al abrir con un macrociclo se limpia el formulario; al llegar los tests del
+  // atleta se autocompleta la base aeróbica desde el último.
+  const [prevPlan, setPrevPlan] = useState(plan)
+  if (plan !== prevPlan) {
+    setPrevPlan(plan)
     if (plan) {
       setSwimmerId(''); setAerobicBase('')
       setEvents([{ distance: 100, stroke: 'libre', current: '', goal: '' }])
       setFeasibilities([null]); setError('')
     }
-  }, [plan])
-
-  // Autocompletar base aeróbica desde el último test del atleta.
-  useEffect(() => {
+  }
+  const [prevTests, setPrevTests] = useState(tests)
+  if (tests !== prevTests) {
+    setPrevTests(tests)
     if (tests?.length) setAerobicBase(String(tests[0].avg_per100))
-  }, [tests])
+  }
 
   // Factibilidad en vivo (debounce) por cada prueba completa.
   useEffect(() => {
@@ -78,11 +83,14 @@ export function AssignAthleteModal({ plan, onClose }: { plan: Plan | null; onClo
         const goal = tryToSeconds(ev.goal)
         if (current == null || goal == null) return null
         try {
+          const selectedSwimmer = swimmerId !== '' ? available.find((s) => s.id === swimmerId) : undefined
           const sim = await api.simulator.run({
             distance: ev.distance, stroke: ev.stroke, current_time: current,
             goal_time: goal, total_weeks: plan.total_weeks,
             weeks_per_micro: plan.weeks_per_micro, total_km: plan.total_km,
             curve: plan.progression_curve,
+            n_mac: plan.n_mac,
+            swimmer_age: selectedSwimmer?.age ?? undefined,
           })
           return sim.feasibility
         } catch { return null }

@@ -107,6 +107,26 @@ class TestFeasibility:
         result = analyze_feasibility(100, "libre", 55.0, 56.0, 12, 4)
         assert result.status == "ok" and result.improvement_per_micro == 0.0
 
+    def test_second_macro_higher_ceiling(self):
+        r1 = analyze_feasibility(800, "libre", 570.0, 540.0, 12, 4, n_mac=1)
+        r2 = analyze_feasibility(800, "libre", 570.0, 540.0, 12, 4, n_mac=2)
+        assert r2.realistic_ceiling > r1.realistic_ceiling
+
+    def test_n_mac_default_equals_1(self):
+        r_def = analyze_feasibility(800, "libre", 570.0, 540.0, 12, 4)
+        r1    = analyze_feasibility(800, "libre", 570.0, 540.0, 12, 4, n_mac=1)
+        assert r_def.realistic_ceiling == pytest.approx(r1.realistic_ceiling)
+
+    def test_youth_age_better_ceiling(self):
+        adult = analyze_feasibility(100, "libre", 60.0, 57.0, 12, 4, age=25)
+        youth = analyze_feasibility(100, "libre", 60.0, 57.0, 12, 4, age=15)
+        assert youth.realistic_ceiling < adult.realistic_ceiling
+
+    def test_age_18_no_correction(self):
+        r18 = analyze_feasibility(100, "libre", 60.0, 57.0, 12, 4, age=18)
+        r25 = analyze_feasibility(100, "libre", 60.0, 57.0, 12, 4, age=25)
+        assert r18.realistic_ceiling == pytest.approx(r25.realistic_ceiling)
+
 
 class TestProgression:
     def test_generates_all_weeks_with_real_dates(self):

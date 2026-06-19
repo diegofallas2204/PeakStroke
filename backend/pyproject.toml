@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+# Hace que `app` sea importable sin importar el cwd desde el que se invoque
+# pytest (antes fallaba con ModuleNotFoundError si no se corría desde backend/).
+pythonpath = ["."]
+testpaths = ["tests"]

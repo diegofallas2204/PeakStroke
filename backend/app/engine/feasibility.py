@@ -15,7 +15,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from app.domain import I_MAX_TABLE, classify_level, profile_for_event, zone_factors
+from app.domain import I_MAX_TABLE, MACROCYCLE_DEGRADATION, classify_level, profile_for_event, youth_imax_factor, zone_factors
 
 TIER1_THRESHOLD = 400
 OK_RATIO = 0.85
@@ -62,6 +62,8 @@ def analyze_feasibility(
     goal_time: float,
     total_weeks: int,
     weeks_per_micro: int = 4,
+    n_mac: int = 1,
+    age: int | None = None,
 ) -> FeasibilityResult:
     total_improvement = current_time - goal_time
     num_micros = max(total_weeks / weeks_per_micro, 0.001)
@@ -80,7 +82,7 @@ def analyze_feasibility(
 
     event = _nearest_event(distance)
     level = _level_for(distance, current_time)
-    i_max_meso = I_MAX_TABLE[level][event]
+    i_max_meso = I_MAX_TABLE[level][event] * (MACROCYCLE_DEGRADATION ** (n_mac - 1)) * youth_imax_factor(age)
     num_meso = total_weeks / 5.0
     i_max_total = i_max_meso * num_meso                 # techo de mejora (fracción)
 

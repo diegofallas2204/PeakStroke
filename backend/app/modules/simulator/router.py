@@ -34,6 +34,7 @@ async def run_simulation(data: SimulationRequest):
         distance=data.distance, stroke=data.stroke,
         current_time=data.current_time, goal_time=data.goal_time,
         total_weeks=data.total_weeks, weeks_per_micro=data.weeks_per_micro,
+        n_mac=data.n_mac, age=data.swimmer_age,
     )
     weeks = generate_plan(
         distance=data.distance, current_time=data.current_time,

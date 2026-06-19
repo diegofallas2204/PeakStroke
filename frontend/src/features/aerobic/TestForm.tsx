@@ -1,5 +1,5 @@
 // Registro de test aeróbico con 4 modos de ingreso y análisis en vivo.
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import { tryToSeconds, toClock } from '../../lib/format'
@@ -27,12 +27,16 @@ export function TestForm({
   const [error, setError] = useState('')
   const queryClient = useQueryClient()
 
-  useEffect(() => {
+  // Al abrir el formulario se limpian los campos y se fija la fecha de hoy.
+  // Ajuste de estado durante el render (patrón oficial de React) en vez de efecto.
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
     if (open) {
       setError(''); setSplitsText(''); setDirect(''); setT400(''); setT50(''); setNotes('')
       setDate(new Date().toISOString().slice(0, 10))
     }
-  }, [open])
+  }
 
   const splits = useMemo(
     () => splitsText.split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean)

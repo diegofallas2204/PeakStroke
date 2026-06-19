@@ -20,6 +20,7 @@ class Plan(Base):
     total_km: Mapped[float] = mapped_column(Float)
     progression_curve: Mapped[str] = mapped_column(String(20), default="sigmoid")
     pool: Mapped[str] = mapped_column(String(2), default="50")  # "50" larga | "25" corta
+    n_mac: Mapped[int] = mapped_column(Integer, default=1)      # número de macrociclo (1=primero)
     main_event: Mapped[str | None] = mapped_column(String(60))
     notes: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(12), default="active")  # active|draft|finished|suspended

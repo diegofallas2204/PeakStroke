@@ -1,6 +1,6 @@
 // Asistente de creación de macrociclo en 3 pasos:
 // 1) configuración general · 2) fases y competencias · 3) resumen.
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ArrowRight, Check, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -31,19 +31,25 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
   const [error, setError] = useState('')
   const [form, setForm] = useState({
     name: '', start_date: '', total_weeks: 12, weeks_per_micro: 4,
-    total_km: 320, progression_curve: 'sigmoid', pool: '50', main_event: '', notes: '',
+    total_km: 320, progression_curve: 'sigmoid', pool: '50', n_mac: 1, main_event: '', notes: '',
   })
   const [phases, setPhases] = useState<PhaseDraft[]>(defaultPhases(12))
   const [comps, setComps] = useState<CompDraft[]>([])
   const queryClient = useQueryClient()
 
-  useEffect(() => {
+  // Ajustes de estado durante el render (patrón oficial de React) en vez de efectos:
+  // al abrir el asistente se vuelve al primer paso; al cambiar el total de semanas
+  // se regeneran las fases por defecto.
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
     if (open) { setStep(0); setError('') }
-  }, [open])
-
-  useEffect(() => {
+  }
+  const [prevWeeks, setPrevWeeks] = useState(form.total_weeks)
+  if (form.total_weeks !== prevWeeks) {
+    setPrevWeeks(form.total_weeks)
     setPhases(defaultPhases(form.total_weeks))
-  }, [form.total_weeks])
+  }
 
   const mutation = useMutation({
     mutationFn: () => api.plans.create({
@@ -77,7 +83,7 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
   }
 
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-    setForm((f) => ({ ...f, [key]: ['total_weeks', 'weeks_per_micro', 'total_km'].includes(key) ? Number(e.target.value) : e.target.value }))
+    setForm((f) => ({ ...f, [key]: ['total_weeks', 'weeks_per_micro', 'total_km', 'n_mac'].includes(key) ? Number(e.target.value) : e.target.value }))
 
   return (
     <Modal open={open} onClose={onClose} title="Nuevo macrociclo" wide>
@@ -128,6 +134,11 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
           <Field label="Piscina">
             <select className="field" value={form.pool} onChange={set('pool')}>
               {POOLS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Número de macrociclo">
+            <select className="field" value={form.n_mac} onChange={set('n_mac')}>
+              {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n}.° macrociclo</option>)}
             </select>
           </Field>
           <Field label="Evento objetivo">
@@ -226,6 +237,7 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
               ['Kilometraje', `${form.total_km} km`],
               ['Curva', CURVES.find((c) => c.value === form.progression_curve)?.label ?? ''],
               ['Piscina', POOLS.find((p) => p.value === form.pool)?.label ?? ''],
+              ['Macrociclo', `${form.n_mac}.°`],
               ['Evento', form.main_event || '—'],
             ].map(([k, v]) => (
               <div key={k} className="rounded-xl border border-line bg-surface-2 px-3.5 py-2.5">

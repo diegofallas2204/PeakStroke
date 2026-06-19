@@ -1,6 +1,6 @@
 // Tabla del equipo: todos los atletas en una semana del macrociclo con sus
 // tiempos objetivo por zona. Incluye gráfico colapsable de progreso promedio.
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Table2 } from 'lucide-react'
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -17,6 +17,15 @@ export function TeamPage() {
   const [week, setWeek] = useState<number | null>(null)
   const [showChart, setShowChart] = useState(true)
 
+  // Al cambiar el macrociclo de trabajo, vuelve a la semana por defecto del nuevo
+  // plan (la semana navegada manualmente podría no existir en el otro macro).
+  // Ajuste de estado durante el render (patrón oficial de React) en vez de efecto.
+  const [prevPlanId, setPrevPlanId] = useState(selectedId)
+  if (selectedId !== prevPlanId) {
+    setPrevPlanId(selectedId)
+    setWeek(null)
+  }
+
   // Comparte la query del macrociclo de trabajo con el resto del sistema:
   // misma key ['dashboard', selectedId] que el sidebar y el dashboard.
   const { data: summary } = useQuery({
@@ -29,10 +38,6 @@ export function TeamPage() {
     queryFn: () => api.dashboard.teamWeek(selectedId ?? undefined, week ?? undefined),
     retry: false,
   })
-
-  // Al cambiar el macrociclo de trabajo, vuelve a la semana por defecto del nuevo
-  // plan (la semana navegada manualmente podría no existir en el otro macro).
-  useEffect(() => { setWeek(null) }, [selectedId])
 
   const ref = usePageEnter([data?.week_number, isLoading])
 

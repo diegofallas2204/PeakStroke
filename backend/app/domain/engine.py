@@ -166,6 +166,23 @@ I_MAX_TABLE: dict[str, dict[int, float]] = {
     "elite":        {50: 0.003, 100: 0.0025, 200: 0.003, 400: 0.0035, 800: 0.004, 1500: 0.0045},
 }
 
+# §4.3 — decaimiento geométrico del I_max entre macrociclos consecutivos.
+MACROCYCLE_DEGRADATION = 0.85
+
+
+def youth_imax_factor(age: int | None) -> float:
+    """§4.4 — multiplicador de I_max para atletas menores de 18 años.
+
+    Los jóvenes tienen mayor potencial de adaptación que los adultos mientras no
+    han alcanzado la maduración biológica. Edad >= 18 → sin corrección (factor 1.0).
+    """
+    if age is None or age >= 18:
+        return 1.0
+    if age <= 14:
+        return 2.0
+    return 1.5   # 15–17 años
+
+
 # §4.3 — multiplicador de mejora por fase del macrociclo.
 F_FASE: dict[str, float] = {
     "base_general":    0.60,
@@ -341,6 +358,11 @@ class ScienceEngine:
         known = sorted(I_MAX_TABLE["elite"].keys())
         return min(known, key=lambda d: abs(d - distance))
 
+    def _effective_i_max(self, level: str, event: int, n_mac: int, age: int | None) -> float:
+        """I_max ajustado por degradación de macrociclo (§4.3) y juventud (§4.4)."""
+        base = I_MAX_TABLE[level][event]
+        return base * (MACROCYCLE_DEGRADATION ** (n_mac - 1)) * youth_imax_factor(age)
+
     def _phase_for_week(self, week: int) -> str:
         for ini, fin, phase in MACRO_15_PHASES:
             if ini <= week <= fin:
@@ -368,11 +390,14 @@ class ScienceEngine:
         cap = MAX_VOLUME_BY_STROKE[stroke_key][level]          # §7.3
         return round(min(km, cap), 1)
 
-    def _check_feasibility(self, current: float, goal: float, event: int, level: str) -> tuple[str, str]:
+    def _check_feasibility(
+        self, current: float, goal: float, event: int, level: str,
+        n_mac: int = 1, age: int | None = None,
+    ) -> tuple[str, str]:
         """§5.3 — compara mejora pedida vs mejora máxima científica."""
         pct = (current - goal) / current
         num_meso = self.TOTAL_WEEKS / 5.0
-        i_max_total = I_MAX_TABLE[level][event] * num_meso
+        i_max_total = self._effective_i_max(level, event, n_mac, age) * num_meso
         ratio = pct / i_max_total if i_max_total else 999
         if ratio <= 0.85:
             return "ok", (
@@ -399,6 +424,8 @@ class ScienceEngine:
         pool: str = "50",
         profile: str | None = None,
         start_date: date | None = None,
+        n_mac: int = 1,
+        age: int | None = None,
     ) -> PlanResult:
         start_date = start_date or date.today()
         event = self._nearest_event(distance)
@@ -414,7 +441,7 @@ class ScienceEngine:
         threshold = race_pace_0 * zone_factors(profile, distance)["MVO2"]
         level = classify_level(threshold)
         css_0 = race_pace_0
-        feas_status, feas_msg = self._check_feasibility(current_time, goal_time, event, level)
+        feas_status, feas_msg = self._check_feasibility(current_time, goal_time, event, level, n_mac, age)
 
         # ── Progresión al RITMO MÁXIMO REALISTA (techo científico §5.3) ──────
         # safe_total = mejora máx creíble en un macro de 15 sem. La progresión
@@ -428,7 +455,7 @@ class ScienceEngine:
             """Fracción acumulada del macro al final de la semana w (0 en 1, 1 en 15)."""
             return sum(weights[: w - 1]) / denom
 
-        i_max_total = I_MAX_TABLE[level][event] * (self.TOTAL_WEEKS / 5.0)
+        i_max_total = self._effective_i_max(level, event, n_mac, age) * (self.TOTAL_WEEKS / 5.0)
         safe_total = current_time * i_max_total            # mejora máx realista en 15 sem (s)
         realistic_ceiling = current_time - safe_total      # tiempo realista al cerrar el macro
         requested = current_time - goal_time               # mejora pedida (s)
