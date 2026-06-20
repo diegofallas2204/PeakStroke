@@ -37,13 +37,31 @@ ZONE_LABELS = {
 # Tolerancia de visualización alrededor del objetivo de zona (solo UI).
 _ZONE_DISPLAY_TOLERANCE = 0.01  # ±1%
 
-# Distribución recomendada del volumen semanal por especialidad del atleta
-# (Seiler 2010, Issurin 2008). Claves = zonas; valores = fracción del km semanal.
+# Distribución del volumen semanal por distancia de prueba.
+# Driver principal: la contribución energética aeróbica/anaeróbica cambia
+# drásticamente con la distancia (Gastin 2001, Maglischo 2011):
+#   50m → 5% aeróbico    → dominio V y RL
+#   100m → 35% aeróbico  → equilibrio velocidad-resistencia
+#   200m → 60% aeróbico  → transición
+#   400m → 87% aeróbico  → umbral predominante
+#   800m → 93% aeróbico  → base aeróbica muy alta
+#   1500m → 95% aeróbico → máximo R1/R2
+_DISTANCE_ZONE_MIX: dict[int, dict[str, float]] = {
+    50:   {"R1": 0.28, "R2": 0.12, "MVO2": 0.18, "RL": 0.25, "V": 0.17},
+    100:  {"R1": 0.40, "R2": 0.14, "MVO2": 0.18, "RL": 0.18, "V": 0.10},
+    200:  {"R1": 0.53, "R2": 0.16, "MVO2": 0.15, "RL": 0.12, "V": 0.04},
+    400:  {"R1": 0.64, "R2": 0.17, "MVO2": 0.11, "RL": 0.06, "V": 0.02},
+    800:  {"R1": 0.70, "R2": 0.16, "MVO2": 0.09, "RL": 0.04, "V": 0.01},
+    1500: {"R1": 0.74, "R2": 0.15, "MVO2": 0.07, "RL": 0.03, "V": 0.01},
+}
+
+# Distribución por especialidad — se conserva como fallback cuando no hay
+# distancia disponible (simulador) y como referencia de la tabla de datos.
 SPECIALTY_ZONE_MIX: dict[str, dict[str, float]] = {
-    "velocidad":      {"R1": 0.50, "R2": 0.15, "MVO2": 0.13, "RL": 0.12, "V": 0.10},
-    "medio_fondo":    {"R1": 0.60, "R2": 0.16, "MVO2": 0.12, "RL": 0.08, "V": 0.04},
-    "fondo":          {"R1": 0.70, "R2": 0.14, "MVO2": 0.09, "RL": 0.05, "V": 0.02},
-    "aguas_abiertas": {"R1": 0.78, "R2": 0.12, "MVO2": 0.06, "RL": 0.03, "V": 0.01},
+    "velocidad":      {"R1": 0.35, "R2": 0.13, "MVO2": 0.18, "RL": 0.22, "V": 0.12},
+    "medio_fondo":    {"R1": 0.53, "R2": 0.16, "MVO2": 0.15, "RL": 0.12, "V": 0.04},
+    "fondo":          {"R1": 0.68, "R2": 0.16, "MVO2": 0.10, "RL": 0.05, "V": 0.01},
+    "aguas_abiertas": {"R1": 0.74, "R2": 0.15, "MVO2": 0.07, "RL": 0.03, "V": 0.01},
 }
 
 SPECIALTY_LABELS = {
@@ -87,7 +105,35 @@ def calc_zones(
     return zones
 
 
-def zone_km_distribution(specialty: str, weekly_km: float) -> dict[str, float]:
-    """Kilómetros sugeridos por zona para la semana según especialidad."""
-    mix = SPECIALTY_ZONE_MIX.get(specialty, SPECIALTY_ZONE_MIX["medio_fondo"])
-    return {zone: round(weekly_km * frac, 1) for zone, frac in mix.items()}
+def zone_km_distribution(
+    weekly_km: float,
+    distance: int | None = None,
+    specialty: str | None = None,
+) -> dict[str, float]:
+    """Kilómetros sugeridos por zona para la semana.
+
+    La distribución prioriza la distancia del evento (driver fisiológico
+    directo); cae en la especialidad cuando no hay distancia disponible.
+    Para distancias intermedias se interpola entre los dos puntos más cercanos.
+    """
+    if distance is not None:
+        sorted_dists = sorted(_DISTANCE_ZONE_MIX.keys())
+        if distance <= sorted_dists[0]:
+            mix = _DISTANCE_ZONE_MIX[sorted_dists[0]]
+        elif distance >= sorted_dists[-1]:
+            mix = _DISTANCE_ZONE_MIX[sorted_dists[-1]]
+        elif distance in _DISTANCE_ZONE_MIX:
+            mix = _DISTANCE_ZONE_MIX[distance]
+        else:
+            # Interpolación lineal entre los dos puntos más cercanos
+            lo = max(d for d in sorted_dists if d < distance)
+            hi = min(d for d in sorted_dists if d > distance)
+            t = (distance - lo) / (hi - lo)
+            lo_mix = _DISTANCE_ZONE_MIX[lo]
+            hi_mix = _DISTANCE_ZONE_MIX[hi]
+            mix = {z: lo_mix[z] + t * (hi_mix[z] - lo_mix[z]) for z in ZONE_ORDER}
+    else:
+        sp = specialty or "medio_fondo"
+        mix = SPECIALTY_ZONE_MIX.get(sp, SPECIALTY_ZONE_MIX["medio_fondo"])
+
+    return {zone: round(weekly_km * mix[zone], 1) for zone in ZONE_ORDER}

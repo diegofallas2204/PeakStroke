@@ -70,30 +70,9 @@ export function MacroSwitcherModal({ open, onClose }: { open: boolean; onClose: 
                   <h3 className="display text-[17px] font-bold">{current.name}</h3>
                   <StatusChip status={current.effective_status} />
                 </div>
-                <div className="card p-4">
-                  <ProfileRow label="Inicio" value={current.start_date} />
-                  <ProfileRow
-                    label="Semana actual"
-                    value={`${current.current_week ?? '—'} / ${current.total_weeks}`}
-                  />
-                  <ProfileRow label="Microciclos" value={`cada ${current.weeks_per_micro} semanas`} />
-                  <ProfileRow label="Kilometraje total" value={`${current.total_km} km`} />
-                  <ProfileRow label="Curva" value={CURVE_LABEL[current.progression_curve] ?? current.progression_curve} />
-                  <ProfileRow label="Evento principal" value={current.main_event ?? '—'} />
-                  <ProfileRow
-                    label="Atletas"
-                    value={<span className="inline-flex items-center gap-1.5"><Users size={12} /> {current.athletes.length}</span>}
-                  />
-                  <ProfileRow label="Fases" value={current.phases.map((p) => p.name).join(' · ') || '—'} />
-                </div>
-                {current.notes && (
-                  <p className="mt-3 rounded-xl border border-line bg-surface-2 p-3 text-[11.5px] text-text-dim">
-                    {current.notes}
-                  </p>
-                )}
 
-                {/* Acciones de ciclo de vida (se guardan en el servidor) */}
-                <div className="mt-4 flex flex-wrap gap-2">
+                {/* Acciones de ciclo de vida — arriba de la card para que sean siempre visibles */}
+                <div className="mb-3 flex flex-wrap gap-2">
                   <button
                     className="btn btn-ghost !py-1.5 text-[11.5px]"
                     disabled={current.status === 'active' || setStatus.isPending}
@@ -116,14 +95,36 @@ export function MacroSwitcherModal({ open, onClose }: { open: boolean; onClose: 
                     <PauseCircle size={13} /> Suspender
                   </button>
                 </div>
+
+                <div className="card p-4">
+                  <ProfileRow label="Inicio" value={current.start_date} />
+                  <ProfileRow
+                    label="Semana actual"
+                    value={`${current.current_week ?? '—'} / ${current.total_weeks}`}
+                  />
+                  <ProfileRow label="Microciclos" value={`cada ${current.weeks_per_micro} semanas`} />
+                  <ProfileRow label="Kilometraje total" value={`${current.total_km} km`} />
+                  <ProfileRow label="Curva" value={CURVE_LABEL[current.progression_curve] ?? current.progression_curve} />
+                  <ProfileRow label="Evento principal" value={current.main_event ?? '—'} />
+                  <ProfileRow
+                    label="Atletas"
+                    value={<span className="inline-flex items-center gap-1.5"><Users size={12} /> {current.athletes.length}</span>}
+                  />
+                  <ProfileRow label="Fases" value={current.phases.map((p) => p.name).join(' · ') || '—'} />
+                </div>
+                {current.notes && (
+                  <p className="mt-3 rounded-xl border border-line bg-surface-2 p-3 text-[11.5px] text-text-dim">
+                    {current.notes}
+                  </p>
+                )}
               </>
             )}
           </section>
 
-          {/* Lista de todos los macrociclos: cambiar el que se visualiza */}
+          {/* Lista de todos los macrociclos — sin scroll */}
           <section className="flex flex-col gap-2">
             <p className="card-title mb-1">Cambiar a otro · {plans.length}</p>
-            <div className="flex flex-col gap-2 overflow-y-auto pr-1" style={{ maxHeight: '62vh' }}>
+            <div className="flex flex-col gap-2">
               {plans.map((plan) => {
                 const isCurrent = plan.id === current?.id
                 return (

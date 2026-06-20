@@ -132,10 +132,11 @@ body {
 }
 
 @keyframes nav-indicator-in {
-  from { transform: translateY(-50%) scaleY(0); opacity: 0; }
-  to   { transform: translateY(-50%) scaleY(1); opacity: 1; }
+  from { transform: scaleY(0); opacity: 0; }
+  to   { transform: scaleY(1); opacity: 1; }
 }
 .nav-indicator {
+  transform-origin: center;
   animation: nav-indicator-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 

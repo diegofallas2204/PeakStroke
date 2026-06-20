@@ -205,7 +205,7 @@ async def team_week(db: AsyncSession, plan: Plan, week_number: int) -> TeamWeekR
             status=progression.performance_status(week.real_time, week.expected_time)
             if week.real_time is not None else None,
             zones=calc_zones(pace, event.distance, event.stroke, plan.pool),
-            zone_km=zone_km_distribution(specialty, week.planned_km),
+            zone_km=zone_km_distribution(week.planned_km, distance=event.distance, specialty=specialty),
             planned_km=week.planned_km, disabled=week.disabled,
         ))
     return TeamWeekResponse(

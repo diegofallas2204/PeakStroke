@@ -15,7 +15,7 @@ from .schemas import FeasibilityResponse, SimulationRequest, SimulationResponse,
 router = APIRouter()
 
 
-def _to_simweek(w: WeekEntry, specialty: str) -> SimWeek:
+def _to_simweek(w: WeekEntry, specialty: str, distance: int) -> SimWeek:
     return SimWeek(
         week_number=w.week_number, date_label=w.week_date.strftime("%d/%m"),
         expected_time=w.expected_time, pace_100m=w.pace_100m,
@@ -23,7 +23,7 @@ def _to_simweek(w: WeekEntry, specialty: str) -> SimWeek:
         improvement_vs_prev=w.improvement_vs_prev,
         cumulative_improvement=w.cumulative_improvement,
         zones=w.zones,
-        zone_km=zone_km_distribution(specialty, w.planned_km),
+        zone_km=zone_km_distribution(w.planned_km, distance=distance, specialty=specialty),
     )
 
 
@@ -78,7 +78,7 @@ async def run_simulation(data: SimulationRequest):
             safe_rate_per_week=feasibility.safe_rate_per_week,
             detail=feasibility.detail,
         ),
-        weeks=[_to_simweek(w, data.specialty) for w in weeks],
-        extension_weeks=[_to_simweek(w, data.specialty) for w in extension],
+        weeks=[_to_simweek(w, data.specialty, data.distance) for w in weeks],
+        extension_weeks=[_to_simweek(w, data.specialty, data.distance) for w in extension],
         curves=curves,
     )

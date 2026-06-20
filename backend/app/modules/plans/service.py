@@ -185,7 +185,7 @@ async def event_weeks_response(db: AsyncSession, event: AthleteEvent) -> list[We
             planned_km=w.planned_km, expected_time=w.expected_time,
             recalc_time=w.recalc_time, pace_100m=round(pace, 2),
             zones=calc_zones(pace, event.distance, event.stroke, pool),
-            zone_km=zone_km_distribution(specialty, w.planned_km),
+            zone_km=zone_km_distribution(w.planned_km, distance=event.distance, specialty=specialty),
             real_time=w.real_time, status=status,
             diff_seconds=diff_s, diff_percent=diff_p,
             phase=w.phase, disabled=w.disabled, disable_reason=w.disable_reason,

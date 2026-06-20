@@ -7,7 +7,7 @@ import { Card } from '../../components/ui/primitives'
 
 export function ZonePanel({ week, specialty }: { week: Week | null; specialty: string }) {
   if (!week) return null
-  const maxKm = Math.max(...Object.values(week.zone_km), 0.001)
+  const totalKm = Math.max(Object.values(week.zone_km).reduce((s, v) => s + v, 0), 0.001)
 
   return (
     <Card title={`Zonas · Semana ${week.week_number} (${week.date_label})`} className="card-hover">
@@ -37,7 +37,7 @@ export function ZonePanel({ week, specialty }: { week: Week | null; specialty: s
                   <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface-3">
                     <div
                       className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${(km / maxKm) * 100}%`, background: meta.color, opacity: 0.8 }}
+                      style={{ width: `${(km / totalKm) * 100}%`, background: meta.color, opacity: 0.8 }}
                     />
                   </div>
                   <span className="mono w-14 text-right text-[10px] text-text-dim">{km} km</span>
