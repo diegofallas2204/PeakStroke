@@ -23,8 +23,16 @@ cd frontend && npm run dev
 # Tests del motor
 cd backend && .venv\Scripts\python -m pytest tests/ -v
 
-# Re-sembrar datos demo
+# Re-sembrar datos demo (BORRA la base y la reconstruye por migraciones)
 cd backend && .venv\Scripts\python seed.py
+
+# Migraciones — el esquema ya NO se crea solo al arrancar
+cd backend && .venv\Scripts\python -m alembic upgrade head
+cd backend && .venv\Scripts\python -m alembic revision --autogenerate -m "qué cambia"
+cd backend && .venv\Scripts\python -m alembic current
+
+# Crear una cuenta sin borrar datos (bootstrap del primer entrenador)
+cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "Ana" --role coach
 ```
 
 ## Reglas de código (NO negociables)
@@ -44,15 +52,84 @@ cd backend && .venv\Scripts\python seed.py
   la forma {min,mid,max} que consume el frontend
 - Jerarquía de zonas (lento -> rápido): R1 > R2 > MVO2 > RL > V
 - Pruebas >= 400m = Tier 1 (regla aeróbica); < 400m = Tier 2 (ventanas de velocidad)
-- Eje X de TODOS los gráficos: fechas reales DD/MM, nunca números de semana
+- Eje X de los gráficos: fecha real DD/MM **y** número de semana `S#` (tick de dos
+  líneas: `S#` arriba, fecha abajo). El número de semana ayuda a la lectura; la fecha
+  sigue siendo el ancla temporal. (Antes la regla era "solo fechas, nunca semana";
+  cambiada 2026-06-24 por legibilidad — ver simulador `SimulatorPage` `renderWeekTick`.)
 - La curva ideal (`expected_time`) nunca se modifica; los recálculos van en `recalc_time`
+- **Curva de progresión por defecto = `"science"`** (distribución F_FASE, back-loaded,
+  pico en taper). Fuente única: `domain/engine.py::science_curve_progress`, expuesta
+  vía `engine/curves.py`. Sigmoide/exp/log/lineal solo comparan escenarios. La mejora
+  por MACROCICLO (`I_max × N/5`) ≠ la anual: la temporada son ~3 macros encadenados
+  con degradación `MACROCYCLE_DEGRADATION = 0.60`. Validado en notas 16/17 del vault
+- **Proyección anual**: `ScienceEngine.project_season()` (3 macros) → `POST
+  /api/v1/simulator/season`. Usa el motor de dominio directamente, no adaptadores
 
-## Camino al SaaS (no implementado aún, diseño preparado)
-- DB: cambiar `PEAKSTROKE_DATABASE_URL` a PostgreSQL (asyncpg) — el código no cambia
-- Agregar módulos `auth/` (JWT + refresh rotation) y `billing/` (Stripe) según
-  `../oficial/PLAN_IMPLEMENTACION.md`
-- Tier guards: `core/tier_limits.py` + dependencia `require_feature()`
-- Alembic para migraciones al salir de SQLite
+## Identidad y roles (andamiaje montado 2026-08-03, feature SIN implementar)
+- `PEAKSTROKE_AUTH_ENABLED=false` por defecto: **la app no pide login**.
+  `get_current_user()` devuelve el entrenador de desarrollo (`coach@peakstroke.dev`,
+  contraseña `peakstroke`) y `require_role()` deja pasar. `config.py` impide que
+  ese modo llegue a producción
+- Módulo `modules/auth/` (User, login/refresh/logout/me) + `core/security.py`
+  (Argon2id + JWT) + `core/dependencies.py` (`get_current_user`, `require_coach`)
+- **Ningún router existente tiene guards todavía** — el API sigue abierto tal cual
+- Falta por implementar: FKs `swimmers.user_id` / `swimmers.coach_id` /
+  `plans.coach_id`, scoping del atleta, y todo el frontend (login, `/perfil`,
+  navegación filtrada por rol). Spec: nota 18 del vault
+- El atleta que pide un recurso ajeno recibe **404, no 403** (un 403 confirmaría
+  que existe)
+
+## Equipos, roles y aislamiento (NO negociable)
+- El **equipo es la frontera de todo**: `swimmers`, `plans` y `aerobic_tests`
+  llevan `team_id` NOT NULL. Una persona pertenece a un equipo y solo a uno
+- **El rol vive en `team_members`, no en `users`.** `users` es solo identidad
+  (email, hash, nombre). Ser entrenador es algo que se es *en* un club
+- **Entrenador en jefe = entrenador que además es `teams.owner_id`.** No es un
+  tercer rol. El dueño es único y transferible (`POST /teams/mine/transfer`)
+- El **atleta es del equipo**, no de un entrenador: `coach_athletes` (M:N) dice
+  quién lo lleva; `plan_coaches` (M:N), qué entrenadores llevan cada macrociclo
+- **`plan_coaches` decide visibilidad**: un entrenador que no esté en la lista no
+  ve ni edita ese macrociclo. **Excepción: el dueño**, que llega a todos — sin eso
+  los planes de un entrenador que se va quedarían huérfanos
+- **Toda consulta pasa por `Principal`** (`core/dependencies.py`): usuario +
+  pertenencia + propiedad. `plans.service.visible_to()` es la única puerta a los
+  macrociclos; nada la esquiva
+- `team_id` sale **siempre de la sesión**, nunca del cuerpo de la petición
+- Recurso de otro equipo → **404, nunca 403**: un 403 confirmaría que existe
+- El primer equipo y su dueño se crean con
+  `python tools/create_user.py --new-team "Nombre" --role coach`
+
+## Integridad y borrado
+- **Las FKs se aplican de verdad**: `core/database.py` activa `PRAGMA
+  foreign_keys=ON` en cada conexión SQLite. Sin eso son decorativas en local y
+  solo se aplicarían en PostgreSQL — el peor sitio para descubrirlo
+- **FKs compuestas contra `(id, team_id)`** en toda tabla de relación: la base de
+  datos hace imposible mezclar equipos aunque el código tenga un bug
+- **Nada se borra: se da de baja.** `swimmers.is_active`, `team_members.is_active`,
+  `users.is_active`. `DELETE /swimmers/{id}` desactiva y devuelve el atleta
+- `ondelete=CASCADE` solo donde hay composición real (plan → fases, test →
+  parciales). El resto usa el defecto, que impide borrar mientras algo lo referencie
+
+## Esquema de base de datos
+- **Alembic es la única fuente del esquema.** `init_db()` ya no hace `create_all()`:
+  solo avisa por log si la DB no está en `head`
+- **Todo modelo nuevo va en `app/core/model_registry.py`.** SQLAlchemy resuelve
+  las FKs contra `Base.metadata`, no contra los imports: un modelo que nadie
+  importe hace reventar cualquier FK que lo apunte con `NoReferencedTableError`
+  al primer INSERT, aunque la tabla exista en la DB. Antes lo cubría de rebote el
+  `create_all()` de `init_db()`
+- Toda tabla o columna nueva requiere su migración; `--autogenerate` compara contra
+  los modelos importados en `alembic/env.py` (si no está importado ahí, es invisible)
+- `render_as_batch=True` para SQLite (no sabe hacer `ALTER COLUMN`)
+- Reglas de portabilidad SQLite→PostgreSQL: nada de `JSONB`/`citext`/enums nativos,
+  emails normalizados a minúsculas en el service, `DateTime(timezone=True)` siempre
+
+## Camino al SaaS (parcialmente montado)
+- DB: SQLite en local; `docker-compose.yml` (raíz) trae PostgreSQL 17 listo para
+  cuando toque desplegar — basta `pip install asyncpg` y apuntar
+  `PEAKSTROKE_DATABASE_URL`. El código no cambia
+- Falta el módulo `billing/` (Stripe) y los tier guards:
+  `core/tier_limits.py` + dependencia `require_feature()`
 
 ## Archivos de referencia
 - README.md — bitácora completa del proyecto
