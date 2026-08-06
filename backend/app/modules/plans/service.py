@@ -7,11 +7,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.dependencies import Principal
 from app.engine import progression
 from app.engine.zones import calc_zones, zone_km_distribution
 from app.modules.swimmers.models import Swimmer
 
-from .models import AthleteEvent, AthletePlan, Competition, Plan, PlanPhase, WeeklyPlan
+from .models import (
+    AthleteEvent, AthletePlan, Competition, Plan, PlanCoach, PlanPhase, WeeklyPlan,
+)
 from .schemas import (
     AddAthleteRequest, AthletePlanResponse, PlanCreate, PlanResponse,
     PlanUpdate, WeekResponse, WeekUpdateRequest,
@@ -22,6 +25,16 @@ _PLAN_LOAD = (
     selectinload(Plan.competitions),
     selectinload(Plan.athlete_plans).selectinload(AthletePlan.events),
 )
+
+
+def age_at(birth_date: date | None, ref: date) -> int | None:
+    """Edad en años cumplidos en la fecha `ref` (None si no hay fecha de nacimiento)."""
+    if birth_date is None:
+        return None
+    years = ref.year - birth_date.year
+    if (ref.month, ref.day) < (birth_date.month, birth_date.day):
+        years -= 1
+    return max(years, 0)
 
 
 def current_week_of(plan: Plan, today: date | None = None) -> int | None:
@@ -73,18 +86,62 @@ async def to_plan_response(db: AsyncSession, plan: Plan) -> PlanResponse:
     return resp
 
 
-async def list_plans(db: AsyncSession) -> list[Plan]:
-    stmt = select(Plan).options(*_PLAN_LOAD).order_by(Plan.created_at.desc())
-    return list((await db.execute(stmt)).scalars())
+def visible_to(stmt, principal: Principal):
+    """Acota una consulta de macrociclos a los que el solicitante puede ver.
+
+    Tres casos, en este orden:
+      · **Dueño del equipo** — todos los de su equipo. Sin esta excepción, los
+        macrociclos de un entrenador que se va no los podría rescatar nadie.
+      · **Entrenador** — solo aquellos en los que figura en `plan_coaches`.
+      · **Atleta** — solo aquellos en los que está inscrito.
+
+    Es la única puerta: `list_plans` y `get_plan` pasan por aquí, así que un
+    macrociclo ajeno no se cuela ni listándolo ni pidiéndolo por id.
+    """
+    stmt = stmt.where(Plan.team_id == principal.team_id)
+    if principal.sees_every_plan:
+        return stmt
+
+    if principal.is_coach:
+        suyos = select(PlanCoach.plan_id).where(PlanCoach.coach_id == principal.id)
+    else:
+        suyos = (
+            select(AthletePlan.plan_id)
+            .join(Swimmer, Swimmer.id == AthletePlan.swimmer_id)
+            .where(Swimmer.user_id == principal.id)
+        )
+    return stmt.where(Plan.id.in_(suyos))
 
 
-async def get_plan(db: AsyncSession, plan_id: int) -> Plan | None:
+async def list_plans(db: AsyncSession, principal: Principal) -> list[Plan]:
+    stmt = visible_to(select(Plan).options(*_PLAN_LOAD), principal)
+    return list((await db.execute(stmt.order_by(Plan.created_at.desc()))).scalars())
+
+
+async def get_plan(db: AsyncSession, plan_id: int, principal: Principal) -> Plan | None:
+    """None si no existe **o** si el solicitante no debe verlo.
+
+    Ambos casos se responden con 404: un 403 confirmaría que ese macrociclo
+    existe en algún equipo.
+    """
+    stmt = visible_to(select(Plan).options(*_PLAN_LOAD).where(Plan.id == plan_id), principal)
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+async def _plan_unscoped(db: AsyncSession, plan_id: int) -> Plan | None:
+    """Recarga interna tras escribir, cuando el acceso ya está comprobado."""
     stmt = select(Plan).options(*_PLAN_LOAD).where(Plan.id == plan_id)
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
-async def create_plan(db: AsyncSession, data: PlanCreate) -> Plan:
-    plan = Plan(**data.model_dump(exclude={"phases", "competitions"}))
+async def create_plan(db: AsyncSession, data: PlanCreate, team_id: int, coach_id: int) -> Plan:
+    """El equipo y el entrenador NO vienen del cliente: salen de la sesión.
+
+    Si el equipo fuese un campo del schema, cualquiera podría crear macrociclos
+    dentro de un equipo ajeno con solo cambiar un número en la petición.
+    """
+    plan = Plan(**data.model_dump(exclude={"phases", "competitions"}), team_id=team_id)
+    plan.coaches.append(PlanCoach(coach_id=coach_id, team_id=team_id))
     phases = [p.model_dump() for p in data.phases] or \
         progression.default_phase_ranges(data.total_weeks)
     for i, p in enumerate(phases):
@@ -96,14 +153,14 @@ async def create_plan(db: AsyncSession, data: PlanCreate) -> Plan:
         plan.competitions.append(Competition(**c.model_dump()))
     db.add(plan)
     await db.commit()
-    return (await get_plan(db, plan.id))  # type: ignore[return-value]
+    return (await _plan_unscoped(db, plan.id))  # type: ignore[return-value]
 
 
 async def update_plan(db: AsyncSession, plan: Plan, data: PlanUpdate) -> Plan:
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(plan, field, value)
     await db.commit()
-    return (await get_plan(db, plan.id))  # type: ignore[return-value]
+    return (await _plan_unscoped(db, plan.id))  # type: ignore[return-value]
 
 
 async def delete_plan(db: AsyncSession, plan: Plan) -> None:
@@ -114,13 +171,16 @@ async def delete_plan(db: AsyncSession, plan: Plan) -> None:
 # ── Atletas en el plan ───────────────────────────────────────────────
 async def add_athlete(db: AsyncSession, plan: Plan, data: AddAthleteRequest) -> AthletePlan:
     athlete_plan = AthletePlan(
-        plan_id=plan.id, swimmer_id=data.swimmer_id,
+        plan_id=plan.id, swimmer_id=data.swimmer_id, team_id=plan.team_id,
         aerobic_base=data.aerobic_base, aerobic_base_source=data.aerobic_base_source,
     )
     phases = [
         {"name": p.name, "week_start": p.week_start, "week_end": p.week_end}
         for p in plan.phases
     ]
+    # Edad al inicio del macro: ajusta al alza el techo I_max de menores (juventud).
+    swimmer = await db.get(Swimmer, data.swimmer_id)
+    age = age_at(swimmer.birth_date, plan.start_date) if swimmer else None
     for event_data in data.events:
         event = AthleteEvent(**event_data.model_dump())
         weeks = progression.generate_plan(
@@ -129,6 +189,7 @@ async def add_athlete(db: AsyncSession, plan: Plan, data: AddAthleteRequest) -> 
             total_km=plan.total_km, curve=plan.progression_curve,
             start_date=plan.start_date, weeks_per_micro=plan.weeks_per_micro,
             phases=phases or None, stroke=event.stroke, pool=plan.pool,
+            n_mac=plan.n_mac, age=age,
         )
         for w in weeks:
             event.weeks.append(WeeklyPlan(
@@ -152,15 +213,44 @@ async def remove_athlete(db: AsyncSession, plan_id: int, athlete_plan_id: int) -
 
 
 # ── Semanas ──────────────────────────────────────────────────────────
-async def get_event(db: AsyncSession, event_id: int) -> AthleteEvent | None:
-    stmt = (
-        select(AthleteEvent)
-        .options(
-            selectinload(AthleteEvent.weeks),
-            selectinload(AthleteEvent.athlete_plan).selectinload(AthletePlan.plan)
-            .selectinload(Plan.competitions),
+_EVENT_LOAD = (
+    selectinload(AthleteEvent.weeks),
+    selectinload(AthleteEvent.athlete_plan).selectinload(AthletePlan.plan)
+    .selectinload(Plan.competitions),
+)
+
+
+async def get_event(
+    db: AsyncSession, event_id: int, principal: Principal | None = None,
+) -> AthleteEvent | None:
+    """Prueba objetivo de un atleta dentro de un plan.
+
+    Con `principal`, solo la devuelve si ese macrociclo le es visible. Es la
+    comprobación que impide el acceso directo por id: las pruebas y las semanas
+    se piden por su propio identificador, sin mencionar el plan, así que sin
+    esto bastaría con probar números para leer los datos de otro club.
+    """
+    stmt = select(AthleteEvent).options(*_EVENT_LOAD).where(AthleteEvent.id == event_id)
+    if principal is not None:
+        stmt = visible_to(
+            stmt.join(AthletePlan, AthletePlan.id == AthleteEvent.athlete_plan_id)
+                .join(Plan, Plan.id == AthletePlan.plan_id),
+            principal,
         )
-        .where(AthleteEvent.id == event_id)
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+async def get_week(
+    db: AsyncSession, week_id: int, principal: Principal,
+) -> WeeklyPlan | None:
+    """Semana concreta, solo si su macrociclo le es visible al solicitante."""
+    stmt = visible_to(
+        select(WeeklyPlan)
+        .join(AthleteEvent, AthleteEvent.id == WeeklyPlan.athlete_event_id)
+        .join(AthletePlan, AthletePlan.id == AthleteEvent.athlete_plan_id)
+        .join(Plan, Plan.id == AthletePlan.plan_id)
+        .where(WeeklyPlan.id == week_id),
+        principal,
     )
     return (await db.execute(stmt)).scalar_one_or_none()
 
@@ -194,8 +284,10 @@ async def event_weeks_response(db: AsyncSession, event: AthleteEvent) -> list[We
     return result
 
 
-async def update_week(db: AsyncSession, week_id: int, data: WeekUpdateRequest) -> AthleteEvent | None:
-    week = await db.get(WeeklyPlan, week_id)
+async def update_week(
+    db: AsyncSession, week_id: int, data: WeekUpdateRequest, principal: Principal,
+) -> AthleteEvent | None:
+    week = await get_week(db, week_id, principal)
     if week is None:
         return None
     if data.clear_real_time:
@@ -236,6 +328,8 @@ async def _recalculate_event(db: AsyncSession, event: AthleteEvent) -> None:
         anchor_week, anchor_time = 0, event.current_time
 
     plan = event.athlete_plan.plan
+    swimmer = await db.get(Swimmer, event.athlete_plan.swimmer_id)
+    age = age_at(swimmer.birth_date, plan.start_date) if swimmer else None
     entries = [
         progression.WeekEntry(
             week_number=w.week_number, week_date=w.week_date,
@@ -248,7 +342,7 @@ async def _recalculate_event(db: AsyncSession, event: AthleteEvent) -> None:
         entries, from_week=anchor_week + 1, anchor_time=float(anchor_time),
         goal_time=event.goal_time, curve=plan.progression_curve,
         distance=event.distance, disabled_weeks=disabled, stroke=event.stroke,
-        pool=plan.pool,
+        pool=plan.pool, n_mac=plan.n_mac, age=age,
     )
     recalc_map = {e.week_number: e.expected_time for e in entries
                   if e.week_number > anchor_week}

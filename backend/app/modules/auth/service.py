@@ -1,0 +1,181 @@
+"""Lógica de negocio del módulo auth."""
+from __future__ import annotations
+
+import secrets
+from datetime import UTC, datetime
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.security import hash_password, needs_rehash, verify_password
+# Lecturas explícitas de modelos de otros módulos (permitido por las reglas del
+# proyecto): la sección Perfil necesita el rol —que vive en la pertenencia— y a
+# qué nadador va ligada cada cuenta. No se importa lógica ajena.
+from app.modules.swimmers.models import Swimmer
+from app.modules.teams.models import Team, TeamMember
+
+from .models import User
+from .schemas import MemberCreate, MemberResponse, UserCreate, UserUpdate
+
+
+def normalize_email(email: str) -> str:
+    """Los emails se guardan y se buscan siempre en minúsculas y sin espacios."""
+    return email.strip().lower()
+
+
+async def get_user(db: AsyncSession, user_id: int) -> User | None:
+    return await db.get(User, user_id)
+
+
+async def get_by_email(db: AsyncSession, email: str) -> User | None:
+    stmt = select(User).where(User.email == normalize_email(email))
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+async def create_user(db: AsyncSession, data: UserCreate, team_id: int) -> User:
+    """Crea la cuenta y su pertenencia al equipo, que es lo que le da el rol.
+
+    Van juntas a propósito: un usuario sin pertenencia no puede hacer nada en la
+    aplicación, así que crearlo suelto solo produciría cuentas rotas.
+    """
+    user = User(
+        email=normalize_email(data.email),
+        name=data.name,
+        password_hash=hash_password(data.password),
+    )
+    db.add(user)
+    await db.flush()          # necesitamos el id antes de ligar la pertenencia
+    db.add(TeamMember(team_id=team_id, user_id=user.id, role=data.role))
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def set_password(db: AsyncSession, user: User, new_password: str) -> User:
+    user.password_hash = hash_password(new_password)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+async def authenticate(db: AsyncSession, email: str, password: str) -> User | None:
+    """Devuelve el usuario si las credenciales son válidas, None si no.
+
+    Un único None para "no existe", "contraseña incorrecta" y "cuenta
+    desactivada": distinguirlos en la respuesta permitiría enumerar qué emails
+    están registrados.
+    """
+    user = await get_by_email(db, email)
+    if user is None:
+        # Hash de descarte para que la respuesta tarde lo mismo exista o no el
+        # usuario. Sin esto, el tiempo de respuesta delata qué emails son reales.
+        hash_password(password)
+        return None
+    if not verify_password(password, user.password_hash):
+        return None
+    if not user.is_active:
+        return None
+
+    if needs_rehash(user.password_hash):
+        user.password_hash = hash_password(password)
+    user.last_login_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(user)
+    return user
+
+
+# --- Miembros del equipo (sección Perfil) -----------------------------------
+
+def to_member(
+    user: User, membership: TeamMember, swimmer: Swimmer | None,
+    *, team: Team | None = None,
+) -> MemberResponse:
+    return MemberResponse(
+        id=user.id, email=user.email, name=user.name,
+        role=membership.role,
+        # Activo = cuenta activa Y pertenencia activa. Revocar el acceso a un
+        # equipo no desactiva la cuenta, pero deja al miembro fuera igualmente.
+        is_active=user.is_active and membership.is_active,
+        created_at=user.created_at, last_login_at=user.last_login_at,
+        team_id=membership.team_id,
+        team_name=team.name if team else None,
+        is_owner=bool(team and team.owner_id == user.id),
+        swimmer_id=swimmer.id if swimmer else None,
+        swimmer_name=swimmer.name if swimmer else None,
+    )
+
+
+async def _swimmer_by_user(db: AsyncSession, team_id: int) -> dict[int, Swimmer]:
+    stmt = select(Swimmer).where(Swimmer.user_id.is_not(None), Swimmer.team_id == team_id)
+    return {s.user_id: s for s in (await db.execute(stmt)).scalars() if s.user_id}
+
+
+async def list_members(db: AsyncSession, team_id: int) -> list[MemberResponse]:
+    team = await db.get(Team, team_id)
+    by_user = await _swimmer_by_user(db, team_id)
+    stmt = (
+        select(User, TeamMember)
+        .join(TeamMember, TeamMember.user_id == User.id)
+        .where(TeamMember.team_id == team_id)
+        .order_by(User.name)
+    )
+    filas = (await db.execute(stmt)).all()
+    return [to_member(u, m, by_user.get(u.id), team=team) for u, m in filas]
+
+
+async def get_member(db: AsyncSession, user: User, membership: TeamMember) -> MemberResponse:
+    team = await db.get(Team, membership.team_id)
+    stmt = select(Swimmer).where(Swimmer.user_id == user.id)
+    swimmer = (await db.execute(stmt)).scalar_one_or_none()
+    return to_member(user, membership, swimmer, team=team)
+
+
+async def member_of_team(
+    db: AsyncSession, user_id: int, team_id: int,
+) -> tuple[User, TeamMember] | None:
+    """Usuario + pertenencia, solo si es de ESE equipo. None si no lo es."""
+    stmt = (
+        select(User, TeamMember)
+        .join(TeamMember, TeamMember.user_id == User.id)
+        .where(User.id == user_id, TeamMember.team_id == team_id)
+    )
+    return (await db.execute(stmt)).first()
+
+
+async def update_member(
+    db: AsyncSession, user: User, membership: TeamMember, data: UserUpdate,
+) -> None:
+    """El nombre vive en la cuenta; el rol y el acceso, en la pertenencia."""
+    campos = data.model_dump(exclude_unset=True)
+    if "name" in campos:
+        user.name = campos["name"]
+    if "role" in campos:
+        membership.role = campos["role"]
+    if "is_active" in campos:
+        membership.is_active = campos["is_active"]
+    await db.commit()
+
+
+async def create_member(
+    db: AsyncSession, data: MemberCreate, team_id: int,
+) -> tuple[User, str | None]:
+    """Crea la cuenta y la liga a un nadador. Devuelve (usuario, contraseña temporal).
+
+    La contraseña temporal solo viene rellena si la generamos aquí: una vez
+    guardado el hash no hay forma de recuperarla.
+    """
+    generated = data.password is None
+    password = data.password or secrets.token_urlsafe(9)
+
+    user = await create_user(db, UserCreate(
+        email=data.email, name=data.name, password=password, role=data.role,
+    ), team_id)
+
+    if data.swimmer_id is not None:
+        swimmer = await db.get(Swimmer, data.swimmer_id)
+        # La FK compuesta ya impide ligar un nadador de otro equipo; comprobarlo
+        # aquí convierte un error de integridad en un "no encontrado" limpio.
+        if swimmer is not None and swimmer.team_id == team_id:
+            swimmer.user_id = user.id
+            await db.commit()
+    return user, (password if generated else None)

@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    Date, DateTime, Float, ForeignKey, ForeignKeyConstraint, Integer, String, Text, func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -11,10 +13,23 @@ from app.core.database import Base
 
 class AerobicTest(Base):
     __tablename__ = "aerobic_tests"
+    __table_args__ = (
+        # Nadador y macrociclo, del mismo equipo que el test. Con plan_id a NULL
+        # (test suelto, sin macrociclo) la segunda constraint no se evalúa.
+        ForeignKeyConstraint(
+            ["swimmer_id", "team_id"], ["swimmers.id", "swimmers.team_id"],
+            name="fk_aerobic_tests_swimmer_in_team",
+        ),
+        ForeignKeyConstraint(
+            ["plan_id", "team_id"], ["plans.id", "plans.team_id"],
+            name="fk_aerobic_tests_plan_in_team",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    swimmer_id: Mapped[int] = mapped_column(ForeignKey("swimmers.id"), index=True)
-    plan_id: Mapped[int | None] = mapped_column(ForeignKey("plans.id"), index=True)
+    team_id: Mapped[int] = mapped_column(ForeignKey("teams.id"), index=True)
+    swimmer_id: Mapped[int] = mapped_column(Integer, index=True)
+    plan_id: Mapped[int | None] = mapped_column(Integer, index=True)
     # T30 | T15 | CUSTOM | CSS | DIRECT
     test_type: Mapped[str] = mapped_column(String(12))
     test_date: Mapped[date] = mapped_column(Date)
@@ -37,7 +52,9 @@ class AerobicSplit(Base):
     __tablename__ = "aerobic_test_splits"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    test_id: Mapped[int] = mapped_column(ForeignKey("aerobic_tests.id"), index=True)
+    test_id: Mapped[int] = mapped_column(
+        ForeignKey("aerobic_tests.id", ondelete="CASCADE"), index=True,
+    )
     rep_number: Mapped[int] = mapped_column(Integer)
     split_time: Mapped[float] = mapped_column(Float)            # tiempo de la repetición
 

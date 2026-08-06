@@ -8,7 +8,10 @@ from sqlalchemy.orm import selectinload
 from app.engine import progression
 from app.engine.zones import calc_zones, zone_km_distribution
 from app.modules.plans.models import AthleteEvent, AthletePlan, Plan
-from app.modules.plans.service import current_week_of, effective_status, get_plan
+from app.core.dependencies import Principal
+from app.modules.plans.service import (
+    current_week_of, effective_status, get_plan, visible_to,
+)
 from app.modules.swimmers.models import Swimmer
 
 from .schemas import (
@@ -48,12 +51,15 @@ async def _swimmers_for(db: AsyncSession, events: list[AthleteEvent]) -> dict[in
     return {s.id: s for s in rows}
 
 
-async def active_plan(db: AsyncSession) -> Plan | None:
-    stmt = select(Plan).where(Plan.status == "active").order_by(Plan.created_at.desc())
+async def active_plan(db: AsyncSession, principal: Principal) -> Plan | None:
+    """El macrociclo activo más reciente **de los que el usuario puede ver**."""
+    stmt = visible_to(
+        select(Plan).where(Plan.status == "active"), principal,
+    ).order_by(Plan.created_at.desc())
     plan = (await db.execute(stmt)).scalars().first()
     if plan is None:
         return None
-    return await get_plan(db, plan.id)
+    return await get_plan(db, plan.id, principal)
 
 
 async def build_summary(db: AsyncSession, plan: Plan) -> DashboardSummary:

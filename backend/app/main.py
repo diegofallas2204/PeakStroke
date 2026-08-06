@@ -8,11 +8,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import init_db
+# Importado por su efecto: registra todos los modelos en Base.metadata para que
+# SQLAlchemy pueda resolver las FKs entre módulos (p. ej. swimmers -> teams).
+from app.core import model_registry  # noqa: F401
 from app.modules.aerobic_tests.router import router as aerobic_router
+from app.modules.auth.router import router as auth_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.plans.router import router as plans_router
 from app.modules.simulator.router import router as simulator_router
 from app.modules.swimmers.router import router as swimmers_router
+from app.modules.teams.router import router as teams_router
 
 
 @asynccontextmanager
@@ -30,9 +35,13 @@ app.add_middleware(
     # Acotado a lo que el frontend realmente usa (defensa en profundidad) en vez de
     # comodines: los 5 verbos del cliente HTTP y la única cabecera que envía.
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type"],
+    # Authorization se suma para cuando el cliente empiece a mandar el access
+    # token; hasta entonces simplemente no se usa.
+    allow_headers=["Content-Type", "Authorization"],
 )
 
+app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(teams_router, prefix="/api/v1/teams", tags=["teams"])
 app.include_router(swimmers_router, prefix="/api/v1/swimmers", tags=["swimmers"])
 app.include_router(plans_router, prefix="/api/v1/plans", tags=["plans"])
 app.include_router(aerobic_router, prefix="/api/v1/aerobic-tests", tags=["aerobic-tests"])

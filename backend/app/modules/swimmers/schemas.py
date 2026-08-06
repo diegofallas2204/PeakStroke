@@ -58,3 +58,8 @@ class SwimmerResponse(BaseModel):
     notes: str | None
     created_at: datetime
     age: int | None = None
+    # Cuenta ligada, si la tiene. Lo consume la sección Perfil para ofrecer solo
+    # los nadadores que aún no tienen acceso.
+    user_id: int | None = None
+    # Los nadadores se dan de baja, no se borran.
+    is_active: bool = True

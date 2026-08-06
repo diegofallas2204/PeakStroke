@@ -17,7 +17,7 @@ class SimulationRequest(BaseModel):
     total_weeks: int = Field(ge=4, le=30)
     weeks_per_micro: int = Field(default=4, ge=3, le=6)
     total_km: float = Field(gt=0)
-    curve: str = "sigmoid"
+    curve: str = "science"
     pool: Literal["25", "50"] = "50"
     start_date: date | None = None
     specialty: str = "medio_fondo"
@@ -68,3 +68,45 @@ class SimulationResponse(BaseModel):
     weeks: list[SimWeek]
     extension_weeks: list[SimWeek]   # semanas extra realistas (vacío si la meta es factible)
     curves: dict[str, list[float]]   # nombre de curva -> tiempos esperados
+
+
+# ── Proyección ANUAL (temporada = N macrociclos encadenados) ──────────────────
+class SeasonRequest(BaseModel):
+    distance: int = Field(ge=25, le=10000)
+    stroke: str = "libre"
+    current_time: float = Field(gt=0)
+    pool: Literal["25", "50"] = "50"
+    swimmer_age: int | None = None
+    n_macros: int = Field(default=3, ge=1, le=4)
+
+    @model_validator(mode="after")
+    def _valid_event(self) -> "SeasonRequest":
+        if not is_valid_event(self.distance, self.stroke):
+            opciones = ", ".join(allowed_strokes(self.distance))
+            raise ValueError(
+                f"{self.distance}m {self.stroke} no es una prueba válida. "
+                f"Para {self.distance}m: {opciones}."
+            )
+        return self
+
+
+class MacroProjectionItem(BaseModel):
+    n_mac: int
+    start_time: float
+    end_time: float
+    improvement_s: float
+    improvement_pct: float
+
+
+class SeasonResponse(BaseModel):
+    level: str
+    n_macros: int
+    season_start: float
+    season_end: float
+    season_improvement_s: float
+    season_improvement_pct: float
+    annual_low_pct: float            # techo literatura mín para el nivel
+    annual_high_pct: float           # techo literatura máx
+    verdict: str                     # ok | optimistic | below
+    message: str
+    macros: list[MacroProjectionItem]

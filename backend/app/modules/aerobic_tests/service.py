@@ -20,9 +20,11 @@ def to_response(test: AerobicTest) -> AerobicTestResponse:
 
 
 async def list_tests(
-    db: AsyncSession, swimmer_id: int | None = None, plan_id: int | None = None
+    db: AsyncSession, team_id: int,
+    swimmer_id: int | None = None, plan_id: int | None = None,
 ) -> list[AerobicTest]:
     stmt = select(AerobicTest).options(selectinload(AerobicTest.splits)) \
+        .where(AerobicTest.team_id == team_id) \
         .order_by(AerobicTest.test_date.desc(), AerobicTest.id.desc())
     if swimmer_id is not None:
         stmt = stmt.where(AerobicTest.swimmer_id == swimmer_id)
@@ -31,15 +33,18 @@ async def list_tests(
     return list((await db.execute(stmt)).scalars())
 
 
-async def get_test(db: AsyncSession, test_id: int) -> AerobicTest | None:
+async def get_test(db: AsyncSession, test_id: int, team_id: int) -> AerobicTest | None:
+    """None si el test es de otro equipo; el router lo traduce a 404."""
     stmt = select(AerobicTest).options(selectinload(AerobicTest.splits)) \
-        .where(AerobicTest.id == test_id)
+        .where(AerobicTest.id == test_id, AerobicTest.team_id == team_id)
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
-async def create_test(db: AsyncSession, data: AerobicTestCreate) -> AerobicTest:
+async def create_test(db: AsyncSession, data: AerobicTestCreate, team_id: int) -> AerobicTest:
+    """El equipo sale de la sesión. Las FKs compuestas del esquema rechazan el
+    test si el nadador o el macrociclo indicados son de otro club."""
     test = AerobicTest(
-        swimmer_id=data.swimmer_id, plan_id=data.plan_id,
+        team_id=team_id, swimmer_id=data.swimmer_id, plan_id=data.plan_id,
         test_type=data.test_type, test_date=data.test_date, notes=data.notes,
     )
     if data.test_type == "DIRECT":
@@ -66,7 +71,7 @@ async def create_test(db: AsyncSession, data: AerobicTestCreate) -> AerobicTest:
             test.splits.append(AerobicSplit(rep_number=i + 1, split_time=split))
     db.add(test)
     await db.commit()
-    return (await get_test(db, test.id))  # type: ignore[return-value]
+    return (await get_test(db, test.id, team_id))  # type: ignore[return-value]
 
 
 async def previous_test(db: AsyncSession, test: AerobicTest) -> AerobicTest | None:

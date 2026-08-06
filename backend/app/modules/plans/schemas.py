@@ -43,7 +43,7 @@ class PlanCreate(BaseModel):
     total_weeks: int = Field(ge=8, le=24)
     weeks_per_micro: int = Field(default=4, ge=3, le=6)
     total_km: float = Field(gt=0)
-    progression_curve: str = "sigmoid"
+    progression_curve: str = "science"
     pool: Literal["25", "50"] = "50"
     n_mac: int = Field(default=1, ge=1, le=10)
     main_event: str | None = None
