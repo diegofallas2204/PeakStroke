@@ -12,6 +12,49 @@ export interface Swimmer {
   notes: string | null
   created_at: string
   age: number | null
+  user_id: number | null
+  /** Los atletas se dan de baja, no se borran. */
+  is_active: boolean
+}
+
+export type Role = 'coach' | 'athlete'
+
+/** Un usuario junto con el nadador al que está ligado, si lo está. */
+export interface Member {
+  id: number
+  email: string
+  name: string
+  role: Role
+  is_active: boolean
+  created_at: string
+  last_login_at: string | null
+  team_id: number
+  team_name: string | null
+  /** Entrenador en jefe = entrenador que además es dueño del equipo. */
+  is_owner: boolean
+  swimmer_id: number | null
+  swimmer_name: string | null
+}
+
+export interface Team {
+  id: number
+  name: string
+  owner_id: number | null
+  owner_name: string | null
+  is_owner: boolean
+  coaches: number
+  athletes: number
+  swimmers: number
+}
+
+export interface MemberCreated {
+  member: Member
+  /** Solo si la generó el backend; no se puede volver a consultar. */
+  temporary_password: string | null
+}
+
+export interface AuthConfig {
+  auth_enabled: boolean
 }
 
 export interface PhaseInput {
@@ -148,6 +191,28 @@ export interface SimulationResult {
   weeks: SimWeek[]
   extension_weeks: SimWeek[]
   curves: Record<string, number[]>
+}
+
+export interface MacroProjection {
+  n_mac: number
+  start_time: number
+  end_time: number
+  improvement_s: number
+  improvement_pct: number
+}
+
+export interface SeasonResult {
+  level: string
+  n_macros: number
+  season_start: number
+  season_end: number
+  season_improvement_s: number
+  season_improvement_pct: number
+  annual_low_pct: number
+  annual_high_pct: number
+  verdict: string
+  message: string
+  macros: MacroProjection[]
 }
 
 export interface TeamWeekPoint {

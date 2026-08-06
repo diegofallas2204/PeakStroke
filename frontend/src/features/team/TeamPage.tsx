@@ -9,7 +9,9 @@ import { SPECIALTY_LABEL, ZONE_META, ZONE_ORDER } from '../../lib/constants'
 import { toClock } from '../../lib/format'
 import { usePageEnter } from '../../hooks/usePageEnter'
 import { useSelectedPlanId } from '../../hooks/useSelectedPlan'
+import { useSimpleMode } from '../../hooks/useSimpleMode'
 import { PageHeader } from '../../components/layout/PageHeader'
+import { weekDateTick } from '../../components/charts/weekAxisTick'
 import { Card, EmptyState, Spinner, StatusBadge } from '../../components/ui/primitives'
 
 export function TeamPage() {
@@ -39,6 +41,7 @@ export function TeamPage() {
     retry: false,
   })
 
+  const [simple] = useSimpleMode()
   const ref = usePageEnter([data?.week_number, isLoading])
 
   if (isLoading) return <Spinner />
@@ -82,7 +85,7 @@ export function TeamPage() {
         }
       />
 
-      {summary && (
+      {summary && !simple && (
         <Card animate
           title={
             <button className="flex items-center gap-2" onClick={() => setShowChart((s) => !s)}>
@@ -93,15 +96,15 @@ export function TeamPage() {
           className="card-hover"
         >
           {showChart && (
-            <ResponsiveContainer width="100%" height={130}>
-              <AreaChart data={summary.progression} margin={{ top: 4, right: 8, left: -22, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={152}>
+              <AreaChart data={summary.progression} margin={{ top: 4, right: 8, left: -22, bottom: 4 }}>
                 <defs>
                   <linearGradient id="teamGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="var(--color-cyan)" stopOpacity={0.38} />
                     <stop offset="100%" stopColor="var(--color-cyan)" stopOpacity={0.04} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="date_label" tick={{ fill: 'var(--color-text-dim)', fontSize: 9.5, fontFamily: "'JetBrains Mono', monospace" }} tickLine={false} axisLine={false} />
+                <XAxis dataKey="date_label" interval="preserveStartEnd" minTickGap={16} height={34} tick={weekDateTick(summary.progression)} tickLine={false} axisLine={false} />
                 <YAxis unit="%" tick={{ fill: 'var(--color-text-dim)', fontSize: 9.5 }} tickLine={false} axisLine={false} />
                 <Tooltip
                   content={({ active, payload, label }) => active && payload?.length ? (
@@ -124,8 +127,9 @@ export function TeamPage() {
           <table className="tbl">
             <thead>
               <tr>
-                <th>Atleta</th><th>Prueba</th><th>Esperado</th><th>Pace /100</th>
-                {ZONE_ORDER.map((z) => (
+                <th>Atleta</th><th>Prueba</th><th>Esperado</th>
+                {!simple && <th>Pace /100</th>}
+                {!simple && ZONE_ORDER.map((z) => (
                   <th key={z} style={{ color: ZONE_META[z].color }}>{z}</th>
                 ))}
                 <th>Km</th><th>Real</th><th>Estado</th>
@@ -136,20 +140,20 @@ export function TeamPage() {
                 <tr key={row.event_id} style={{ opacity: row.disabled ? 0.4 : 1 }}>
                   <td>
                     <p className="font-semibold">{row.name}</p>
-                    <p className="text-[9.5px] text-text-faint">{SPECIALTY_LABEL[row.specialty] ?? row.specialty}</p>
+                    {!simple && <p className="text-[10.5px] text-text-faint">{SPECIALTY_LABEL[row.specialty] ?? row.specialty}</p>}
                   </td>
                   <td className="text-text-dim">{row.event_label}</td>
                   <td className="mono">{toClock(row.expected_time)}</td>
-                  <td className="mono font-semibold text-accent-soft">{toClock(row.pace_100m)}</td>
-                  {ZONE_ORDER.map((zone) => {
+                  {!simple && <td className="mono font-semibold text-accent-soft">{toClock(row.pace_100m)}</td>}
+                  {!simple && ZONE_ORDER.map((zone) => {
                     const range = row.zones?.[zone]
                     return (
-                      <td key={zone} className="mono text-[11.5px]">
+                      <td key={zone} className="mono text-[12.5px]">
                         {range ? (
                           <div>
                             <span style={{ color: ZONE_META[zone].color }}>{toClock(range.mid, 1)}</span>
                             {row.zone_km?.[zone] != null && (
-                              <p className="text-[9px] text-text-faint">{row.zone_km[zone]} km</p>
+                              <p className="text-[10px] text-text-faint">{row.zone_km[zone]} km</p>
                             )}
                           </div>
                         ) : (
@@ -172,10 +176,12 @@ export function TeamPage() {
             </tbody>
           </table>
         </div>
-        <p className="border-t border-line px-4 py-2.5 text-[10px] text-text-faint">
-          Tiempo por zona = punto medio del rango (factores por distancia de la prueba).
-          Km por zona = distribución sugerida según la especialidad del atleta.
-        </p>
+        {!simple && (
+          <p className="border-t border-line px-4 py-2.5 text-[10px] text-text-faint">
+            Tiempo por zona = punto medio del rango (factores por distancia de la prueba).
+            Km por zona = distribución sugerida según la especialidad del atleta.
+          </p>
+        )}
       </Card>
     </div>
   )

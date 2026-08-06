@@ -61,6 +61,43 @@ export function Chip({
   )
 }
 
+/** Selector de una opción entre pocas. Para filtros y vistas alternativas. */
+export function Segmented<T extends string>({
+  value, options, onChange, accent = 'var(--color-accent)', label,
+}: {
+  value: T
+  options: { value: T; label: ReactNode }[]
+  onChange: (value: T) => void
+  accent?: string
+  label?: string
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className="inline-flex shrink-0 items-center gap-0.5 rounded-[10px] border border-line bg-surface-2 p-0.5"
+    >
+      {options.map((o) => {
+        const active = o.value === value
+        return (
+          <button
+            key={o.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(o.value)}
+            className={`rounded-lg px-2.5 py-1 text-[11.5px] font-semibold transition-colors duration-200 ${
+              active ? '' : 'text-text-dim hover:text-text'
+            }`}
+            style={active ? { color: accent, background: `${accent}1f` } : undefined}
+          >
+            {o.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function Field({
   label, children, className = '',
 }: { label: string; children: ReactNode; className?: string }) {

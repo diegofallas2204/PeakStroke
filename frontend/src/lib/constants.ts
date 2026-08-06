@@ -69,7 +69,10 @@ export const POOL_LABEL: Record<string, string> = Object.fromEntries(
   POOLS.map((p) => [p.value, p.label]),
 )
 
+// "science" = curva científica por defecto (distribución F_FASE del motor de
+// dominio, respaldada por la literatura). Las demás solo comparan escenarios.
 export const CURVES = [
+  { value: 'science', label: 'Científica (F_FASE)' },
   { value: 'sigmoid', label: 'Sigmoidal' },
   { value: 'linear', label: 'Lineal' },
   { value: 'exponential', label: 'Exponencial' },
@@ -81,10 +84,11 @@ export const CURVE_LABEL: Record<string, string> = Object.fromEntries(
 )
 
 export const CURVE_COLORS: Record<string, string> = {
-  sigmoid: 'var(--color-accent)',
+  science: 'var(--color-accent)',
+  sigmoid: 'var(--color-magenta)',
   linear: 'var(--color-mint)',
   exponential: 'var(--color-amber)',
-  logarithmic: 'var(--color-magenta)',
+  logarithmic: 'var(--color-text-faint)',
 }
 
 // Color distintivo por sección (ruta). Fuente única que comparten el sidebar
@@ -99,6 +103,22 @@ export const SECTION_ACCENT: Record<string, string> = {
   '/equipo': '#fb923c',        // Tabla del equipo — naranja
   '/comparacion': '#a78bfa',   // Comparación — violeta
   '/simulador': '#fb7185',     // Simulador — coral
+  '/perfil': '#818cf8',        // Perfil — índigo
+}
+
+// Rol dentro del equipo (valor crudo en BD -> etiqueta + color).
+export const ROLE_META: Record<string, { label: string; color: string }> = {
+  coach: { label: 'Entrenador', color: '#818cf8' },
+  athlete: { label: 'Atleta', color: '#22d3ee' },
+}
+
+// El dueño del equipo no es un rol aparte: es el entrenador que además lo posee.
+// De cara al usuario eso se llama entrenador en jefe.
+export const HEAD_COACH = { label: 'Entrenador en jefe', color: '#fbbf24' }
+
+export function roleMeta(role: string, isOwner = false) {
+  if (isOwner && role === 'coach') return HEAD_COACH
+  return ROLE_META[role] ?? ROLE_META.athlete
 }
 
 export const ZONE_META: Record<string, { label: string; color: string }> = {

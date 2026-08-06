@@ -3,6 +3,7 @@ import { Route, Routes, useLocation } from 'react-router-dom'
 import { Sidebar } from './components/layout/Sidebar'
 import { SECTION_ACCENT } from './lib/constants'
 import { Spinner } from './components/ui/primitives'
+import { useSimpleMode } from './hooks/useSimpleMode'
 
 // Code-splitting: el fondo WebGL (Three.js) y cada página viven en su propio chunk
 // para no inflar el bundle inicial. Las páginas con Recharts/GSAP arrastran esas
@@ -25,21 +26,30 @@ const ComparisonPage = lazy(() =>
   import('./features/comparison/ComparisonPage').then((m) => ({ default: m.ComparisonPage })))
 const SimulatorPage = lazy(() =>
   import('./features/simulator/SimulatorPage').then((m) => ({ default: m.SimulatorPage })))
+const ProfilePage = lazy(() =>
+  import('./features/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })))
 
 export default function App() {
   const { pathname } = useLocation()
+  const [simple] = useSimpleMode()
   // Color de la sección activa → disponible a toda la página como var CSS para
   // que las tarjetas tiñan su glow de hover con el acento de la sección.
   const accent = SECTION_ACCENT[pathname] ?? 'var(--color-accent)'
 
   return (
-    <div className="relative flex h-full">
-      <Suspense fallback={null}>
-        <WaveBackground />
-      </Suspense>
+    // < lg la navegación es una barra superior → el layout apila en columna.
+    <div className="relative flex h-full flex-col lg:flex-row">
+      {!simple && (
+        <Suspense fallback={null}>
+          <WaveBackground />
+        </Suspense>
+      )}
       <Sidebar />
-      <main className="relative z-10 flex-1 overflow-y-auto" style={{ '--page-accent': accent } as React.CSSProperties}>
-        <div className="mx-auto max-w-[1280px] px-7 py-6">
+      <main
+        className="relative z-10 min-h-0 flex-1 overflow-y-auto"
+        style={{ '--page-accent': accent } as React.CSSProperties}
+      >
+        <div className="mx-auto max-w-[1280px] px-4 py-5 sm:px-6 lg:px-7 lg:py-6">
           <Suspense fallback={<Spinner />}>
             <Routes>
               <Route path="/" element={<DashboardPage />} />
@@ -50,6 +60,7 @@ export default function App() {
               <Route path="/equipo" element={<TeamPage />} />
               <Route path="/comparacion" element={<ComparisonPage />} />
               <Route path="/simulador" element={<SimulatorPage />} />
+              <Route path="/perfil" element={<ProfilePage />} />
             </Routes>
           </Suspense>
         </div>

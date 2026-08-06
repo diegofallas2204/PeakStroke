@@ -1,10 +1,11 @@
 // Gestión de atletas: grid de tarjetas + alta/edición en modal.
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, Users, Pencil, Trash2, Ruler, Weight } from 'lucide-react'
+import { Plus, Search, Users, Pencil, UserMinus, Ruler, Weight } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { Swimmer } from '../../lib/types'
 import { SPECIALTY_LABEL, STROKE_LABEL } from '../../lib/constants'
+import { initials } from '../../lib/format'
 import { usePageEnter } from '../../hooks/usePageEnter'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card, Chip, EmptyState, Spinner } from '../../components/ui/primitives'
@@ -12,10 +13,6 @@ import { SwimmerForm } from './SwimmerForm'
 
 const SPECIALTY_COLOR: Record<string, string> = {
   velocidad: '#fb7185', medio_fondo: '#3b82f6', fondo: '#22d3ee', aguas_abiertas: '#34d399',
-}
-
-function initials(name: string): string {
-  return name.split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase()
 }
 
 export function SwimmersPage() {
@@ -29,8 +26,10 @@ export function SwimmersPage() {
     queryFn: () => api.swimmers.list(search || undefined),
   })
 
-  const removeMutation = useMutation({
-    mutationFn: (id: number) => api.swimmers.remove(id),
+  // Dar de baja, no borrar: el histórico de entrenamiento del atleta —semanas,
+  // tiempos reales, tests— se conserva y puede reactivarse.
+  const deactivateMutation = useMutation({
+    mutationFn: (id: number) => api.swimmers.deactivate(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['swimmers'] }),
   })
 
@@ -98,12 +97,14 @@ export function SwimmersPage() {
                     <button
                       className="btn btn-danger !p-1.5"
                       onClick={() => {
-                        if (confirm(`¿Eliminar a ${swimmer.name}? Se borrarán sus planes y tests.`))
-                          removeMutation.mutate(swimmer.id)
+                        if (confirm(
+                          `¿Dar de baja a ${swimmer.name}? Sus planes, tiempos y tests se conservan.`,
+                        ))
+                          deactivateMutation.mutate(swimmer.id)
                       }}
-                      aria-label={`Eliminar ${swimmer.name}`}
+                      aria-label={`Dar de baja a ${swimmer.name}`}
                     >
-                      <Trash2 size={12.5} />
+                      <UserMinus size={12.5} />
                     </button>
                   </div>
                 </div>

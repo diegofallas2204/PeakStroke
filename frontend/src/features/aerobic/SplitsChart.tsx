@@ -19,7 +19,12 @@ export function SplitsChart({ test, previous }: { test: AerobicTest; previous: A
   const values = data.flatMap((d) => [d.actual, d.anterior]).filter((v): v is number => v != null)
   const min = Math.min(...values)
   const max = Math.max(...values)
-  const pad = Math.max((max - min) * 0.2, 0.4)
+  // Escala menos agresiva: el eje abarca al menos MIN_SPAN segundos, así una
+  // diferencia de ~1s se ve como una onda suave y no como una curva dramática.
+  // Para rangos grandes se mantiene un 25% de margen proporcional.
+  const MIN_SPAN = 6
+  const range = max - min
+  const pad = Math.max((MIN_SPAN - range) / 2, range * 0.25, 0.4)
 
   return (
     <ResponsiveContainer width="100%" height={260}>
@@ -32,7 +37,6 @@ export function SplitsChart({ test, previous }: { test: AerobicTest; previous: A
           label={{ value: 'Repetición', fill: 'var(--color-text-faint)', fontSize: 10, dy: 12 }}
         />
         <YAxis
-          reversed
           domain={[min - pad, max + pad]}
           tickFormatter={(v: number) => toClock(v, 1)}
           tick={{ fill: 'var(--color-text-dim)', fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}

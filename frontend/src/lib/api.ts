@@ -1,7 +1,7 @@
 // Cliente HTTP tipado contra /api/v1 (proxy de Vite hacia FastAPI).
 import type {
-  AerobicPreview, AerobicTest, DashboardSummary, Plan, SimulationResult,
-  Swimmer, TeamWeek, Week,
+  AerobicPreview, AerobicTest, AuthConfig, DashboardSummary, Member, MemberCreated,
+  Plan, SeasonResult, SimulationResult, Swimmer, Team, TeamWeek, Week,
 } from './types'
 
 const BASE = '/api/v1'
@@ -33,12 +33,45 @@ const put = <T,>(path: string, body: unknown) =>
 const del = (path: string) => request<void>(path, { method: 'DELETE' })
 
 export const api = {
+  auth: {
+    // Con la autenticación apagada devuelve el usuario de desarrollo, así que
+    // siempre hay sesión: el frontend no necesita pantalla de login todavía.
+    me: () => get<Member>('/auth/me'),
+    config: () => get<AuthConfig>('/auth/config'),
+    members: () => get<Member[]>('/auth/members'),
+    createMember: (data: unknown) => post<MemberCreated>('/auth/members', data),
+    updateMember: (id: number, data: unknown) => patch<Member>(`/auth/members/${id}`, data),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      post<void>('/auth/me/password', {
+        current_password: currentPassword, new_password: newPassword,
+      }),
+  },
+  teams: {
+    mine: () => get<Team>('/teams/mine'),
+    rename: (name: string) => patch<Team>('/teams/mine', { name }),
+    transfer: (newOwnerId: number) =>
+      post<Team>('/teams/mine/transfer', { new_owner_id: newOwnerId }),
+    coachAthletes: (coachId: number) =>
+      get<number[]>(`/teams/mine/coaches/${coachId}/athletes`),
+    setCoachAthletes: (coachId: number, swimmerIds: number[]) =>
+      put<number[]>(`/teams/mine/coaches/${coachId}/athletes`, {
+        coach_id: coachId, swimmer_ids: swimmerIds,
+      }),
+  },
   swimmers: {
-    list: (search?: string) =>
-      get<Swimmer[]>(`/swimmers/${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+    list: (search?: string, includeInactive = false) => {
+      const params = new URLSearchParams()
+      if (search) params.set('search', search)
+      if (includeInactive) params.set('include_inactive', 'true')
+      const qs = params.toString()
+      return get<Swimmer[]>(`/swimmers/${qs ? `?${qs}` : ''}`)
+    },
+    getOne: (id: number) => get<Swimmer>(`/swimmers/${id}`),
     create: (data: Partial<Swimmer>) => post<Swimmer>('/swimmers/', data),
     update: (id: number, data: Partial<Swimmer>) => put<Swimmer>(`/swimmers/${id}`, data),
-    remove: (id: number) => del(`/swimmers/${id}`),
+    // No borra: da de baja. Devuelve el atleta con is_active en false.
+    deactivate: (id: number) => request<Swimmer>(`/swimmers/${id}`, { method: 'DELETE' }),
+    reactivate: (id: number) => post<Swimmer>(`/swimmers/${id}/reactivate`, {}),
   },
   plans: {
     list: () => get<Plan[]>('/plans/'),
@@ -74,5 +107,6 @@ export const api = {
   },
   simulator: {
     run: (data: unknown) => post<SimulationResult>('/simulator/run', data),
+    season: (data: unknown) => post<SeasonResult>('/simulator/season', data),
   },
 }

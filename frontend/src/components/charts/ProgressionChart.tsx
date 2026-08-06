@@ -8,6 +8,7 @@ import {
 import type { Week } from '../../lib/types'
 import { toClock } from '../../lib/format'
 import { ChartTooltip } from './chartTheme'
+import { weekDateTick } from './weekAxisTick'
 
 export function ProgressionChart({
   weeks, goalTime, height = 280, currentWeek,
@@ -33,11 +34,11 @@ export function ProgressionChart({
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <ComposedChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+      <ComposedChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
         <CartesianGrid stroke="var(--color-grid)" vertical={false} />
         <XAxis
-          dataKey="date_label"
-          tick={{ fill: 'var(--color-text-dim)', fontSize: 10.5, fontFamily: "'JetBrains Mono', monospace" }}
+          dataKey="date_label" interval="preserveStartEnd" minTickGap={16} height={34}
+          tick={weekDateTick(data)}
           tickLine={false} axisLine={false}
         />
         <YAxis

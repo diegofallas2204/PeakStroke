@@ -31,7 +31,7 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
   const [error, setError] = useState('')
   const [form, setForm] = useState({
     name: '', start_date: '', total_weeks: 12, weeks_per_micro: 4,
-    total_km: 320, progression_curve: 'sigmoid', pool: '50', n_mac: 1, main_event: '', notes: '',
+    total_km: 320, progression_curve: 'science', pool: '50', n_mac: 1, main_event: '', notes: '',
   })
   const [phases, setPhases] = useState<PhaseDraft[]>(defaultPhases(12))
   const [comps, setComps] = useState<CompDraft[]>([])
@@ -128,7 +128,7 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
           </Field>
           <Field label="Curva de progresión">
             <select className="field" value={form.progression_curve} onChange={set('progression_curve')}>
-              {CURVES.map((c) => <option key={c.value} value={c.value}>{c.label}{c.value === 'sigmoid' ? ' (recomendada)' : ''}</option>)}
+              {CURVES.map((c) => <option key={c.value} value={c.value}>{c.label}{c.value === 'science' ? ' (recomendada)' : ''}</option>)}
             </select>
           </Field>
           <Field label="Piscina">
@@ -241,20 +241,20 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
               ['Evento', form.main_event || '—'],
             ].map(([k, v]) => (
               <div key={k} className="rounded-xl border border-line bg-surface-2 px-3.5 py-2.5">
-                <p className="card-title !text-[9px]">{k}</p>
-                <p className="mt-1 text-[12.5px] font-semibold">{v}</p>
+                <p className="card-title !text-[10.5px]">{k}</p>
+                <p className="mt-1 text-[14px] font-semibold">{v}</p>
               </div>
             ))}
           </div>
           <div className="flex h-9 gap-[3px]">
             {phases.map((phase, i) => (
-              <div key={i} className="flex items-center justify-center rounded-lg text-[9.5px] font-bold uppercase tracking-wide"
+              <div key={i} className="flex items-center justify-center rounded-lg text-[10.5px] font-bold uppercase tracking-wide"
                 style={{ flex: phase.week_end - phase.week_start + 1, color: phase.color, background: `${phase.color}18`, border: `1px solid ${phase.color}30` }}>
                 {phase.name}
               </div>
             ))}
           </div>
-          <p className="text-[11.5px] text-text-dim">
+          <p className="text-[12.5px] text-text-dim">
             Al crear el macrociclo podrás <span className="font-semibold text-text">agregar atletas con sus pruebas</span>:
             el motor generará el plan semana a semana de cada uno y validará qué tan realista es su objetivo.
           </p>

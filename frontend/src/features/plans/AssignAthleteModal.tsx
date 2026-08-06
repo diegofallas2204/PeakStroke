@@ -114,6 +114,7 @@ export function AssignAthleteModal({ plan, onClose }: { plan: Plan | null; onClo
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['plans'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['team-week'] })
       onClose()
     },
     onError: (e: Error) => setError(e.message),

@@ -15,9 +15,11 @@ import {
 import type { SimWeek } from '../../lib/types'
 import { toClock, tryToSeconds } from '../../lib/format'
 import { usePageEnter } from '../../hooks/usePageEnter'
+import { useSimpleMode } from '../../hooks/useSimpleMode'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card, Field, Spinner } from '../../components/ui/primitives'
 import { ChartTooltip } from '../../components/charts/chartTheme'
+import { weekDateTick } from '../../components/charts/weekAxisTick'
 import { SimZones } from './SimZones'
 
 const FEAS = {
@@ -26,19 +28,26 @@ const FEAS = {
   aggressive: { icon: ShieldX, color: '#fb7185' },
 } as const
 
+const SEASON_VERDICT: Record<string, { color: string; label: string }> = {
+  ok: { color: '#34d399', label: 'Realista' },
+  optimistic: { color: '#fbbf24', label: 'Optimista · techo' },
+  unrealistic: { color: '#fb7185', label: 'Poco realista' },
+}
+
 // Tabla de plan semana a semana con TODAS las zonas (R1·R2·MVO2·RL·V).
 // Reutilizada por el plan principal y por la tabla de semanas de extensión.
-function PlanTable({ weeks, extension = false }: { weeks: SimWeek[]; extension?: boolean }) {
+function PlanTable({ weeks, extension = false, simple = false }: { weeks: SimWeek[]; extension?: boolean; simple?: boolean }) {
   return (
     <div className="overflow-x-auto">
       <table className="tbl">
         <thead>
           <tr>
             <th>Semana</th><th>Fase</th><th>Km</th><th>Esperado</th><th>Pace /100</th>
-            {ZONE_ORDER.map((z) => (
+            {!simple && ZONE_ORDER.map((z) => (
               <th key={z} style={{ color: ZONE_META[z].color }}>{z}</th>
             ))}
-            <th>Mejora</th><th>Acumulada</th>
+            {!simple && <th>Mejora</th>}
+            {!simple && <th>Acumulada</th>}
           </tr>
         </thead>
         <tbody>
@@ -51,15 +60,19 @@ function PlanTable({ weeks, extension = false }: { weeks: SimWeek[]; extension?:
               <td className="mono">{w.planned_km}</td>
               <td className="mono">{toClock(w.expected_time)}</td>
               <td className="mono font-semibold text-accent-soft">{toClock(w.pace_100m)}</td>
-              {ZONE_ORDER.map((z) => (
+              {!simple && ZONE_ORDER.map((z) => (
                 <td key={z} className="mono text-[11.5px]" style={{ color: ZONE_META[z].color }}>
                   {w.zones[z] ? toClock(w.zones[z]!.mid, 1) : '—'}
                 </td>
               ))}
-              <td className="mono" style={{ color: w.improvement_vs_prev < 0 ? 'var(--color-mint)' : 'var(--color-text-dim)' }}>
-                {w.improvement_vs_prev.toFixed(2)}s
-              </td>
-              <td className="mono text-text-dim">{w.cumulative_improvement.toFixed(2)}s</td>
+              {!simple && (
+                <td className="mono" style={{ color: w.improvement_vs_prev < 0 ? 'var(--color-mint)' : 'var(--color-text-dim)' }}>
+                  {w.improvement_vs_prev.toFixed(2)}s
+                </td>
+              )}
+              {!simple && (
+                <td className="mono text-text-dim">{w.cumulative_improvement.toFixed(2)}s</td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -71,7 +84,7 @@ function PlanTable({ weeks, extension = false }: { weeks: SimWeek[]; extension?:
 export function SimulatorPage() {
   const [params, setParams] = useState({
     distance: 100, stroke: 'mariposa', current: '1:07.80', goal: '1:04.50',
-    weeks: 12, micro: 4, km: 320, curve: 'sigmoid', pool: '50', specialty: 'velocidad',
+    weeks: 12, micro: 4, km: 320, curve: 'science', pool: '50', specialty: 'velocidad',
   })
   const [debounced, setDebounced] = useState(params)
 
@@ -97,20 +110,49 @@ export function SimulatorPage() {
     placeholderData: (prev) => prev,
   })
 
+  // Proyección ANUAL: temporada = 3 macrociclos encadenados (motor de dominio).
+  // Solo depende del tiempo actual y la prueba (no de la meta ni las semanas).
+  const { data: season } = useQuery({
+    queryKey: ['season', debounced.distance, debounced.stroke, current, debounced.pool],
+    queryFn: () => api.simulator.season({
+      distance: debounced.distance, stroke: debounced.stroke,
+      current_time: current, pool: debounced.pool, n_macros: 3,
+    }),
+    enabled: current != null,
+    placeholderData: (prev) => prev,
+  })
+
   const set = (key: keyof typeof params, numeric = false) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setParams((p) => ({ ...p, [key]: numeric ? Number(e.target.value) : e.target.value }))
 
+  const [simple] = useSimpleMode()
   const ref = usePageEnter([])
   const feasibility = data?.feasibility
   const FeasIcon = feasibility ? FEAS[feasibility.status].icon : FlaskConical
   const feasColor = feasibility ? FEAS[feasibility.status].color : '#8b93b8'
 
+  // Gráfico = macro + extensión, para ver la proyección COMPLETA hasta la meta
+  // (si la meta supera el techo, el macro cierra en el techo realista y la
+  // extensión continúa al ritmo seguro hasta la meta; así no queda recortada).
+  const lastMacroIdx = data ? data.weeks.length - 1 : -1
+  const hasExt = !!data && data.extension_weeks.length > 0
+  const macroEndLabel = data?.weeks.length ? data.weeks[lastMacroIdx].date_label : null
+  // El tramo de extensión va en su PROPIA serie (`ext`) para pintarlo distinto
+  // (punteado ámbar). En las filas del macro `ext` es null salvo en la última,
+  // donde toma el valor de cierre del macro para CONECTAR con la extensión.
   const chartData = data
-    ? data.weeks.map((w, i) => ({
-        date_label: w.date_label,
-        ...Object.fromEntries(Object.entries(data.curves).map(([name, vals]) => [name, vals[i]])),
-      }))
+    ? [
+        ...data.weeks.map((w, i) => ({
+          date_label: w.date_label, week_number: w.week_number,
+          ...Object.fromEntries(Object.entries(data.curves).map(([name, vals]) => [name, vals[i]])),
+          ext: i === lastMacroIdx && hasExt ? data.curves[debounced.curve]?.[lastMacroIdx] ?? null : null,
+        })),
+        ...data.extension_weeks.map((w) => ({
+          date_label: w.date_label, week_number: w.week_number,
+          ext: w.expected_time,   // continuación realista hasta la meta (común a todas las curvas)
+        })),
+      ]
     : []
 
   return (
@@ -210,42 +252,90 @@ export function SimulatorPage() {
                     <p className="mt-1 text-[12px] leading-relaxed text-text-dim">{feasibility.message}</p>
                   </div>
                 </div>
-                <div className="mt-4 grid grid-cols-4 gap-3 border-t border-line pt-3.5">
-                  <div>
-                    <p className="card-title !text-[9px]">Mejora total</p>
-                    <p className="mono mt-0.5 text-[15px] font-bold">
-                      {feasibility.improvement_total.toFixed(2)}s
-                      <span className="ml-1 text-[10px] text-text-faint">
-                        ({current ? ((feasibility.improvement_total / current) * 100).toFixed(1) : '—'}%)
-                      </span>
-                    </p>
+                {!simple && (
+                  <div className="mt-4 grid grid-cols-4 gap-3 border-t border-line pt-3.5">
+                    <div>
+                      <p className="card-title !text-[9px]">Mejora total</p>
+                      <p className="mono mt-0.5 text-[15px] font-bold">
+                        {feasibility.improvement_total.toFixed(2)}s
+                        <span className="ml-1 text-[10px] text-text-faint">
+                          ({current ? ((feasibility.improvement_total / current) * 100).toFixed(1) : '—'}%)
+                        </span>
+                      </p>
+                    </div>
+                    <div>
+                      <p className="card-title !text-[9px]">Requerido / micro</p>
+                      <p className="mono mt-0.5 text-[15px] font-bold text-accent-soft">
+                        {feasibility.improvement_per_micro.toFixed(3)}s
+                      </p>
+                    </div>
+                    <div>
+                      <p className="card-title !text-[9px]">Ventana realista</p>
+                      <p className="mono mt-0.5 text-[15px] font-bold text-cyan">
+                        {feasibility.window_min != null
+                          ? `${feasibility.window_min.toFixed(2)}–${feasibility.window_max.toFixed(2)}s`
+                          : `≤ ${feasibility.window_max.toFixed(2)}s`}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="card-title !text-[9px]">{feasibility.recommended_weeks ? 'Semanas sugeridas' : 'Tiempo final'}</p>
+                      <p className="mono mt-0.5 text-[15px] font-bold" style={{ color: feasibility.recommended_weeks ? 'var(--color-amber)' : 'var(--color-mint)' }}>
+                        {feasibility.recommended_weeks ?? toClock(goal ?? 0)}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="card-title !text-[9px]">Requerido / micro</p>
-                    <p className="mono mt-0.5 text-[15px] font-bold text-accent-soft">
-                      {feasibility.improvement_per_micro.toFixed(3)}s
-                    </p>
-                  </div>
-                  <div>
-                    <p className="card-title !text-[9px]">Ventana realista</p>
-                    <p className="mono mt-0.5 text-[15px] font-bold text-cyan">
-                      {feasibility.window_min != null
-                        ? `${feasibility.window_min.toFixed(2)}–${feasibility.window_max.toFixed(2)}s`
-                        : `≤ ${feasibility.window_max.toFixed(2)}s`}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="card-title !text-[9px]">{feasibility.recommended_weeks ? 'Semanas sugeridas' : 'Tiempo final'}</p>
-                    <p className="mono mt-0.5 text-[15px] font-bold" style={{ color: feasibility.recommended_weeks ? 'var(--color-amber)' : 'var(--color-mint)' }}>
-                      {feasibility.recommended_weeks ?? toClock(goal ?? 0)}
-                    </p>
-                  </div>
-                </div>
+                )}
               </Card>
 
-              {/* Aviso informativo de semanas extra cuando la meta no es factible.
-                  Solo UI: no influye en el plan ni en ningún otro cálculo. */}
-              {feasibility.recommended_weeks != null && (
+              {/* ── Proyección ANUAL: temporada = 3 macrociclos encadenados ── */}
+              {!simple && season && (() => {
+                const v = SEASON_VERDICT[season.verdict] ?? SEASON_VERDICT.ok
+                return (
+                  <Card title="Proyección anual · temporada de 3 macrociclos" className="card-hover" animate={false}>
+                    <div className="flex items-start gap-3.5">
+                      <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl"
+                        style={{ color: v.color, background: `${v.color}16`, border: `1px solid ${v.color}33` }}>
+                        <CalendarClock size={19} />
+                      </span>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2.5">
+                          <p className="display text-[14px] font-bold" style={{ color: v.color }}>
+                            Temporada: −{season.season_improvement_pct.toFixed(2)}%
+                          </p>
+                          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider"
+                            style={{ color: v.color }}>{v.label}</span>
+                          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-text-dim">
+                            nivel {season.level}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[12px] leading-relaxed text-text-dim">{season.message}</p>
+                        <p className="mt-0.5 text-[11px] text-text-faint">
+                          Techo típico de la literatura para {season.level}:{' '}
+                          <span className="mono">{season.annual_low_pct}–{season.annual_high_pct}%</span> anual ·
+                          de <span className="mono text-text-dim">{toClock(season.season_start)}</span> a{' '}
+                          <span className="mono text-text-dim">{toClock(season.season_end)}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-3 gap-3 border-t border-line pt-3.5">
+                      {season.macros.map((m) => (
+                        <div key={m.n_mac}>
+                          <p className="card-title !text-[9px]">Macro {m.n_mac}</p>
+                          <p className="mono mt-0.5 text-[15px] font-bold" style={{ color: v.color }}>
+                            −{m.improvement_pct.toFixed(2)}%
+                          </p>
+                          <p className="mono text-[10px] text-text-faint">
+                            {toClock(m.start_time)} → {toClock(m.end_time)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )
+              })()}
+
+              {/* Aviso de semanas extra: solo en modo completo */}
+              {!simple && feasibility.recommended_weeks != null && (
                 <Card title="Semanas adicionales estimadas" className="card-hover" animate={false}>
                   <div className="flex items-start gap-3.5">
                     <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl"
@@ -281,51 +371,83 @@ export function SimulatorPage() {
                 </Card>
               )}
 
-              <Card title="Curvas de progresión comparadas" className="card-hover" animate={false}>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={chartData} margin={{ top: 6, right: 10, left: 4, bottom: 0 }}>
-                    <CartesianGrid stroke="var(--color-grid)" vertical={false} />
-                    <XAxis dataKey="date_label" tick={{ fill: 'var(--color-text-dim)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} tickLine={false} axisLine={false} />
-                    <YAxis reversed tickFormatter={(v: number) => toClock(v, 1)} domain={['dataMin - 0.4', 'dataMax + 0.4']}
-                      tick={{ fill: 'var(--color-text-dim)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} tickLine={false} axisLine={false} width={50} />
-                    <Tooltip content={<ChartTooltip formatter={(v) => toClock(v)} />} />
-                    {goal != null && <ReferenceLine y={goal} stroke="var(--color-amber)" strokeDasharray="5 4" strokeOpacity={0.7} />}
-                    {Object.keys(data.curves).map((name) => (
-                      <Line
-                        key={name} type="monotone" dataKey={name} name={CURVE_LABEL[name] ?? name}
-                        stroke={CURVE_COLORS[name]}
-                        strokeWidth={name === debounced.curve ? 2.8 : 1.4}
-                        strokeOpacity={name === debounced.curve ? 1 : 0.45}
-                        strokeDasharray={name === debounced.curve ? undefined : '5 4'}
-                        dot={false}
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-                <div className="mt-1 flex gap-4 text-[10.5px]">
-                  {Object.keys(data.curves).map((name) => (
-                    <span key={name} className="flex items-center gap-1.5"
-                      style={{ color: name === debounced.curve ? CURVE_COLORS[name] : 'var(--color-text-faint)' }}>
-                      <span className="h-0.5 w-4 rounded" style={{ background: CURVE_COLORS[name], opacity: name === debounced.curve ? 1 : 0.4 }} />
-                      {CURVE_LABEL[name]}
+              {!simple && (
+                <Card title={`Curva de progresión · ${CURVE_LABEL[debounced.curve] ?? debounced.curve}`} className="card-hover" animate={false}>
+                  <ResponsiveContainer width="100%" height={262}>
+                    <LineChart data={chartData} margin={{ top: 6, right: 14, left: 4, bottom: 4 }}>
+                      <CartesianGrid stroke="var(--color-grid)" vertical={false} />
+                      <XAxis dataKey="date_label" interval="preserveStartEnd" minTickGap={16}
+                        height={34} tick={weekDateTick(chartData)} tickLine={false} axisLine={false} />
+                      <YAxis reversed tickFormatter={(v: number) => toClock(v, 1)} domain={['dataMin - 0.3', 'dataMax + 0.3']}
+                        tick={{ fill: 'var(--color-text-dim)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} tickLine={false} axisLine={false} width={50} />
+                      <Tooltip content={<ChartTooltip formatter={(v) => toClock(v)} />} />
+                      {goal != null && (
+                        <ReferenceLine y={goal} stroke="var(--color-amber)" strokeDasharray="5 4" strokeOpacity={0.7}
+                          label={{ value: `Meta ${toClock(goal)}`, fill: 'var(--color-amber)', fontSize: 9.5, position: 'insideBottomRight' }} />
+                      )}
+                      {/* Techo realista I_max: donde cierra el macro (la meta agresiva sigue en la extensión). */}
+                      <ReferenceLine y={feasibility.realistic_ceiling} stroke="var(--color-cyan)" strokeDasharray="2 4" strokeOpacity={0.55}
+                        label={{ value: 'Techo realista', fill: 'var(--color-cyan)', fontSize: 9.5, position: 'insideTopRight' }} />
+                      {/* Frontera macro → extensión: a partir de aquí es la continuación realista hasta la meta. */}
+                      {hasExt && macroEndLabel && (
+                        <ReferenceLine x={macroEndLabel} stroke="var(--color-amber)" strokeDasharray="3 4" strokeOpacity={0.6}
+                          label={{ value: 'fin del macro', fill: 'var(--color-amber)', fontSize: 9, position: 'insideTopLeft' }} />
+                      )}
+                      {/* Curva científica como referencia tenue cuando se eligió otra función. */}
+                      {debounced.curve !== 'science' && (
+                        <Line type="monotone" dataKey="science" name="Científica (referencia)"
+                          stroke={CURVE_COLORS.science} strokeWidth={1.4} strokeOpacity={0.4}
+                          strokeDasharray="5 4" dot={false} connectNulls={false} />
+                      )}
+                      {/* Función elegida = protagonista (se redibuja al cambiar el selector). */}
+                      <Line type="monotone" dataKey={debounced.curve} name={CURVE_LABEL[debounced.curve] ?? debounced.curve}
+                        stroke={CURVE_COLORS[debounced.curve]} strokeWidth={2.8} dot={false} connectNulls={false} />
+                      {/* Semanas de EXTENSIÓN: tramo punteado ámbar, continuación realista hasta la meta. */}
+                      <Line type="monotone" dataKey="ext" name="Extensión → meta"
+                        stroke="var(--color-amber)" strokeWidth={2.2} strokeDasharray="6 4"
+                        dot={false} connectNulls={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10.5px] text-text-faint">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-[3px] w-5 rounded" style={{ background: CURVE_COLORS[debounced.curve] }} />
+                      {CURVE_LABEL[debounced.curve]} · macro
                     </span>
-                  ))}
-                </div>
-              </Card>
+                    {hasExt && (
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-5 border-t-2 border-dashed" style={{ borderColor: 'var(--color-amber)' }} />
+                        Extensión → meta
+                      </span>
+                    )}
+                    {debounced.curve !== 'science' && (
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-5 border-t-2 border-dashed" style={{ borderColor: CURVE_COLORS.science, opacity: 0.5 }} />
+                        Científica (ref.)
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-[10.5px] leading-relaxed text-text-faint">
+                    La función define la forma de la progresión, acotada por el techo científico I_max.
+                    {hasExt
+                      ? ' La meta supera el techo del macro: la curva (sólida) cierra en el techo realista y la extensión (ámbar punteada) continúa hasta la meta proyectada.'
+                      : ' La meta cabe dentro del techo, así que la curva la alcanza dentro del macro.'}
+                  </p>
+                </Card>
+              )}
 
-              <SimZones weeks={data.weeks} />
+              {!simple && <SimZones weeks={data.weeks} />}
 
               <Card title={`Plan semanal generado · ${data.weeks.length} semanas`} className="card-hover" animate={false} flush>
-                <PlanTable weeks={data.weeks} />
-                <p className="border-t border-line px-4 py-2.5 text-[10px] text-text-faint">
-                  Tiempo por zona = punto medio del rango (pace /100m sobre el tiempo esperado de la semana).
-                </p>
+                <PlanTable weeks={data.weeks} simple={simple} />
+                {!simple && (
+                  <p className="border-t border-line px-4 py-2.5 text-[10px] text-text-faint">
+                    Tiempo por zona = punto medio del rango (pace /100m sobre el tiempo esperado de la semana).
+                  </p>
+                )}
               </Card>
 
-              {/* Tabla de EXTENSIÓN: continuación realista del motor cuando la meta
-                  supera el techo del macro. Las semanas aquí completan exactamente la
-                  estimación del cuadro «Semanas adicionales estimadas». */}
-              {data.extension_weeks.length > 0 && (
+              {/* Tabla de EXTENSIÓN: solo en modo completo */}
+              {!simple && data.extension_weeks.length > 0 && (
                 <Card
                   title={`Semanas de extensión · +${data.extension_weeks.length} (continuación realista hasta la meta)`}
                   className="card-hover" animate={false} flush

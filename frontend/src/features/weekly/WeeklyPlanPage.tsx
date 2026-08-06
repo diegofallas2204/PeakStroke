@@ -8,6 +8,7 @@ import type { Week } from '../../lib/types'
 import { STROKE_LABEL } from '../../lib/constants'
 import { toClock, tryToSeconds, signed } from '../../lib/format'
 import { usePageEnter } from '../../hooks/usePageEnter'
+import { useSimpleMode } from '../../hooks/useSimpleMode'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card, EmptyState, Spinner, StatusBadge } from '../../components/ui/primitives'
 import { EventPicker, type EventSelection } from '../../components/ui/EventPicker'
@@ -73,7 +74,9 @@ export function WeeklyPlanPage() {
       api.plans.updateWeek(weekId, body),
     onSuccess: (data) => {
       queryClient.setQueryData(['weeks', selection?.event.id], data)
+      // El tiempo real afecta dashboard (estado/progresión) y la tabla del equipo.
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['team-week'] })
     },
   })
 
@@ -101,6 +104,7 @@ export function WeeklyPlanPage() {
       ?? weeks[0]
   }, [weeks, selectedWeek, selection])
 
+  const [simple] = useSimpleMode()
   const ref = usePageEnter([selection?.event.id, isLoading])
 
   return (
@@ -118,32 +122,41 @@ export function WeeklyPlanPage() {
         <Spinner />
       ) : (
         <>
-          <div className="grid grid-cols-[1fr_290px] gap-4">
-            <Card
-              title={`Progresión · ${selection.event.distance}m ${STROKE_LABEL[selection.event.stroke]} · ${selection.athlete.swimmer_name}`}
-              className="card-hover"
-            >
-              <ProgressionChart
-                weeks={weeks}
-                goalTime={selection.event.goal_time}
-                currentWeek={selection.plan.current_week}
-              />
-              <div className="mt-2 flex gap-5 text-[10.5px] text-text-dim">
-                <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded bg-accent" /> Plan ideal</span>
-                <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded border-t-2 border-dashed border-cyan" /> Proyección ajustada</span>
-                <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-mint" /> Tiempo real</span>
-              </div>
-            </Card>
-            <ZonePanel week={focusWeek} specialty={selection.athlete.specialty} />
-          </div>
+          {!simple && (
+            <div className="grid grid-cols-[1fr_290px] gap-4">
+              <Card
+                title={`Progresión · ${selection.event.distance}m ${STROKE_LABEL[selection.event.stroke]} · ${selection.athlete.swimmer_name}`}
+                className="card-hover"
+              >
+                <ProgressionChart
+                  weeks={weeks}
+                  goalTime={selection.event.goal_time}
+                  currentWeek={selection.plan.current_week}
+                />
+                <div className="mt-2 flex gap-5 text-[10.5px] text-text-dim">
+                  <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded bg-accent" /> Plan ideal</span>
+                  <span className="flex items-center gap-1.5"><span className="h-0.5 w-5 rounded border-t-2 border-dashed border-cyan" /> Proyección ajustada</span>
+                  <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-mint" /> Tiempo real</span>
+                </div>
+              </Card>
+              <ZonePanel week={focusWeek} specialty={selection.athlete.specialty} />
+            </div>
+          )}
 
-          <Card title="Plan generado por el motor · click en una fila para ver sus zonas" className="card-hover" flush>
+          <Card
+            title={simple ? 'Plan semanal' : 'Plan generado por el motor · click en una fila para ver sus zonas'}
+            className="card-hover"
+            flush
+          >
             <div className="overflow-x-auto">
               <table className="tbl">
                 <thead>
                   <tr>
                     <th>Semana</th><th>Fase</th><th>Km</th><th>Esperado</th>
-                    <th>Pace /100</th><th>Proyección</th><th>Real</th><th>Diferencia</th>
+                    {!simple && <th>Pace /100</th>}
+                    {!simple && <th>Proyección</th>}
+                    <th>Real</th>
+                    {!simple && <th>Diferencia</th>}
                     <th>Estado</th><th></th>
                   </tr>
                 </thead>
@@ -172,18 +185,24 @@ export function WeeklyPlanPage() {
                         <td className="text-text-dim">{week.phase}{week.disabled && ` · ${week.disable_reason ?? 'parón'}`}</td>
                         <td className="mono">{week.planned_km}</td>
                         <td className="mono">{toClock(week.expected_time)}</td>
-                        <td className="mono font-semibold text-accent-soft">{toClock(week.pace_100m)}</td>
-                        <td className="mono text-text-dim">
-                          {week.recalc_time != null
-                            ? <span className="text-cyan">{toClock(week.recalc_time)}</span>
-                            : '—'}
-                        </td>
+                        {!simple && (
+                          <td className="mono font-semibold text-accent-soft">{toClock(week.pace_100m)}</td>
+                        )}
+                        {!simple && (
+                          <td className="mono text-text-dim">
+                            {week.recalc_time != null
+                              ? <span className="text-cyan">{toClock(week.recalc_time)}</span>
+                              : '—'}
+                          </td>
+                        )}
                         <td onClick={(e) => e.stopPropagation()}>
                           <RealTimeCell week={week} onSave={saveReal} />
                         </td>
-                        <td className="mono" style={{ color: week.diff_seconds == null ? '#565e82' : week.diff_seconds <= 0 ? '#34d399' : '#fb7185' }}>
-                          {week.diff_seconds != null ? `${signed(week.diff_seconds)}s` : '—'}
-                        </td>
+                        {!simple && (
+                          <td className="mono" style={{ color: week.diff_seconds == null ? '#565e82' : week.diff_seconds <= 0 ? '#34d399' : '#fb7185' }}>
+                            {week.diff_seconds != null ? `${signed(week.diff_seconds)}s` : '—'}
+                          </td>
+                        )}
                         <td>{week.real_time != null ? <StatusBadge status={week.status} /> : <span className="text-[10.5px] text-text-faint">—</span>}</td>
                         <td onClick={(e) => e.stopPropagation()}>
                           <button

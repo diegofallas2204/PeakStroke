@@ -1,4 +1,18 @@
-// Utilidades de formato de tiempos de natación.
+// Utilidades de formato: tiempos de natación y presentación de nombres/fechas.
+
+/** 'Sofía Ramírez' -> 'SR'. Para los avatares de atletas y cuentas. */
+export function initials(name: string): string {
+  return name.split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase()
+}
+
+/** ISO -> '3 ago 2026'. Devuelve '—' si no hay fecha. */
+export function toShortDate(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 
 /** Segundos -> 'm:ss.cc' (o 'ss.cc' bajo el minuto). */
 export function toClock(seconds: number | null | undefined, decimals = 2): string {

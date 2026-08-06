@@ -83,8 +83,8 @@ export function AerobicPage() {
           action={<button className="btn btn-primary" onClick={() => setShowForm(true)}><Plus size={14} /> Registrar test</button>}
         />
       ) : (
-        <div className="grid grid-cols-[300px_1fr] gap-4">
-          <Card title="Historial de tests" className="card-hover !p-2.5">
+        <div className="grid grid-cols-[300px_1fr] items-start gap-4">
+          <Card title="Historial de tests" className="card-hover self-start !p-2.5">
             <div className="flex flex-col gap-1.5">
               {tests.map((t) => {
                 const trend = t.trend ? TREND_META[t.trend] : null
