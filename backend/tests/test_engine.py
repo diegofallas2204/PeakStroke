@@ -5,6 +5,7 @@ import pytest
 
 from app.engine.aerobic import analyze_splits, css_from_400_50
 from app.engine.curves import CURVES, curve_progress
+from app.engine.envelope import science_envelope
 from app.engine.feasibility import analyze_feasibility
 from app.engine.km_distribution import distribute_km
 from app.engine.progression import (
@@ -136,9 +137,45 @@ class TestProgression:
         assert weeks[1].week_date == date(2026, 5, 4)
         assert all(w.week_date.weekday() == 0 for w in weeks)
 
-    def test_reaches_goal(self):
+    def test_reaches_feasible_goal(self):
+        # Meta dentro del techo I_max: la curva la alcanza exactamente.
+        weeks = generate_plan(100, 67.8, 67.3, 12, 320, "linear", date(2026, 4, 27), 4)
+        assert weeks[-1].expected_time == pytest.approx(67.3, abs=0.02)
+
+    def test_aggressive_goal_caps_at_realistic_ceiling(self):
+        # Meta agresiva (supera el techo I_max): la curva NO llega a la meta, cierra
+        # en el techo realista; la continuación va en la tabla de extensión.
+        env = science_envelope(100, 67.8, 12)
         weeks = generate_plan(100, 67.8, 64.5, 12, 320, "linear", date(2026, 4, 27), 4)
-        assert weeks[-1].expected_time == pytest.approx(64.5, abs=0.01)
+        assert weeks[-1].expected_time == pytest.approx(env.realistic_ceiling, abs=0.02)
+        assert weeks[-1].expected_time > 64.5  # no alcanza la meta agresiva
+
+    def test_no_week_exceeds_physiological_peak(self):
+        # Ninguna curva mejora más rápido que el pico fisiológico (curva científica).
+        env = science_envelope(100, 67.8, 12)
+        for curve in CURVES:
+            weeks = generate_plan(100, 67.8, 64.5, 12, 320, curve, date(2026, 4, 27), 4)
+            steps = [weeks[i - 1].expected_time - weeks[i].expected_time for i in range(1, len(weeks))]
+            # +0.01 de tolerancia por el redondeo a 2 decimales del tiempo esperado.
+            assert max(steps) <= env.peak_week_s + 0.011, f"{curve} supera el pico"
+
+    def test_science_curve_not_reshaped(self):
+        # La curva científica define el envelope: el clamp es no-op para ella.
+        weeks = generate_plan(100, 67.8, 64.5, 12, 320, "science", date(2026, 4, 27), 4)
+        env = science_envelope(100, 67.8, 12)
+        from app.engine.curves import curve_progress
+        for i, w in enumerate(weeks):
+            ideal = 67.8 - env.safe_total_s * curve_progress((i + 1) / 12, "science")
+            assert w.expected_time == pytest.approx(round(ideal, 2), abs=0.02)
+
+    def test_curves_differ_in_shape(self):
+        # Mismo techo, distinta forma: exp acelera al inicio, sigmoide en el centro.
+        mid = 6
+        exp = generate_plan(100, 67.8, 64.5, 12, 320, "exponential", date(2026, 4, 27), 4)
+        sig = generate_plan(100, 67.8, 64.5, 12, 320, "sigmoid", date(2026, 4, 27), 4)
+        assert exp[mid].expected_time != pytest.approx(sig[mid].expected_time, abs=0.05)
+        # exponencial ya mejoró más a mitad de camino que la sigmoide
+        assert exp[mid].expected_time < sig[mid].expected_time
 
     def test_monotonic_improvement(self):
         weeks = generate_plan(100, 67.8, 64.5, 12, 320, "sigmoid", date(2026, 4, 27), 4)
@@ -146,11 +183,21 @@ class TestProgression:
         assert all(b <= a for a, b in zip(times, times[1:]))
 
     def test_recalculate_anchors_on_real(self):
+        # Recalcula desde el ancla real (66.9) sobre las 6 semanas restantes; queda
+        # acotado por el techo I_max de ese tramo (meta agresiva → cierra en el techo).
         weeks = generate_plan(100, 67.8, 64.5, 12, 320, "sigmoid", date(2026, 4, 27), 4)
         recalculate_remaining(weeks, from_week=7, anchor_time=66.9,
                               goal_time=64.5, curve="sigmoid", distance=100)
-        assert weeks[-1].expected_time == pytest.approx(64.5, abs=0.01)
+        env = science_envelope(100, 66.9, 6)
+        assert weeks[-1].expected_time == pytest.approx(env.realistic_ceiling, abs=0.03)
         assert weeks[6].expected_time < 66.9
+
+    def test_recalculate_reaches_feasible_goal(self):
+        # Meta alcanzable desde el ancla: el recálculo sí la toca.
+        weeks = generate_plan(100, 67.8, 67.4, 12, 320, "linear", date(2026, 4, 27), 4)
+        recalculate_remaining(weeks, from_week=7, anchor_time=67.6,
+                              goal_time=67.4, curve="linear", distance=100)
+        assert weeks[-1].expected_time == pytest.approx(67.4, abs=0.03)
 
     def test_disabled_weeks_do_not_progress(self):
         weeks = generate_plan(100, 67.8, 64.5, 12, 320, "sigmoid", date(2026, 4, 27), 4)
@@ -159,7 +206,9 @@ class TestProgression:
         w6 = next(w for w in weeks if w.week_number == 6)
         w5 = next(w for w in weeks if w.week_number == 5)
         assert w6.disabled and w6.expected_time == pytest.approx(w5.expected_time)
-        assert weeks[-1].expected_time == pytest.approx(64.5, abs=0.01)
+        # 6 semanas activas restantes (5,8,9,10,11,12); cierra en su techo realista.
+        env = science_envelope(100, 66.5, 6)
+        assert weeks[-1].expected_time == pytest.approx(env.realistic_ceiling, abs=0.05)
 
     def test_status_classification(self):
         assert performance_status(64.0, 65.0) == "ahead"

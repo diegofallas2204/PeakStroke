@@ -157,7 +157,16 @@ def race_pace_100(predicted: float, distance: int) -> float:
     naive = predicted / (distance / 100.0)
     return naive * SPRINT_TO_100.get(distance, 1.0)
 
-# §4.2 — mejora máxima del CSS por mesociclo (4-6 sem), proporción decimal.
+# §4.2 — mejora máxima del CSS por MESOCICLO (4-6 sem), proporción decimal.
+# JERARQUÍA TEMPORAL (clave para no confundir escalas — ver nota 17 del vault):
+#   · I_max            = mejora máx por MESOCICLO (4-6 sem).
+#   · I_max × (N/5)    = mejora máx por MACROCICLO de N sem (≈3 mesos en 15 sem).
+#                        Es la mejora DENTRO de un macro (lo que ve el coach al
+#                        comparar el test de inicio con el pico del taper).
+#   · TEMPORADA/ANUAL  = 3 macrociclos ENCADENADOS con degradación → suma ≈ 1.96×
+#                        el primer macro (con MACROCYCLE_DEGRADATION=0.60).
+# Validado vs literatura: élite ~0.5-1.5%/año (Pyne 2004), joven ~7-14.6%/temporada
+# (Morais 2021, 3 macros 7.8/3.7/3.8%), progresión por edad×nivel (Ruiz-Navarro 2025).
 I_MAX_TABLE: dict[str, dict[int, float]] = {
     "beginner":     {50: 0.035, 100: 0.030, 200: 0.032, 400: 0.035, 800: 0.038, 1500: 0.040},
     "recreational": {50: 0.025, 100: 0.022, 200: 0.024, 400: 0.026, 800: 0.028, 1500: 0.030},
@@ -167,7 +176,13 @@ I_MAX_TABLE: dict[str, dict[int, float]] = {
 }
 
 # §4.3 — decaimiento geométrico del I_max entre macrociclos consecutivos.
-MACROCYCLE_DEGRADATION = 0.85
+# RECALIBRADO 2026-06-22: 0.85 → 0.60. El 0.85 sobreestimaba la acumulación de una
+# temporada de 3 macros (élite ~3.4%/año vs literatura ~1%; avanzado ~10% vs 3-6%).
+# El valor 0.60 reproduce el único estudio que descompone una temporada en 3 macros
+# (Morais et al. 2021, jóvenes 9-14a: 7.8 / 3.7 / 3.8% → factor inter-macro ≈ 0.60)
+# y concuerda con Mujika 1995 (tapers 2.9/3.2/1.8% entre temporadas, ~0.62).
+# Solo afecta planes con n_mac ≥ 2; los planes de un solo macro no cambian. Ver nota 17.
+MACROCYCLE_DEGRADATION = 0.60
 
 
 def youth_imax_factor(age: int | None) -> float:
@@ -191,6 +206,17 @@ F_FASE: dict[str, float] = {
     "pre_competitivo": 1.05,
     "taper":           1.15,
     "extension":       1.00,   # semanas extra tras el macro (meta más agresiva que el techo)
+}
+
+# §4.5 — mejora ANUAL esperada (temporada de ~3 macros), proporción decimal {min,max}.
+# Techo de la literatura para validar la proyección anual (nota 17 del vault):
+# Pyne 2004 (élite ~1%), Ruiz-Navarro 2025 (por edad×nivel), Morais 2021 (joven).
+ANNUAL_IMPROVEMENT_RANGE: dict[str, tuple[float, float]] = {
+    "beginner":     (0.08, 0.15),
+    "recreational": (0.05, 0.10),
+    "advanced":     (0.03, 0.06),
+    "competitive":  (0.02, 0.035),
+    "elite":        (0.005, 0.015),
 }
 
 # §2.4 — clasificación de nivel por CSS (s/100m), tabla de crol.
@@ -255,6 +281,38 @@ MACRO_15_PHASES: list[tuple[int, int, str]] = [
     (12, 13, "pre_competitivo"),
     (14, 15, "taper"),
 ]
+
+
+# ── CURVA CIENTÍFICA (fuente única de la forma de progresión) ────────────────
+# Distribución de mejora ponderada por F_FASE: cada fase aporta mejora a un ritmo
+# proporcional a su F_fase (base general lenta, pico en taper). Es *back-loaded*
+# (≈59% en la 2ª mitad, ≈18% en el taper). REEMPLAZA a la sigmoide como curva por
+# defecto del sistema. Validada en notas 09/16/17 del vault (Mujika 1995;
+# cohorte de periodización; Morais 2021). El simulador conserva sigmoide/exp/log/
+# lineal solo para COMPARAR escenarios — la ciencia por defecto es esta.
+def _science_curve_segments() -> list[tuple[float, float, float]]:
+    """(x_ini, x_fin, peso F_fase) de cada fase como fracción del macro."""
+    total_w = MACRO_15_PHASES[-1][1]   # 15 semanas
+    return [((ini - 1) / total_w, fin / total_w, F_FASE[phase])
+            for ini, fin, phase in MACRO_15_PHASES]
+
+_SCIENCE_SEGMENTS = _science_curve_segments()
+_SCIENCE_TOTAL = sum(w * (x1 - x0) for x0, x1, w in _SCIENCE_SEGMENTS)
+
+
+def science_curve_progress(x: float) -> float:
+    """Fracción de mejora acumulada [0..1] en el punto x [0..1] (fracción del
+    macro transcurrida) según la curva CIENTÍFICA F_FASE. f(0)=0, f(1)=1.
+
+    Es la integral normalizada de la densidad de mejora (peso F_fase por fase):
+    crece lento en base general y acelera hacia el taper (supercompensación)."""
+    x = max(0.0, min(1.0, x))
+    acc = 0.0
+    for x0, x1, w in _SCIENCE_SEGMENTS:
+        if x <= x0:
+            break
+        acc += w * (min(x, x1) - x0)
+    return acc / _SCIENCE_TOTAL
 
 # Fase → banda de volumen a usar (pre_competitivo no tiene banda propia).
 PHASE_VOLUME_KEY: dict[str, str] = {
@@ -343,6 +401,31 @@ class PlanResult:
     macro_weeks: int            # semanas del macro periodizado (≤15) antes de extensión
     goal_reached: bool          # ¿el plan alcanza la meta?
     weeks: list[WeekRow]
+
+
+@dataclass
+class MacroProjection:
+    n_mac: int
+    start_time: float          # tiempo al iniciar el macro (s)
+    end_time: float            # techo realista al cerrar el macro (s)
+    improvement_s: float
+    improvement_pct: float
+
+
+@dataclass
+class SeasonProjection:
+    """Proyección ANUAL = N macrociclos encadenados (re-test entre cada uno)."""
+    level: str
+    n_macros: int
+    season_start: float
+    season_end: float
+    season_improvement_s: float
+    season_improvement_pct: float     # % de mejora de la temporada completa
+    annual_low_pct: float             # techo literatura (mín) para el nivel
+    annual_high_pct: float            # techo literatura (máx) para el nivel
+    verdict: str                      # "ok" | "optimistic" | "below"
+    message: str
+    macros: list[MacroProjection]
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -543,4 +626,89 @@ class ScienceEngine:
             macro_weeks=macro_weeks,
             goal_reached=goal_reached,
             weeks=rows,
+        )
+
+    def project_season(
+        self,
+        *,
+        current_time: float,
+        distance: int,
+        stroke: str = "libre",
+        pool: str = "50",
+        profile: str | None = None,
+        age: int | None = None,
+        n_macros: int = 3,
+    ) -> SeasonProjection:
+        """Proyecta una TEMPORADA = `n_macros` macrociclos encadenados (§4.5, nota 17).
+
+        Cada macro parte del techo realista del anterior (modela el re-test entre
+        macros) y su potencial se degrada con `MACROCYCLE_DEGRADATION`. Devuelve la
+        mejora por macro y la mejora anual total, comparada con el techo de la
+        literatura (`ANNUAL_IMPROVEMENT_RANGE`). NO sustituye al plan semanal:
+        es la vista anual que el coach usa para repartir la meta entre los 3 macros.
+        """
+        event = self._nearest_event(distance)
+        profile = profile or profile_for_event(event)
+        race_pace_0 = current_time / (distance / 100.0)
+        level = classify_level(race_pace_0 * zone_factors(profile, distance)["MVO2"])
+
+        macros: list[MacroProjection] = []
+        t = current_time
+        for n in range(1, max(1, n_macros) + 1):
+            # Meta deliberadamente agresiva → cada macro alcanza su techo realista.
+            plan = self.generate_plan(
+                current_time=t, goal_time=t * 0.80, distance=distance,
+                stroke=stroke, pool=pool, profile=profile, n_mac=n, age=age,
+            )
+            end = plan.realistic_final
+            macros.append(MacroProjection(
+                n_mac=n, start_time=round(t, 2), end_time=round(end, 2),
+                improvement_s=round(t - end, 2),
+                improvement_pct=round((t - end) / t * 100, 2) if t else 0.0,
+            ))
+            t = end
+
+        season_imp = current_time - t
+        season_pct = season_imp / current_time if current_time else 0.0
+        # La proyección es un TECHO (cada macro llega a su máximo). El rango de la
+        # literatura es lo TÍPICO; se ajusta por edad (los menores mejoran más,
+        # §4.4) para que la comparación sea justa por edad, no solo por nivel.
+        yf = youth_imax_factor(age)
+        low_base, high_base = ANNUAL_IMPROVEMENT_RANGE.get(level, (0.0, 1.0))
+        low, high = low_base * yf, high_base * yf
+
+        if season_pct <= high:
+            verdict = "ok"
+            message = (
+                f"Realista — el techo de temporada proyecta {season_pct*100:.2f}%, "
+                f"dentro del rango típico {low*100:.1f}–{high*100:.1f}% para {level}"
+                + (f" (ajustado por edad ×{yf:g})" if yf != 1.0 else "") + "."
+            )
+        elif season_pct <= high * 1.8:
+            verdict = "optimistic"
+            message = (
+                f"Optimista — el techo de temporada ({season_pct*100:.2f}%) supera el "
+                f"rango típico {low*100:.1f}–{high*100:.1f}% ({level}). Es el máximo de "
+                f"{len(macros)} macros perfectos, no la media esperada."
+            )
+        else:
+            verdict = "unrealistic"
+            message = (
+                f"Poco realista — {season_pct*100:.2f}% excede con mucho el techo "
+                f"típico {low*100:.1f}–{high*100:.1f}% ({level}). Revisa el tiempo "
+                f"actual o reparte la meta en más temporadas."
+            )
+
+        return SeasonProjection(
+            level=level,
+            n_macros=len(macros),
+            season_start=round(current_time, 2),
+            season_end=round(t, 2),
+            season_improvement_s=round(season_imp, 2),
+            season_improvement_pct=round(season_pct * 100, 2),
+            annual_low_pct=round(low * 100, 2),
+            annual_high_pct=round(high * 100, 2),
+            verdict=verdict,
+            message=message,
+            macros=macros,
         )

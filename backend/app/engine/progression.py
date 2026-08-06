@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from .curves import curve_progress
+from .envelope import science_envelope
 from .km_distribution import distribute_km
 from .zones import calc_zones
 
@@ -71,6 +72,40 @@ def monday_of(start_date: date, week_number: int) -> date:
     return base + timedelta(weeks=week_number - 1)
 
 
+def clamp_weekly_rate(expected: list[float], current_time: float, peak_week_s: float) -> list[float]:
+    """Acota la mejora de cada semana al ritmo fisiológico máximo `peak_week_s`.
+
+    Recorre las semanas en orden: si una pide mejorar más de `peak_week_s` (típico
+    de la exponencial, que carga la mejora al inicio), toma solo el tope y *difiere*
+    el excedente a las semanas siguientes (modelo causal: no se puede mejorar más
+    rápido de lo que la fisiología permite, así que esa ganancia ocurre después).
+
+    La curva científica nunca se recorta (su semana más rápida define `peak_week_s`);
+    solo reparte de forma distinta a las curvas con picos artificiales. Si el techo
+    del macro ya acota la mejora total, el excedente diferido siempre se reabsorbe
+    antes del final, así que la curva cierra en el mismo punto, solo con otra forma.
+    """
+    if peak_week_s <= 0:
+        return list(expected)
+    # Incrementos pedidos por la curva ideal (semana a semana).
+    intended: list[float] = []
+    prev_ideal = current_time
+    for e in expected:
+        intended.append(prev_ideal - e)
+        prev_ideal = e
+    # Redistribución: tope por semana + diferir el excedente a las siguientes.
+    out: list[float] = []
+    prev = current_time
+    carry = 0.0
+    for want_now in intended:
+        want = want_now + carry            # incremento pedido + lo diferido
+        take = min(want, peak_week_s) if want > 0 else want
+        carry = want - take                # lo que no cupo se difiere
+        prev = prev - take
+        out.append(prev)
+    return out
+
+
 def generate_plan(
     distance: int,
     current_time: float,
@@ -83,16 +118,36 @@ def generate_plan(
     phases: list[dict] | None = None,
     stroke: str = "freestyle",
     pool: str = "50",
+    n_mac: int = 1,
+    age: int | None = None,
 ) -> list[WeekEntry]:
-    """Genera el plan completo semana a semana para una prueba de un atleta."""
+    """Genera el plan completo semana a semana para una prueba de un atleta.
+
+    La curva elegida define la FORMA de la progresión, pero queda acotada por la
+    ciencia (techo I_max del nivel/prueba, vía `science_envelope`):
+    - la mejora dentro del macro nunca supera el techo realista (`realistic_ceiling`);
+      una meta más agresiva continúa en la tabla de extensión, no en esta curva.
+    - ninguna semana mejora más rápido que el ritmo fisiológico máximo (`peak_week_s`).
+    Así la curva cierra justo donde la tarjeta de factibilidad dice que es realista,
+    y la diferencia entre funciones (sigmoide/exp/log/lineal) es solo de forma.
+    """
     phases = phases or default_phase_ranges(total_weeks)
-    total_improvement = current_time - goal_time
     km = distribute_km(total_weeks, total_km, weeks_per_micro)
+
+    env = science_envelope(distance, current_time, total_weeks, n_mac=n_mac, age=age)
+    # Nunca mejorar más allá del techo I_max dentro del macro (la meta agresiva
+    # continúa en la extensión). Para metas factibles, in_macro_target = meta.
+    in_macro_target = max(goal_time, env.realistic_ceiling)
+    improvement = max(current_time - in_macro_target, 0.0)
+
+    ideal = [current_time - improvement * curve_progress((i + 1) / total_weeks, curve)
+             for i in range(total_weeks)]
+    bounded = clamp_weekly_rate(ideal, current_time, env.peak_week_s)
+
     weeks: list[WeekEntry] = []
     prev = current_time
     for i in range(total_weeks):
-        x = (i + 1) / total_weeks
-        expected = current_time - total_improvement * curve_progress(x, curve)
+        expected = bounded[i]
         pace = expected / (distance / 100)
         entry = WeekEntry(
             week_number=i + 1,
@@ -161,12 +216,18 @@ def recalculate_remaining(
     disabled_weeks: set[int] | None = None,
     stroke: str = "freestyle",
     pool: str = "50",
+    n_mac: int = 1,
+    age: int | None = None,
 ) -> list[WeekEntry]:
     """Recalcula la curva desde `from_week` anclada en un tiempo real/actual.
 
     Las semanas deshabilitadas (parón por lesión o vacaciones) no progresan:
     mantienen el tiempo del ancla previa y la mejora restante se redistribuye
     entre las semanas activas que quedan.
+
+    Queda acotada por la misma ciencia que `generate_plan`: desde el ancla, la
+    mejora de las semanas activas restantes no supera el techo I_max (calculado
+    sobre esas semanas) ni el ritmo fisiológico máximo por semana.
     """
     disabled_weeks = disabled_weeks or set()
     remaining = [w for w in weeks if w.week_number >= from_week]
@@ -174,19 +235,26 @@ def recalculate_remaining(
     if not active:
         return weeks
 
-    improvement = max(anchor_time - goal_time, 0.0)
-    prev_expected = anchor_time
-    progress_idx = 0
     n_active = len(active)
+    env = science_envelope(distance, anchor_time, n_active, n_mac=n_mac, age=age)
+    # No mejorar más allá del techo realista de las semanas restantes; la meta
+    # más exigente queda fuera del alcance del tramo, no se fuerza.
+    in_macro_target = max(goal_time, env.realistic_ceiling)
+    improvement = max(anchor_time - in_macro_target, 0.0)
+    ideal = [anchor_time - improvement * curve_progress((k + 1) / n_active, curve)
+             for k in range(n_active)]
+    bounded = clamp_weekly_rate(ideal, anchor_time, env.peak_week_s)
+
+    prev_expected = anchor_time
+    idx = 0
     for week in remaining:
         if week.week_number in disabled_weeks:
             week.disabled = True
             week.expected_time = round(prev_expected, 2)
             week.improvement_vs_prev = 0.0
         else:
-            progress_idx += 1
-            x = progress_idx / n_active
-            expected = anchor_time - improvement * curve_progress(x, curve)
+            expected = bounded[idx]
+            idx += 1
             week.disabled = False
             week.improvement_vs_prev = round(expected - prev_expected, 2)
             week.expected_time = round(expected, 2)

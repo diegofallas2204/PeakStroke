@@ -15,7 +15,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from app.domain import I_MAX_TABLE, MACROCYCLE_DEGRADATION, classify_level, profile_for_event, youth_imax_factor, zone_factors
+from .envelope import science_envelope
 
 TIER1_THRESHOLD = 400
 OK_RATIO = 0.85
@@ -40,19 +40,6 @@ class FeasibilityResult:
     realistic_ceiling: float          # mejor tiempo realista al cerrar el macro (s)
     safe_rate_per_week: float         # mejora segura media por semana (s/sem)
     detail: dict
-
-
-def _nearest_event(distance: int) -> int:
-    known = sorted(I_MAX_TABLE["elite"].keys())
-    return min(known, key=lambda d: abs(d - distance))
-
-
-def _level_for(distance: int, current_time: float) -> str:
-    """Clasifica el nivel por el umbral (ritmo de carrera × factor MVO2)."""
-    profile = profile_for_event(distance)
-    race_pace_0 = current_time / (distance / 100.0)
-    threshold = race_pace_0 * zone_factors(profile, distance)["MVO2"]
-    return classify_level(threshold)
 
 
 def analyze_feasibility(
@@ -80,26 +67,24 @@ def analyze_feasibility(
             safe_rate_per_week=0.0, detail={},
         )
 
-    event = _nearest_event(distance)
-    level = _level_for(distance, current_time)
-    i_max_meso = I_MAX_TABLE[level][event] * (MACROCYCLE_DEGRADATION ** (n_mac - 1)) * youth_imax_factor(age)
-    num_meso = total_weeks / 5.0
-    i_max_total = i_max_meso * num_meso                 # techo de mejora (fracción)
+    env = science_envelope(distance, current_time, total_weeks, n_mac=n_mac, age=age)
+    level, event = env.level, env.event
+    i_max_total = env.i_max_total                       # techo de mejora (fracción)
+    safe_total_s = env.safe_total_s                     # mejora máx creíble en el macro (s)
+    realistic_ceiling = env.realistic_ceiling           # mejor tiempo realista al cerrar el macro
 
     pct = total_improvement / current_time
     ratio = pct / i_max_total if i_max_total else 999.0
 
-    safe_total_s = current_time * i_max_total           # mejora máx creíble en el macro (s)
     ceiling_per_micro = safe_total_s / num_micros       # techo s/micro
     # Modelo de EXTENSIÓN (espejo del motor de dominio, §5.3): el macro cierra en
     # el techo realista y, si la meta lo supera, se añaden semanas extra al ritmo
     # seguro medio por semana hasta alcanzarla. Esto reemplaza la antigua fórmula
     # lineal `ceil(pct / (i_max_meso/5))`, que disparaba semanas absurdas.
-    realistic_ceiling = current_time - safe_total_s     # mejor tiempo realista al cerrar el macro
     safe_rate_per_week = safe_total_s / total_weeks if total_weeks else 0.0
 
     detail = {
-        "level": level, "event": event, "i_max_meso": round(i_max_meso, 4),
+        "level": level, "event": event, "i_max_meso": round(i_max_total / (total_weeks / 5.0), 4),
         "i_max_total_pct": round(i_max_total * 100, 2), "ratio": round(ratio, 3),
         "requested_pct": round(pct * 100, 2),
     }

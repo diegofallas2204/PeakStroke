@@ -2,18 +2,27 @@
 
 La fracción de mejora acumulada en el punto x (proporción del macrociclo
 transcurrida) sigue la fisiología del modelo elegido:
+- science: curva CIENTÍFICA por defecto (distribución F_FASE del motor de dominio,
+  back-loaded, pico en el taper). Es la respaldada por la literatura — usar esta.
+- sigmoid: lenta adaptación, aceleración en construcción, meseta en taper.
 - linear: mejora constante semana a semana.
 - exponential: mejoras rápidas al inicio (atletas que retoman forma).
 - logarithmic: mejoras decrecientes (atletas cerca de su techo).
-- sigmoid: lenta adaptación, aceleración en construcción, meseta en taper.
+
+`science` delega en `app.domain.engine.science_curve_progress` (fuente única). Las
+demás existen solo para COMPARAR escenarios en el simulador.
 """
 from __future__ import annotations
 
 import math
 
-CURVES = ["sigmoid", "linear", "exponential", "logarithmic"]
+from app.domain.engine import science_curve_progress
+
+# "science" primero = curva por defecto del sistema.
+CURVES = ["science", "sigmoid", "linear", "exponential", "logarithmic"]
 
 CURVE_LABELS = {
+    "science": "Científica (F_FASE)",
     "sigmoid": "Sigmoidal",
     "linear": "Lineal",
     "exponential": "Exponencial",
@@ -32,6 +41,8 @@ SIGMOID_STEEPNESS = 10.0
 def curve_progress(x: float, curve: str) -> float:
     """Fracción de mejora acumulada [0..1] en el punto x [0..1]."""
     x = max(0.0, min(1.0, x))
+    if curve == "science":
+        return science_curve_progress(x)
     if curve == "linear":
         return x
     if curve == "exponential":

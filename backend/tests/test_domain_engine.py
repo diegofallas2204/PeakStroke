@@ -1,7 +1,7 @@
 """Tests directos del motor de dominio (ScienceEngine).
 
 Cubre: funcionalidad base existente (verde) + características nuevas (rojo):
-  - Degradación por macrociclo: I_max × 0.85^(n_mac-1)   §4.3
+  - Degradación por macrociclo: I_max × MACROCYCLE_DEGRADATION^(n_mac-1)   §4.3
   - Corrección para menores de 18 años                     §4.4
 """
 from datetime import date
@@ -11,6 +11,7 @@ import pytest
 from app.domain.engine import (
     F_FASE,
     I_MAX_TABLE,
+    MACROCYCLE_DEGRADATION,
     STROKE_TPACE_CORRECTION_S,
     ScienceEngine,
     allowed_strokes,
@@ -18,6 +19,7 @@ from app.domain.engine import (
     confidence_margin,
     profile_for_event,
     race_pace_100,
+    science_curve_progress,
 )
 
 
@@ -260,7 +262,7 @@ class TestScienceEngineBasics:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestMacrocycleDegradation:
-    """I_max^(n_mac) = I_max × 0.85^(n_mac-1)   §4.3"""
+    """I_max^(n_mac) = I_max × MACROCYCLE_DEGRADATION^(n_mac-1)   §4.3"""
 
     def test_second_macro_less_improvement_than_first(self):
         eng = ScienceEngine()
@@ -280,7 +282,7 @@ class TestMacrocycleDegradation:
                                       distance=400, stroke="libre", pool="50", n_mac=1)
         assert default.realistic_final == pytest.approx(explicit1.realistic_final)
 
-    def test_degradation_ratio_approximately_085(self):
+    def test_degradation_ratio_matches_constant(self):
         eng = ScienceEngine()
         mac1 = eng.generate_plan(current_time=300.0, goal_time=250.0,
                                  distance=800, stroke="libre", pool="50", n_mac=1)
@@ -288,9 +290,9 @@ class TestMacrocycleDegradation:
                                  distance=800, stroke="libre", pool="50", n_mac=2)
         improvement_mac1 = mac1.current_time - mac1.realistic_final
         improvement_mac2 = mac2.current_time - mac2.realistic_final
-        assert improvement_mac2 / improvement_mac1 == pytest.approx(0.85, abs=0.01)
+        assert improvement_mac2 / improvement_mac1 == pytest.approx(MACROCYCLE_DEGRADATION, abs=0.01)
 
-    def test_third_macro_factor_0_7225(self):
+    def test_third_macro_factor_is_degradation_squared(self):
         eng = ScienceEngine()
         mac1 = eng.generate_plan(current_time=300.0, goal_time=250.0,
                                  distance=800, stroke="libre", pool="50", n_mac=1)
@@ -298,7 +300,7 @@ class TestMacrocycleDegradation:
                                  distance=800, stroke="libre", pool="50", n_mac=3)
         improvement_mac1 = mac1.current_time - mac1.realistic_final
         improvement_mac3 = mac3.current_time - mac3.realistic_final
-        assert improvement_mac3 / improvement_mac1 == pytest.approx(0.85 ** 2, abs=0.01)
+        assert improvement_mac3 / improvement_mac1 == pytest.approx(MACROCYCLE_DEGRADATION ** 2, abs=0.01)
 
     def test_feasibility_degrades_with_later_macro(self):
         eng = ScienceEngine()
@@ -350,3 +352,63 @@ class TestYouthCorrection:
         imp_adult = adult.current_time - adult.realistic_final
         imp_youth = youth.current_time - youth.realistic_final
         assert imp_youth >= imp_adult * 1.4
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CURVA CIENTÍFICA (F_FASE) — fuente única de la forma de progresión
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestScienceCurve:
+    """science_curve_progress: back-loaded, pico en taper (nota 09)."""
+
+    def test_boundaries(self):
+        assert science_curve_progress(0.0) == pytest.approx(0.0)
+        assert science_curve_progress(1.0) == pytest.approx(1.0)
+
+    def test_monotonic_non_decreasing(self):
+        vals = [science_curve_progress(i / 50) for i in range(51)]
+        assert all(b >= a - 1e-9 for a, b in zip(vals, vals[1:]))
+
+    def test_back_loaded(self):
+        # Menos del 50% de la mejora en la 1a mitad (vs sigmoide simétrica).
+        assert science_curve_progress(0.5) < 0.45
+
+    def test_taper_jump_bigger_than_first_phase(self):
+        # El ritmo de mejora en el taper (peso 1.15) supera al de base general (0.60).
+        taper = science_curve_progress(1.0) - science_curve_progress(13 / 15)
+        base = science_curve_progress(2 / 15) - science_curve_progress(0.0)
+        assert taper > base
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PROYECCIÓN ANUAL — temporada = N macrociclos encadenados (§4.5, nota 17)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestSeasonProjection:
+
+    def test_three_macros_by_default(self):
+        eng = ScienceEngine()
+        proj = eng.project_season(current_time=300.0, distance=800, stroke="libre")
+        assert proj.n_macros == 3
+        assert len(proj.macros) == 3
+
+    def test_per_macro_improvement_decreases(self):
+        eng = ScienceEngine()
+        proj = eng.project_season(current_time=300.0, distance=800, stroke="libre")
+        imps = [m.improvement_s for m in proj.macros]
+        assert imps[0] > imps[1] > imps[2]
+
+    def test_season_chain_is_cumulative(self):
+        eng = ScienceEngine()
+        proj = eng.project_season(current_time=300.0, distance=800, stroke="libre")
+        assert proj.season_end < proj.macros[0].end_time   # sigue mejorando tras macro 1
+        assert proj.season_start == pytest.approx(300.0)
+
+    def test_elite_season_flagged_optimistic_or_ok(self):
+        eng = ScienceEngine()
+        # 1500 muy rápido -> nivel elite; varios macros -> debería marcar techo.
+        proj = eng.project_season(current_time=15 * 60 + 30, distance=1500,
+                                  stroke="libre", n_macros=3)
+        assert proj.level == "elite"
+        assert proj.verdict in ("ok", "optimistic")
+        assert proj.annual_high_pct == pytest.approx(1.5)
