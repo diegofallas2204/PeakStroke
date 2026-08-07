@@ -65,19 +65,43 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
 - **Proyección anual**: `ScienceEngine.project_season()` (3 macros) → `POST
   /api/v1/simulator/season`. Usa el motor de dominio directamente, no adaptadores
 
-## Identidad y roles (andamiaje montado 2026-08-03, feature SIN implementar)
-- `PEAKSTROKE_AUTH_ENABLED=false` por defecto: **la app no pide login**.
-  `get_current_user()` devuelve el entrenador de desarrollo (`coach@peakstroke.dev`,
-  contraseña `peakstroke`) y `require_role()` deja pasar. `config.py` impide que
-  ese modo llegue a producción
-- Módulo `modules/auth/` (User, login/refresh/logout/me) + `core/security.py`
-  (Argon2id + JWT) + `core/dependencies.py` (`get_current_user`, `require_coach`)
-- **Ningún router existente tiene guards todavía** — el API sigue abierto tal cual
-- Falta por implementar: FKs `swimmers.user_id` / `swimmers.coach_id` /
-  `plans.coach_id`, scoping del atleta, y todo el frontend (login, `/perfil`,
-  navegación filtrada por rol). Spec: nota 18 del vault
-- El atleta que pide un recurso ajeno recibe **404, no 403** (un 403 confirmaría
-  que existe)
+## Identidad y roles (backend completo 2026-08-07)
+- `PEAKSTROKE_AUTH_ENABLED=false` por defecto: **la app no pide login**. Toda
+  petición se atribuye a `dev_user_email` (`coach@peakstroke.dev`, contraseña
+  `peakstroke`). `config.py` impide que ese modo llegue a producción
+- Módulo `modules/auth/` + `core/security.py` (Argon2id + JWT) +
+  `core/dependencies.py` (`Principal`, `require_coach`, `require_team_owner`)
+- **Los guards de rol comprueban el rol SIEMPRE**, también con el login apagado.
+  Antes se saltaban, y con el conmutador de identidad eso permitía que un atleta
+  se ascendiera a entrenador en una petición
+- Recurso ajeno (de otro equipo o de otro atleta) → **404, nunca 403**. El 403 se
+  reserva para "tu rol no alcanza", que es una afirmación distinta
+- Cerrar sesión y cambiar la contraseña **revocan de verdad** (`token_version`),
+  y el refresh token **solo sirve una vez** (`refresh_rotation`): reusar uno
+  gastado se trata como robo y corta todas las sesiones
+
+### Conmutador de desarrollo — dos cabeceras, dos ejes
+Solo con `auth_enabled=false` **y** fuera de producción (`dev_identity_enabled`).
+`GET /auth/config` dice en qué modo estás; `GET /auth/dev-identities` lista las
+cuentas suplantables (404 con el login puesto).
+
+```
+X-PeakStroke-Dev-User: sofia@peakstroke.dev   QUIÉN eres. La interfaz que ves es
+                                              la de ese rol, fielmente: un atleta
+                                              recibe 403 donde recibiría 403.
+X-PeakStroke-Dev-Bypass: true                 Modo desarrollador: te saltas los
+                                              guards de rol SIN dejar de ver lo
+                                              que ve esa persona.
+```
+
+El bypass levanta **lo que puedes hacer**, no **lo que ves**: el filtro por
+nadador sigue puesto. Si levantara los dos, "modo desarrollador" y "modo
+entrenador" serían lo mismo y no habrías revisado la UI de atleta. `is_developer`
+no existe en la base de datos y no hay forma de persistirlo.
+
+`seed.py` crea 7 cuentas que cubren los casos incómodos: dueño, entrenador
+asistente (no dueño), dos atletas normales, atleta sin ficha de nadador, atleta
+sin macrociclo y atleta con la ficha dada de baja.
 
 ## Equipos, roles y aislamiento (NO negociable)
 - El **equipo es la frontera de todo**: `swimmers`, `plans` y `aerobic_tests`
