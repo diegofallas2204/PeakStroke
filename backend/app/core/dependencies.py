@@ -186,9 +186,16 @@ async def _dev_user(db: AsyncSession, request: Request) -> User:
     fija con un test, porque romper esa línea abriría suplantación arbitraria
     sin que se note leyendo el diff.
 
-    Un email inexistente o una cuenta inactiva **caen al usuario por defecto**
-    con un aviso en el log. Devolver 500 convertiría una errata en la barra de
-    desarrollo en una aplicación caída.
+    Un email inexistente o una cuenta inactiva (`users.is_active`) **caen al
+    usuario por defecto** con un aviso en el log. Devolver 500 convertiría una
+    errata en la barra de desarrollo en una aplicación caída.
+
+    Ojo con el caso que **no** cubre ese fallback: la pertenencia revocada
+    (`team_members.is_active`) se comprueba después, en `_principal_for`, así
+    que suplantar a alguien con el acceso al equipo revocado da 403 y no cae al
+    usuario por defecto. Es correcto —esa cuenta no puede operar— pero el
+    conmutador del frontend debería no ofrecerla, y por eso
+    `service.dev_identities` filtra las dos banderas.
     """
     from app.modules.auth import service as auth_service
 

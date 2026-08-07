@@ -204,12 +204,13 @@ def _team_progression(
 async def team_week(
     db: AsyncSession, plan: Plan, week_number: int, principal: Principal,
 ) -> TeamWeekResponse:
-    """La tabla de la semana, acotada a quien pregunta.
+    """La tabla de la semana del equipo. Solo llega aquí un entrenador.
 
-    Es la puerta más ancha del API —nombres, ritmos y tiempos de todo el
-    equipo— y por eso se acota en vez de bloquearse con `require_coach`: ese
-    guard no comprueba nada con la autenticación apagada, que es como corre el
-    proyecto hoy. El filtro por nadador, en cambio, se aplica siempre.
+    El guard vive en el router (`require_coach`), no aquí: es la puerta más
+    ancha del API —nombres, ritmos y tiempos de todo el equipo— y el plan la
+    deja fuera del alcance del atleta. `_load_events` acota igualmente por
+    nadador, que no sobra: si mañana esta función la llama otro sitio sin guard,
+    el filtro sigue puesto.
     """
     events = await _load_events(db, plan.id, principal)
     swimmers = await _swimmers_for(db, events)
