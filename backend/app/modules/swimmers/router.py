@@ -13,8 +13,8 @@ from .schemas import SwimmerCreate, SwimmerResponse, SwimmerUpdate
 router = APIRouter()
 
 
-async def _swimmer_or_404(db: AsyncSession, swimmer_id: int, team_id: int):
-    swimmer = await service.get_swimmer(db, swimmer_id, team_id)
+async def _swimmer_or_404(db: AsyncSession, swimmer_id: int, principal: Principal):
+    swimmer = await service.get_swimmer(db, swimmer_id, principal)
     if swimmer is None:
         raise HTTPException(404, "Atleta no encontrado")
     return swimmer
@@ -28,7 +28,7 @@ async def list_swimmers(
     db: AsyncSession = Depends(get_db),
 ):
     swimmers = await service.list_swimmers(
-        db, principal.team_id, search, include_inactive=include_inactive,
+        db, principal, search, include_inactive=include_inactive,
     )
     return [service.to_response(s) for s in swimmers]
 
@@ -48,7 +48,7 @@ async def get_swimmer(
     principal: Principal = Depends(get_current_principal),
     db: AsyncSession = Depends(get_db),
 ):
-    return service.to_response(await _swimmer_or_404(db, swimmer_id, principal.team_id))
+    return service.to_response(await _swimmer_or_404(db, swimmer_id, principal))
 
 
 @router.put("/{swimmer_id}", response_model=SwimmerResponse)
@@ -58,7 +58,7 @@ async def update_swimmer(
     principal: Principal = Depends(require_coach),
     db: AsyncSession = Depends(get_db),
 ):
-    swimmer = await _swimmer_or_404(db, swimmer_id, principal.team_id)
+    swimmer = await _swimmer_or_404(db, swimmer_id, principal)
     return service.to_response(await service.update_swimmer(db, swimmer, data))
 
 
@@ -74,7 +74,7 @@ async def deactivate_swimmer(
     ("quitar del equipo"), pero la respuesta devuelve el atleta actualizado en
     vez de 204 para que la UI pueda reflejar el nuevo estado.
     """
-    swimmer = await _swimmer_or_404(db, swimmer_id, principal.team_id)
+    swimmer = await _swimmer_or_404(db, swimmer_id, principal)
     return service.to_response(await service.set_active(db, swimmer, False))
 
 
@@ -84,5 +84,5 @@ async def reactivate_swimmer(
     principal: Principal = Depends(require_coach),
     db: AsyncSession = Depends(get_db),
 ):
-    swimmer = await _swimmer_or_404(db, swimmer_id, principal.team_id)
+    swimmer = await _swimmer_or_404(db, swimmer_id, principal)
     return service.to_response(await service.set_active(db, swimmer, True))

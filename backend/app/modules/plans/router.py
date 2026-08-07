@@ -34,7 +34,7 @@ async def list_plans(
     db: AsyncSession = Depends(get_db),
 ):
     return [
-        await service.to_plan_response(db, p)
+        await service.to_plan_response(db, p, principal)
         for p in await service.list_plans(db, principal)
     ]
 
@@ -48,7 +48,7 @@ async def create_plan(
     # Quien lo crea queda automáticamente a cargo: si no, nacería un macrociclo
     # que su propio autor no podría ver.
     plan = await service.create_plan(db, data, coach.team_id, coach.id)
-    return await service.to_plan_response(db, plan)
+    return await service.to_plan_response(db, plan, coach)
 
 
 @router.get("/{plan_id}", response_model=PlanResponse)
@@ -57,7 +57,7 @@ async def get_plan(
     principal: Principal = Depends(get_current_principal),
     db: AsyncSession = Depends(get_db),
 ):
-    return await service.to_plan_response(db, await _plan_or_404(db, plan_id, principal))
+    return await service.to_plan_response(db, await _plan_or_404(db, plan_id, principal), principal)
 
 
 @router.patch("/{plan_id}", response_model=PlanResponse)
@@ -67,7 +67,7 @@ async def update_plan(
     db: AsyncSession = Depends(get_db),
 ):
     plan = await _plan_or_404(db, plan_id, coach)
-    return await service.to_plan_response(db, await service.update_plan(db, plan, data))
+    return await service.to_plan_response(db, await service.update_plan(db, plan, data), coach)
 
 
 @router.delete("/{plan_id}", status_code=204)
@@ -89,7 +89,7 @@ async def add_athlete(
     if any(ap.swimmer_id == data.swimmer_id for ap in plan.athlete_plans):
         raise HTTPException(409, "El atleta ya está asignado a este macrociclo")
     await service.add_athlete(db, plan, data)
-    return await service.to_plan_response(db, await _plan_or_404(db, plan_id, coach))
+    return await service.to_plan_response(db, await _plan_or_404(db, plan_id, coach), coach)
 
 
 @router.delete("/{plan_id}/athletes/{athlete_plan_id}", status_code=204)

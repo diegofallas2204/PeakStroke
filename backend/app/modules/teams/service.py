@@ -33,8 +33,25 @@ async def add_member(
     return member
 
 
-async def get_membership(db: AsyncSession, user_id: int) -> TeamMember | None:
+async def get_membership(
+    db: AsyncSession, user_id: int, *, include_inactive: bool = False,
+) -> TeamMember | None:
+    """La pertenencia **activa** del usuario, salvo que se pida lo contrario.
+
+    Antes no filtraba `is_active` y `core/dependencies._principal_for` sí, así
+    que dos funciones respondían la misma pregunta con semánticas distintas.
+    Hoy no era explotable porque los tres llamadores compensaban por su cuenta,
+    pero depender de que cada llamador se acuerde es exactamente el patrón que
+    produjo el agujero del scoping: la respuesta segura tiene que ser la que
+    sale por defecto.
+
+    `include_inactive=True` para quien necesite distinguir "no es de este
+    equipo" de "está aquí pero revocado" — `transfer_ownership` lo necesita
+    para dar un error que se entienda.
+    """
     stmt = select(TeamMember).where(TeamMember.user_id == user_id)
+    if not include_inactive:
+        stmt = stmt.where(TeamMember.is_active.is_(True))
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
@@ -52,7 +69,10 @@ async def transfer_ownership(db: AsyncSession, team: Team, new_owner_id: int) ->
     esté activo ni que sea entrenador. Un equipo cuyo dueño es un atleta —o una
     cuenta revocada— se queda sin nadie capaz de administrarlo.
     """
-    member = await get_membership(db, new_owner_id)
+    # Con las inactivas incluidas a propósito: hace falta poder decir "esa
+    # cuenta tiene el acceso revocado" en vez de "no pertenece a este equipo",
+    # que sería falso y mandaría al entrenador a buscar donde no es.
+    member = await get_membership(db, new_owner_id, include_inactive=True)
     if member is None or member.team_id != team.id:
         raise ValueError("Esa cuenta no pertenece a este equipo")
     if member.role != ROLE_COACH:

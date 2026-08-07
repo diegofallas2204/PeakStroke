@@ -2,9 +2,14 @@
 
 Uso:  python seed.py        (borra la base local y la repuebla)
 
-Crea: las cuentas de desarrollo (1 entrenador + 2 atletas), 8 atletas, un
+Crea: 6 cuentas de desarrollo (2 entrenadores + 4 atletas), 9 nadadores, un
 macrociclo activo de 12 semanas cursando la semana 7, tests aeróbicos y tiempos
 reales de las semanas 1-6 con ruido plausible.
+
+Tres de esas cuentas existen para que los casos incómodos se vean al
+desarrollar y no en producción: un entrenador que no es dueño, un atleta sin
+ficha de nadador y un atleta con ficha pero sin macrociclo. Los estados vacíos
+son una feature, y sin datos que los produzcan nadie los diseña.
 
 El esquema lo construyen las migraciones de Alembic, no `create_all()`: así el
 entorno local recorre exactamente el mismo camino que recorrerá producción.
@@ -65,12 +70,37 @@ TEAM_NAME = "Club Acuático Demo"
 
 # Cuentas de desarrollo. La contraseña es deliberadamente trivial y el email
 # apunta a un dominio inexistente: esto NUNCA debe sembrarse en producción.
+#
+# Las tres últimas existen para que los casos incómodos se vean al desarrollar,
+# no en producción. Con un club donde todo el mundo tiene ficha, plan y los
+# mismos permisos, los estados vacíos y las diferencias de rol solo aparecen
+# cuando ya hay usuarios reales sufriéndolos.
 DEV_PASSWORD = "peakstroke"
 DEV_ACCOUNTS = [
     (settings.dev_user_email, "Entrenador de Desarrollo", "coach"),
     ("sofia@peakstroke.dev", "Sofía Ramírez", "athlete"),
     ("carlos@peakstroke.dev", "Carlos Mendoza", "athlete"),
+    # Entrenador que NO es dueño: solo ve los macrociclos en los que figura, y
+    # no le sale la tarjeta de equipo ni la transferencia de propiedad.
+    ("asistente@peakstroke.dev", "Entrenador Asistente", "coach"),
+    # Atleta sin ficha de nadador: `Principal.swimmer_id` es None y todo lo suyo
+    # sale vacío. Es el modo de fallo cerrado del scoping, en carne y hueso.
+    ("sinficha@peakstroke.dev", "Atleta Sin Ficha", "athlete"),
+    # Atleta con ficha pero sin macrociclo: el estado vacío del dashboard y del
+    # plan semanal, que es una feature y no un descuido.
+    ("sinplan@peakstroke.dev", "Atleta Sin Macrociclo", "athlete"),
 ]
+
+# Un nadador más que los que entran al macrociclo: EVENTS cubre los índices 0-7,
+# así que el noveno se queda fuera a propósito para ligarlo a `sinplan@`.
+SWIMMER_SIN_PLAN = ("Noa Jiménez", date(2009, 4, 2), "F", "medio_fondo", "libre", 56, 164)
+
+# Para que el resumen final diga qué caso cubre cada cuenta rara.
+_NOTAS = {
+    "asistente@peakstroke.dev": "   (entrenador que NO es dueño)",
+    "sinficha@peakstroke.dev": "    (atleta sin ficha de nadador)",
+    "sinplan@peakstroke.dev": "     (atleta sin macrociclo)",
+}
 
 
 def plan_start_date(today: date) -> date:
@@ -120,7 +150,7 @@ async def seed() -> None:
         await db.commit()
 
         swimmers = []
-        for name, birth, gender, specialty, stroke, weight, height in SWIMMERS:
+        for name, birth, gender, specialty, stroke, weight, height in (*SWIMMERS, SWIMMER_SIN_PLAN):
             swimmers.append(await create_swimmer(db, SwimmerCreate(
                 name=name, birth_date=birth, gender=gender, specialty=specialty,
                 main_stroke=stroke, weight_kg=weight, height_cm=height,
@@ -131,9 +161,14 @@ async def seed() -> None:
             db.add(CoachAthlete(team_id=team.id, coach_id=coach.id, swimmer_id=swimmer.id))
         await db.commit()
 
-        # Las dos primeras cuentas de atleta van ligadas a su perfil deportivo:
-        # así la sección Perfil tiene tanto nadadores con acceso como sin él.
-        for email, swimmer in ((DEV_ACCOUNTS[1][0], swimmers[0]), (DEV_ACCOUNTS[2][0], swimmers[1])):
+        # Qué cuenta va ligada a qué nadador. `sinficha@` no aparece a propósito
+        # (cuenta sin nadador) y los otros seis nadadores no tienen cuenta, que
+        # es el caso normal: la mayoría de atletas no entra a la aplicación.
+        for email, swimmer in (
+            ("sofia@peakstroke.dev", swimmers[0]),
+            ("carlos@peakstroke.dev", swimmers[1]),
+            ("sinplan@peakstroke.dev", swimmers[-1]),
+        ):
             swimmer.user_id = accounts[email].id
         await db.commit()
 
@@ -160,8 +195,10 @@ async def seed() -> None:
                 ) for p, d, s, c, g in events],
             ))
 
-        # Registrar tiempos pasa por el mismo camino acotado que usa el API: el
-        # seed no tiene atajos, así que si el aislamiento se rompiera, fallaría aquí.
+        # Registrar tiempos y crear tests pasa por el mismo camino acotado que
+        # usa el API: el seed no tiene atajos, así que si el aislamiento se
+        # rompiera, fallaría aquí. `swimmer_id=None` porque el entrenador no es
+        # ningún nadador — y da igual, el filtro por atleta no le aplica.
         principal = Principal(
             user=coach, membership=await get_membership(db, coach.id), is_owner=True,  # type: ignore[arg-type]
         )
@@ -196,14 +233,14 @@ async def seed() -> None:
                 swimmer_id=swimmers[idx].id, plan_id=plan.id, test_type="T30",
                 test_date=start + timedelta(days=2), splits=splits_initial,
                 notes="Test de inicio de macrociclo",
-            ), team.id)
+            ), principal)
             improved = base * 0.985
             splits_control = [round(improved * random.uniform(0.99, 1.02), 2) for _ in range(15)]
             await create_test(db, AerobicTestCreate(
                 swimmer_id=swimmers[idx].id, plan_id=plan.id, test_type="T15",
                 test_date=start + timedelta(weeks=5, days=2), splits=splits_control,
                 notes="Control de mitad de ciclo",
-            ), team.id)
+            ), principal)
 
         # Test personalizado 12×400 para la fondista de aguas abiertas
         base400 = 75.6 * 4
@@ -212,13 +249,13 @@ async def seed() -> None:
             test_date=start + timedelta(weeks=4, days=3),
             splits=[round(base400 * random.uniform(0.995, 1.015), 1) for _ in range(12)],
             rep_distance=400, notes="12×400 — protocolo del club",
-        ), team.id)
+        ), principal)
         # CSS para el velocista
         await create_test(db, AerobicTestCreate(
             swimmer_id=swimmers[5].id, plan_id=plan.id, test_type="CSS",
             test_date=start + timedelta(weeks=3), t400=292.0, t50=27.9,
             notes="CSS 400/50 según Wakayoshi",
-        ), team.id)
+        ), principal)
 
     await engine.dispose()
 
@@ -226,10 +263,11 @@ async def seed() -> None:
     print(f"  - Equipo '{TEAM_NAME}' (dueño: {DEV_ACCOUNTS[0][0]})")
     print(f"  - {len(DEV_ACCOUNTS)} cuentas (contraseña: {DEV_PASSWORD})")
     for email, _, role in DEV_ACCOUNTS:
-        print(f"      {role:<8} {email}")
-    print(f"  - {len(SWIMMERS)} atletas")
-    print(f"  - Macrociclo 'Temporada Nacional 2026' (12 semanas, semana actual: 7)")
-    print(f"  - Tiempos reales semanas 1-6 + 12 tests aeróbicos")
+        print(f"      {role:<8} {email}{_NOTAS.get(email, '')}")
+    print(f"  - {len(SWIMMERS) + 1} atletas ({len(SWIMMERS)} en el macrociclo)")
+    print("  - Macrociclo 'Temporada Nacional 2026' (12 semanas, semana actual: 7)")
+    print("  - Tiempos reales semanas 1-6 + 12 tests aeróbicos")
+    print("  - Cambia de identidad sin reiniciar: cabecera X-PeakStroke-Dev-User")
 
 
 if __name__ == "__main__":

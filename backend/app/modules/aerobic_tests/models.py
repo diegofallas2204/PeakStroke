@@ -4,7 +4,8 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from sqlalchemy import (
-    Date, DateTime, Float, ForeignKey, ForeignKeyConstraint, Integer, String, Text, func,
+    Boolean, Date, DateTime, Float, ForeignKey, ForeignKeyConstraint, Integer,
+    String, Text, func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -40,6 +41,13 @@ class AerobicTest(Base):
     trend: Mapped[str | None] = mapped_column(String(12))       # improving|stable|declining
     css_ms: Mapped[float | None] = mapped_column(Float)         # solo tests CSS
     notes: Mapped[str | None] = mapped_column(Text)
+    # Los tests aeróbicos tampoco se borran: se dan de baja, igual que los
+    # nadadores. El docstring de `swimmers.set_active` llama al histórico de
+    # entrenamiento "el activo más valioso de la aplicación" y nombra estos
+    # tests dentro de él; hasta el 2026-08-06 un clic en DELETE lo evaporaba.
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="1", index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     splits: Mapped[list[AerobicSplit]] = relationship(

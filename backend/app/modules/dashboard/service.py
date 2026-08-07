@@ -28,7 +28,15 @@ def event_label(event: AthleteEvent) -> str:
     return f"{event.distance}m {_STROKE_LABELS.get(event.stroke, event.stroke)}"
 
 
-async def _load_events(db: AsyncSession, plan_id: int) -> list[AthleteEvent]:
+async def _load_events(
+    db: AsyncSession, plan_id: int, principal: Principal,
+) -> list[AthleteEvent]:
+    """Las pruebas del macrociclo que le tocan a quien pregunta.
+
+    Punto único de acotación del módulo: `build_summary` y `team_week` salen las
+    dos de aquí, así que el filtro por nadador no puede quedarse a medias en una
+    y puesto en la otra.
+    """
     stmt = (
         select(AthleteEvent)
         .join(AthletePlan, AthleteEvent.athlete_plan_id == AthletePlan.id)
@@ -39,6 +47,7 @@ async def _load_events(db: AsyncSession, plan_id: int) -> list[AthleteEvent]:
         .where(AthletePlan.plan_id == plan_id)
         .order_by(AthleteEvent.priority)
     )
+    stmt = principal.scope_to_own_swimmer(stmt, AthletePlan.swimmer_id)
     return list((await db.execute(stmt)).scalars())
 
 
@@ -61,9 +70,16 @@ async def active_plan(db: AsyncSession, principal: Principal) -> Plan | None:
     return await get_plan(db, plan.id, principal)
 
 
-async def build_summary(db: AsyncSession, plan: Plan) -> DashboardSummary:
+async def build_summary(
+    db: AsyncSession, plan: Plan, principal: Principal,
+) -> DashboardSummary:
+    """El estado del macrociclo, acotado a quien pregunta.
+
+    Hasta el 2026-08-06 no recibía `principal` y por eso le enseñaba al atleta
+    las ocho filas del club con nombre y tiempo de cada uno.
+    """
     current = current_week_of(plan)
-    events = await _load_events(db, plan.id)
+    events = await _load_events(db, plan.id, principal)
     swimmers = await _swimmers_for(db, events)
 
     statuses: list[AthleteStatusRow] = []
@@ -122,7 +138,11 @@ async def build_summary(db: AsyncSession, plan: Plan) -> DashboardSummary:
         plan_id=plan.id, plan_name=plan.name, plan_status=effective_status(plan),
         start_date=plan.start_date,
         total_weeks=plan.total_weeks, current_week=current, current_phase=current_phase,
-        athletes_total=len(plan.athlete_plans), events_total=len(events),
+        # Derivado de `events`, que ya viene acotado. `len(plan.athlete_plans)`
+        # contaba el roster entero y delataba cuánta gente hay en el macrociclo
+        # incluso cuando las filas de abajo solo traían una.
+        athletes_total=len({e.athlete_plan.swimmer_id for e in events}),
+        events_total=len(events),
         ahead=counts["ahead"], on_track=counts["on_track"],
         behind=counts["behind"], pending=counts["pending"],
         compliance_percent=round(weeks_with_real / weeks_passed * 100, 1) if weeks_passed else 0.0,
@@ -181,8 +201,17 @@ def _team_progression(
     return points
 
 
-async def team_week(db: AsyncSession, plan: Plan, week_number: int) -> TeamWeekResponse:
-    events = await _load_events(db, plan.id)
+async def team_week(
+    db: AsyncSession, plan: Plan, week_number: int, principal: Principal,
+) -> TeamWeekResponse:
+    """La tabla de la semana, acotada a quien pregunta.
+
+    Es la puerta más ancha del API —nombres, ritmos y tiempos de todo el
+    equipo— y por eso se acota en vez de bloquearse con `require_coach`: ese
+    guard no comprueba nada con la autenticación apagada, que es como corre el
+    proyecto hoy. El filtro por nadador, en cambio, se aplica siempre.
+    """
+    events = await _load_events(db, plan.id, principal)
     swimmers = await _swimmers_for(db, events)
     phase = next(
         (p.name for p in plan.phases if p.week_start <= week_number <= p.week_end), None

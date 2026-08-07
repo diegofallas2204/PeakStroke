@@ -75,13 +75,26 @@ async def _swimmer_map(db: AsyncSession, ids: list[int]) -> dict[int, Swimmer]:
     return {s.id: s for s in rows}
 
 
-async def to_plan_response(db: AsyncSession, plan: Plan) -> PlanResponse:
+async def to_plan_response(
+    db: AsyncSession, plan: Plan, principal: Principal,
+) -> PlanResponse:
+    """El macrociclo tal y como lo ve quien pregunta.
+
+    El atleta ve el plan —fechas, fases, competencias, su propia inscripción—
+    pero no con quién lo comparte. `plan.athlete_plans` trae el roster completo
+    porque la relación no sabe de permisos; el recorte va aquí, que es el único
+    sitio por el que ese roster sale hacia fuera.
+    """
     resp = PlanResponse.model_validate(plan)
     resp.current_week = current_week_of(plan)
     resp.effective_status = effective_status(plan)
-    swimmers = await _swimmer_map(db, [ap.swimmer_id for ap in plan.athlete_plans])
+    inscripciones = [
+        ap for ap in plan.athlete_plans
+        if not principal.is_athlete or ap.swimmer_id == principal.swimmer_id
+    ]
+    swimmers = await _swimmer_map(db, [ap.swimmer_id for ap in inscripciones])
     athletes = []
-    for ap in plan.athlete_plans:
+    for ap in inscripciones:
         item = AthletePlanResponse.model_validate(ap)
         swimmer = swimmers.get(ap.swimmer_id)
         if swimmer:

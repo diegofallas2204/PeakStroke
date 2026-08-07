@@ -49,6 +49,7 @@ from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
 from app.core.database import AsyncSessionLocal, Base, engine, get_db  # noqa: E402
+from app.core.dependencies import Principal  # noqa: E402
 from app.main import app  # noqa: E402
 from app.modules.aerobic_tests.schemas import AerobicTestCreate  # noqa: E402
 from app.modules.aerobic_tests.service import create_test  # noqa: E402
@@ -61,7 +62,7 @@ from app.modules.plans.schemas import (  # noqa: E402
 from app.modules.plans.service import add_athlete, create_plan  # noqa: E402
 from app.modules.swimmers.schemas import SwimmerCreate  # noqa: E402
 from app.modules.swimmers.service import create_swimmer  # noqa: E402
-from app.modules.teams.service import create_team  # noqa: E402
+from app.modules.teams.service import create_team, get_membership  # noqa: E402
 
 PASSWORD = "peakstroke-test"
 API = "/api/v1"
@@ -259,15 +260,20 @@ async def world(db: AsyncSession) -> World:
             select(AthleteEvent.id).where(AthleteEvent.athlete_plan_id == ap.id)
         )).scalar_one()
 
+    # Los tests aeróbicos se crean como el entrenador dueño, por el mismo camino
+    # acotado que usa el API. Si el aislamiento se rompiera, fallaría aquí.
+    como_owner = Principal(
+        user=owner, membership=await get_membership(db, owner.id), is_owner=True,
+    )
     tests = {}
     for swimmer in (sofia_sw, carlos_sw):
         t = await create_test(db, AerobicTestCreate(
             swimmer_id=swimmer.id, plan_id=plan.id, test_type="DIRECT",
             test_date=lunes, direct_per100=75.0, notes="Base de partida",
-        ), team.id)
+        ), como_owner)
         tests[swimmer.id] = t.id
 
-    return World(
+    mundo = World(
         team_id=team.id,
         owner_email="owner@test.dev", assistant_email="asistente@test.dev",
         sofia_email="sofia@test.dev", carlos_email="carlos@test.dev",
@@ -278,6 +284,18 @@ async def world(db: AsyncSession) -> World:
         sofia_event_id=eventos[sofia_sw.id], carlos_event_id=eventos[carlos_sw.id],
         sofia_test_id=tests[sofia_sw.id], carlos_test_id=tests[carlos_sw.id],
     )
+
+    # Descartar todo lo que quedó cargado al construir el mundo — después de
+    # leer los ids, porque expirar un objeto hace que el siguiente acceso a
+    # cualquier atributo dispare una recarga, y una recarga implícita fuera de
+    # contexto async revienta con MissingGreenlet.
+    #
+    # Sin esto, un objeto leído a medio construir —el `Plan`, cuya lista de
+    # atletas estaba vacía cuando se creó— se lo sirve la identity map al test
+    # tal cual, y el test verificaría un mundo que no existe. En producción no
+    # pasa: cada petición trae su propia sesión.
+    db.expire_all()
+    return mundo
 
 
 def como(email: str) -> dict[str, str]:

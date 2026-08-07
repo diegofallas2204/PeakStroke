@@ -17,8 +17,8 @@ from .schemas import (
 router = APIRouter()
 
 
-async def _test_or_404(db: AsyncSession, test_id: int, team_id: int):
-    test = await service.get_test(db, test_id, team_id)
+async def _test_or_404(db: AsyncSession, test_id: int, principal: Principal):
+    test = await service.get_test(db, test_id, principal)
     if test is None:
         raise HTTPException(404, "Test no encontrado")
     return test
@@ -30,7 +30,7 @@ async def list_tests(
     principal: Principal = Depends(get_current_principal),
     db: AsyncSession = Depends(get_db),
 ):
-    tests = await service.list_tests(db, principal.team_id, swimmer_id, plan_id)
+    tests = await service.list_tests(db, principal, swimmer_id, plan_id)
     return [service.to_response(t) for t in tests]
 
 
@@ -41,12 +41,15 @@ async def create_test(
     db: AsyncSession = Depends(get_db),
 ):
     # Sin require_coach: registrar los propios tests aeróbicos es una de las
-    # cosas que el atleta puede hacer. Que el nadador sea de su equipo lo impone
-    # la FK compuesta del esquema.
+    # cosas que el atleta puede hacer. Que sea SUYO lo comprueba el service; que
+    # el nadador sea de su equipo lo impone la FK compuesta del esquema.
     try:
-        return service.to_response(await service.create_test(db, data, principal.team_id))
+        test = await service.create_test(db, data, principal)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+    if test is None:
+        raise HTTPException(404, "Atleta no encontrado")
+    return service.to_response(test)
 
 
 @router.post("/analyze", response_model=AnalyzePreviewResponse)
@@ -65,7 +68,7 @@ async def get_test(
     principal: Principal = Depends(get_current_principal),
     db: AsyncSession = Depends(get_db),
 ):
-    return service.to_response(await _test_or_404(db, test_id, principal.team_id))
+    return service.to_response(await _test_or_404(db, test_id, principal))
 
 
 @router.get("/{test_id}/previous", response_model=AerobicTestResponse | None)
@@ -74,15 +77,20 @@ async def get_previous(
     principal: Principal = Depends(get_current_principal),
     db: AsyncSession = Depends(get_db),
 ):
-    test = await _test_or_404(db, test_id, principal.team_id)
-    prev = await service.previous_test(db, test)
+    test = await _test_or_404(db, test_id, principal)
+    prev = await service.previous_test(db, test, principal)
     return service.to_response(prev) if prev else None
 
 
 @router.delete("/{test_id}", status_code=204)
-async def delete_test(
+async def deactivate_test(
     test_id: int,
     principal: Principal = Depends(get_current_principal),
     db: AsyncSession = Depends(get_db),
 ):
-    await service.delete_test(db, await _test_or_404(db, test_id, principal.team_id))
+    """Da de baja el test. **No borra nada**: la medición no se puede rehacer.
+
+    Se mantiene el verbo DELETE porque es la acción que expresa el cliente
+    ("quitar este test"), igual que en `swimmers`.
+    """
+    await service.set_active(db, await _test_or_404(db, test_id, principal), False)

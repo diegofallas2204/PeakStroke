@@ -1,8 +1,13 @@
 """Lógica de negocio del módulo swimmers.
 
-**Toda consulta lleva `team_id`.** No es una comodidad: es la frontera de
-seguridad. Una función que reciba solo un `swimmer_id` acabaría tarde o temprano
-devolviendo el nadador de otro club.
+**Toda consulta de lectura lleva el `Principal` entero**, no un `team_id` suelto.
+No es una comodidad: son las dos fronteras. El equipo evita devolver el nadador
+de otro club; el `swimmer_id` del solicitante evita devolverle al atleta la
+ficha del compañero de calle. Una función que reciba solo un `swimmer_id`
+acabará tarde o temprano devolviendo lo que no debe.
+
+Las escrituras (`create`, `update`, `set_active`) siguen recibiendo `team_id`:
+todas están detrás de `require_coach` y un atleta no llega a ellas.
 """
 from __future__ import annotations
 
@@ -10,6 +15,8 @@ from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.dependencies import Principal
 
 from .models import Swimmer
 from .schemas import SwimmerCreate, SwimmerResponse, SwimmerUpdate
@@ -31,10 +38,12 @@ def to_response(swimmer: Swimmer) -> SwimmerResponse:
 
 
 async def list_swimmers(
-    db: AsyncSession, team_id: int, search: str | None = None,
+    db: AsyncSession, principal: Principal, search: str | None = None,
     *, include_inactive: bool = False,
 ) -> list[Swimmer]:
-    stmt = select(Swimmer).where(Swimmer.team_id == team_id).order_by(Swimmer.name)
+    """El equipo entero para un entrenador; solo su propia ficha para un atleta."""
+    stmt = select(Swimmer).where(Swimmer.team_id == principal.team_id).order_by(Swimmer.name)
+    stmt = principal.scope_to_own_swimmer(stmt, Swimmer.id)
     if not include_inactive:
         stmt = stmt.where(Swimmer.is_active.is_(True))
     if search:
@@ -42,13 +51,18 @@ async def list_swimmers(
     return list((await db.execute(stmt)).scalars())
 
 
-async def get_swimmer(db: AsyncSession, swimmer_id: int, team_id: int) -> Swimmer | None:
-    """Devuelve None —no el nadador— si es de otro equipo.
+async def get_swimmer(
+    db: AsyncSession, swimmer_id: int, principal: Principal,
+) -> Swimmer | None:
+    """Devuelve None —no el nadador— si es de otro equipo o de otro atleta.
 
     El router traduce ese None a un 404: un 403 confirmaría que ese id existe en
     algún sitio, que es justo lo que no queremos filtrar.
     """
-    stmt = select(Swimmer).where(Swimmer.id == swimmer_id, Swimmer.team_id == team_id)
+    stmt = select(Swimmer).where(
+        Swimmer.id == swimmer_id, Swimmer.team_id == principal.team_id,
+    )
+    stmt = principal.scope_to_own_swimmer(stmt, Swimmer.id)
     return (await db.execute(stmt)).scalar_one_or_none()
 
 

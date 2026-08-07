@@ -4,6 +4,15 @@ Este módulo es **la única puerta** a los macrociclos y a todo lo que cuelga de
 ellos. Vive separado de `service.py` a propósito: el CRUD y el motor cambian a
 menudo, las reglas de acceso casi nunca, y mezclarlos hacía que un diff de 300
 líneas de negocio pudiera esconder un cambio de una línea en quién ve qué.
+
+Dos filtros, y hay que pasar los dos:
+
+    visible_to()             ──▶  ¿es un macrociclo que te toca?      (el club)
+    scope_to_own_swimmer()   ──▶  ¿es TU fila dentro de él?           (el atleta)
+
+El segundo se añadió el 2026-08-06. `visible_to` deja pasar el plan entero a
+cualquiera inscrito en él, así que por sí solo permitía que un atleta leyera y
+sobrescribiera las semanas de sus compañeros de macrociclo.
 """
 from __future__ import annotations
 
@@ -71,6 +80,7 @@ async def get_event(
         .where(AthleteEvent.id == event_id),
         principal,
     )
+    stmt = principal.scope_to_own_swimmer(stmt, AthletePlan.swimmer_id)
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
@@ -87,7 +97,13 @@ async def event_unscoped(db: AsyncSession, event_id: int) -> AthleteEvent | None
 async def get_week(
     db: AsyncSession, week_id: int, principal: Principal,
 ) -> WeeklyPlan | None:
-    """Semana concreta, solo si su macrociclo le es visible al solicitante."""
+    """Semana concreta, solo si su macrociclo **y su atleta** le corresponden.
+
+    La segunda condición es la que faltaba, y es la que más caro salía: escribir
+    el tiempo real de un compañero dispara `_recalculate_event`, que le reescribe
+    la curva de progresión entera. El plan de entrenamiento de una persona,
+    borrado por otra.
+    """
     stmt = visible_to(
         select(WeeklyPlan)
         .join(AthleteEvent, AthleteEvent.id == WeeklyPlan.athlete_event_id)
@@ -96,4 +112,5 @@ async def get_week(
         .where(WeeklyPlan.id == week_id),
         principal,
     )
+    stmt = principal.scope_to_own_swimmer(stmt, AthletePlan.swimmer_id)
     return (await db.execute(stmt)).scalar_one_or_none()

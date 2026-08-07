@@ -36,7 +36,7 @@ async def summary(
     db: AsyncSession = Depends(get_db),
 ):
     plan = await _resolve_plan(db, plan_id, principal)
-    return await service.build_summary(db, plan)
+    return await service.build_summary(db, plan, principal)
 
 
 @router.get("/team-week", response_model=TeamWeekResponse)
@@ -48,4 +48,4 @@ async def team_week(
     plan = await _resolve_plan(db, plan_id, principal)
     week_number = week or current_week_of(plan) or 1
     week_number = max(1, min(week_number, plan.total_weeks))
-    return await service.team_week(db, plan, week_number)
+    return await service.team_week(db, plan, week_number, principal)
