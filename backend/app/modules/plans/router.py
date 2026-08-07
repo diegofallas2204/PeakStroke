@@ -111,9 +111,31 @@ async def remove_athlete(
     coach: Principal = Depends(require_coach),
     db: AsyncSession = Depends(get_db),
 ):
+    """Saca al atleta del macrociclo. **No borra su histórico**: lo da de baja.
+
+    Se mantiene el verbo DELETE porque es la acción que expresa el cliente
+    ("quitar del macrociclo"), igual que en `swimmers`. Sus semanas y tiempos
+    reales siguen en la base, y `POST .../restore` vuelve a inscribirlo con todo.
+    """
     await _plan_or_404(db, plan_id, coach)
     if not await service.remove_athlete(db, plan_id, athlete_plan_id):
         raise HTTPException(404, "Atleta no encontrado en este macrociclo")
+
+
+@router.post("/{plan_id}/athletes/{athlete_plan_id}/restore", status_code=204)
+async def restore_athlete(
+    plan_id: int, athlete_plan_id: int,
+    coach: Principal = Depends(require_coach),
+    db: AsyncSession = Depends(get_db),
+):
+    """Vuelve a inscribir a un atleta dado de baja, con su histórico intacto.
+
+    Sacar a alguien de un macrociclo es la clase de clic que se da por error, y
+    volver a inscribirlo desde cero no reconstruye lo que nadó.
+    """
+    await _plan_or_404(db, plan_id, coach)
+    if not await service.restore_athlete(db, plan_id, athlete_plan_id):
+        raise HTTPException(404, "No hay ninguna inscripción dada de baja con ese id")
 
 
 @router.get("/events/{event_id}/weeks", response_model=list[WeekResponse])

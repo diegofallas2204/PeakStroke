@@ -74,6 +74,9 @@ def visible_to(stmt, principal: Principal):
         # quitar la restricción de un-usuario-un-equipo.
         suyos = select(AthletePlan.plan_id).where(
             AthletePlan.swimmer_id == principal.swimmer_id,
+            # A quien sacaron del macrociclo deja de vérselo, aunque su
+            # histórico siga en la tabla.
+            AthletePlan.is_active.is_(True),
         )
     return stmt.where(Plan.id.in_(suyos))
 
@@ -117,7 +120,7 @@ async def get_event(
         select(AthleteEvent).options(*_EVENT_LOAD)
         .join(AthletePlan, AthletePlan.id == AthleteEvent.athlete_plan_id)
         .join(Plan, Plan.id == AthletePlan.plan_id)
-        .where(AthleteEvent.id == event_id),
+        .where(AthleteEvent.id == event_id, AthletePlan.is_active.is_(True)),
         principal,
     )
     stmt = principal.scope_to_own_swimmer(stmt, AthletePlan.swimmer_id)
@@ -149,7 +152,7 @@ async def get_week(
         .join(AthleteEvent, AthleteEvent.id == WeeklyPlan.athlete_event_id)
         .join(AthletePlan, AthletePlan.id == AthleteEvent.athlete_plan_id)
         .join(Plan, Plan.id == AthletePlan.plan_id)
-        .where(WeeklyPlan.id == week_id),
+        .where(WeeklyPlan.id == week_id, AthletePlan.is_active.is_(True)),
         principal,
     )
     stmt = principal.scope_to_own_swimmer(stmt, AthletePlan.swimmer_id)

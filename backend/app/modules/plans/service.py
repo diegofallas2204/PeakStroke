@@ -86,7 +86,8 @@ async def to_plan_response(
     resp.effective_status = effective_status(plan)
     inscripciones = [
         ap for ap in plan.athlete_plans
-        if not principal.is_athlete or ap.swimmer_id == principal.swimmer_id
+        if ap.is_active
+        and (not principal.is_athlete or ap.swimmer_id == principal.swimmer_id)
     ]
     swimmers = await _swimmer_map(db, [ap.swimmer_id for ap in inscripciones])
     athletes = []
@@ -193,10 +194,35 @@ async def add_athlete(db: AsyncSession, plan: Plan, data: AddAthleteRequest) -> 
 
 
 async def remove_athlete(db: AsyncSession, plan_id: int, athlete_plan_id: int) -> bool:
+    """Saca al atleta del macrociclo. **Da de baja la inscripción, no la borra.**
+
+    Hasta el 2026-08-07 hacía `db.delete(ap)`, y `AthletePlan` cascadea a
+    `athlete_events` y de ahí a `weekly_plans`: se llevaba las 12 semanas del
+    atleta y todos los tiempos reales que había registrado. Reproducido con el
+    harness — `weekly_plans` pasaba de 36 filas a 24, incluido un tiempo puesto
+    un segundo antes.
+
+    False si no existe o si es de otro macrociclo; el router lo traduce a 404.
+    """
     ap = await db.get(AthletePlan, athlete_plan_id)
-    if ap is None or ap.plan_id != plan_id:
+    if ap is None or ap.plan_id != plan_id or not ap.is_active:
         return False
-    await db.delete(ap)
+    ap.is_active = False
+    await db.commit()
+    return True
+
+
+async def restore_athlete(db: AsyncSession, plan_id: int, athlete_plan_id: int) -> bool:
+    """Vuelve a inscribir a un atleta dado de baja, con su histórico intacto.
+
+    Sin esta puerta, la baja lógica de arriba sería un borrado con otro nombre:
+    el dato seguiría en la tabla pero nadie podría recuperarlo desde la
+    aplicación.
+    """
+    ap = await db.get(AthletePlan, athlete_plan_id)
+    if ap is None or ap.plan_id != plan_id or ap.is_active:
+        return False
+    ap.is_active = True
     await db.commit()
     return True
 

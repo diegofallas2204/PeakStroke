@@ -44,7 +44,10 @@ async def _load_events(
             selectinload(AthleteEvent.weeks),
             selectinload(AthleteEvent.athlete_plan),
         )
-        .where(AthletePlan.plan_id == plan_id)
+        # `is_active`: un atleta al que sacaron del macrociclo conserva su
+        # histórico en la tabla, pero no vuelve a aparecer en el dashboard ni en
+        # la tabla del equipo — sacarlo tiene que notarse.
+        .where(AthletePlan.plan_id == plan_id, AthletePlan.is_active.is_(True))
         .order_by(AthleteEvent.priority)
     )
     stmt = principal.scope_to_own_swimmer(stmt, AthletePlan.swimmer_id)

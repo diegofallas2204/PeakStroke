@@ -157,3 +157,128 @@ async def test_dar_de_baja_los_tests_no_desbloquea_el_borrado(client, world: Wor
 
     r = await client.delete(f"{API}/plans/{world.plan_id}", headers=como(world.owner_email))
     assert r.status_code == 409
+
+
+# ── Sacar a un atleta del macrociclo conserva su histórico ───────────────────
+
+async def _inscripcion_de(db, plan_id: int, swimmer_id: int) -> int:
+    from app.modules.plans.models import AthletePlan
+
+    return (await db.execute(
+        select(AthletePlan.id).where(
+            AthletePlan.plan_id == plan_id, AthletePlan.swimmer_id == swimmer_id,
+        )
+    )).scalar_one()
+
+
+async def test_sacar_a_un_atleta_no_borra_sus_semanas(client, db, world: World):
+    """**El test que cierra TODO-8.**
+
+    Antes: `weekly_plans` pasaba de 36 filas a 24 y el evento del atleta
+    desaparecía, con el tiempo real que acababa de registrar dentro.
+    """
+    from app.modules.plans.models import AthleteEvent, WeeklyPlan
+
+    semana = (await db.execute(
+        select(WeeklyPlan).where(
+            WeeklyPlan.athlete_event_id == world.carlos_event_id,
+            WeeklyPlan.week_number == 2,
+        )
+    )).scalar_one()
+    puesto = await client.patch(
+        f"{API}/plans/weeks/{semana.id}", json={"real_time": 128.0},
+        headers=como(world.owner_email),
+    )
+    assert puesto.status_code == 200
+
+    antes = (await db.execute(select(func.count()).select_from(WeeklyPlan))).scalar_one()
+
+    ap_id = await _inscripcion_de(db, world.plan_id, world.carlos_swimmer_id)
+    r = await client.delete(
+        f"{API}/plans/{world.plan_id}/athletes/{ap_id}", headers=como(world.owner_email),
+    )
+    assert r.status_code == 204
+
+    despues = (await db.execute(select(func.count()).select_from(WeeklyPlan))).scalar_one()
+    assert despues == antes, f"se evaporaron {antes - despues} semanas"
+
+    evento = await db.get(AthleteEvent, world.carlos_event_id)
+    assert evento is not None, "el evento del atleta se borró"
+
+    await db.refresh(semana)
+    assert semana.real_time == 128.0, "el tiempo real registrado desapareció"
+
+
+async def test_sacarlo_lo_quita_de_las_vistas(client, db, world: World):
+    """Dar de baja tiene que notarse: si no, el clic no hizo nada."""
+    ap_id = await _inscripcion_de(db, world.plan_id, world.carlos_swimmer_id)
+    await client.delete(
+        f"{API}/plans/{world.plan_id}/athletes/{ap_id}", headers=como(world.owner_email),
+    )
+
+    plan = await client.get(f"{API}/plans/{world.plan_id}", headers=como(world.owner_email))
+    assert world.carlos_swimmer_id not in [a["swimmer_id"] for a in plan.json()["athletes"]]
+
+    resumen = await client.get(f"{API}/dashboard/summary", headers=como(world.owner_email))
+    assert world.carlos_swimmer_id not in [f["swimmer_id"] for f in resumen.json()["statuses"]]
+
+    semanas = await client.get(
+        f"{API}/plans/events/{world.carlos_event_id}/weeks", headers=como(world.owner_email),
+    )
+    assert semanas.status_code == 404
+
+
+async def test_el_atleta_dado_de_baja_deja_de_ver_el_macrociclo(client, db, world: World):
+    """Y para él tampoco existe ya, ni listándolo ni por id."""
+    ap_id = await _inscripcion_de(db, world.plan_id, world.carlos_swimmer_id)
+    await client.delete(
+        f"{API}/plans/{world.plan_id}/athletes/{ap_id}", headers=como(world.owner_email),
+    )
+
+    listado = await client.get(f"{API}/plans/", headers=como(world.carlos_email))
+    assert listado.json() == []
+    uno = await client.get(f"{API}/plans/{world.plan_id}", headers=como(world.carlos_email))
+    assert uno.status_code == 404
+
+
+async def test_volver_a_inscribirlo_recupera_todo(client, db, world: World):
+    """Sacar a alguien de un macrociclo es la clase de clic que se da por error."""
+    from app.modules.plans.models import WeeklyPlan
+
+    semana = (await db.execute(
+        select(WeeklyPlan).where(
+            WeeklyPlan.athlete_event_id == world.carlos_event_id,
+            WeeklyPlan.week_number == 2,
+        )
+    )).scalar_one()
+    await client.patch(
+        f"{API}/plans/weeks/{semana.id}", json={"real_time": 129.5},
+        headers=como(world.owner_email),
+    )
+
+    ap_id = await _inscripcion_de(db, world.plan_id, world.carlos_swimmer_id)
+    await client.delete(
+        f"{API}/plans/{world.plan_id}/athletes/{ap_id}", headers=como(world.owner_email),
+    )
+    vuelta = await client.post(
+        f"{API}/plans/{world.plan_id}/athletes/{ap_id}/restore",
+        headers=como(world.owner_email),
+    )
+    assert vuelta.status_code == 204
+
+    plan = await client.get(f"{API}/plans/{world.plan_id}", headers=como(world.owner_email))
+    assert world.carlos_swimmer_id in [a["swimmer_id"] for a in plan.json()["athletes"]]
+
+    semanas = await client.get(
+        f"{API}/plans/events/{world.carlos_event_id}/weeks", headers=como(world.owner_email),
+    )
+    assert semanas.status_code == 200
+    registrada = next(w for w in semanas.json() if w["week_number"] == 2)
+    assert registrada["real_time"] == 129.5, "el histórico no volvió con él"
+
+
+async def test_sacar_dos_veces_al_mismo_es_404(client, db, world: World):
+    ap_id = await _inscripcion_de(db, world.plan_id, world.carlos_swimmer_id)
+    ruta = f"{API}/plans/{world.plan_id}/athletes/{ap_id}"
+    assert (await client.delete(ruta, headers=como(world.owner_email))).status_code == 204
+    assert (await client.delete(ruta, headers=como(world.owner_email))).status_code == 404

@@ -141,6 +141,18 @@ class AthletePlan(Base):
     swimmer_id: Mapped[int] = mapped_column(Integer, index=True)
     aerobic_base: Mapped[float | None] = mapped_column(Float)   # s/100m
     aerobic_base_source: Mapped[str | None] = mapped_column(String(12))  # t30|t15|css|manual
+    # Sacar a un atleta del macrociclo lo da de baja; no lo borra. La inscripción
+    # cascadea a `athlete_events` y de ahí a `weekly_plans`, así que un
+    # `db.delete()` se llevaba las 12 semanas y todos los tiempos reales que el
+    # atleta había registrado — "el activo más valioso de la aplicación", según
+    # el docstring de `swimmers.set_active`, que esta tabla no respetaba.
+    #
+    # Que se pueda deshacer importa: sacar a alguien de un macrociclo es la clase
+    # de clic que se da por error, y volver a inscribirlo no reconstruye lo que
+    # nadó.
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="1", index=True,
+    )
 
     plan: Mapped[Plan] = relationship(back_populates="athlete_plans")
     events: Mapped[list[AthleteEvent]] = relationship(
