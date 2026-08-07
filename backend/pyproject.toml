@@ -3,3 +3,6 @@
 # pytest (antes fallaba con ModuleNotFoundError si no se corría desde backend/).
 pythonpath = ["."]
 testpaths = ["tests"]
+# Los tests de API son async. En modo "auto" no hace falta decorar cada uno con
+# @pytest.mark.asyncio; los tests síncronos del motor no se ven afectados.
+asyncio_mode = "auto"

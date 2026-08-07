@@ -21,8 +21,8 @@ from app.modules.teams import service as teams_service
 from . import service
 from .models import User
 from .schemas import (
-    AuthConfig, LoginRequest, MemberCreate, MemberCreated, MemberResponse,
-    PasswordChange, SessionResponse, UserUpdate,
+    AuthConfig, DevIdentity, LoginRequest, MemberCreate, MemberCreated,
+    MemberResponse, PasswordChange, SessionResponse, UserUpdate,
 )
 
 router = APIRouter()
@@ -90,6 +90,23 @@ async def auth_config():
     """Le dice al frontend si hay que pedir login o se está suplantando al
     usuario de desarrollo. En producción siempre responde True."""
     return AuthConfig(auth_enabled=settings.auth_enabled)
+
+
+@router.get("/dev-identities", response_model=list[DevIdentity])
+async def dev_identities(db: AsyncSession = Depends(get_db)):
+    """Cuentas que el conmutador de desarrollo puede suplantar.
+
+    **404 con la autenticación encendida**, no 403: con login real esto no es un
+    endpoint restringido sino un endpoint que no existe, y un 403 anunciaría que
+    hay un modo de suplantación en alguna parte.
+
+    Sin dependencia de sesión a propósito: hace falta ANTES de haber elegido
+    identidad, y en el único modo en que responde el API está abierto de todas
+    formas.
+    """
+    if not settings.dev_identity_enabled:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No encontrado")
+    return await service.dev_identities(db, settings.dev_user_email)
 
 
 @router.get("/me", response_model=MemberResponse)

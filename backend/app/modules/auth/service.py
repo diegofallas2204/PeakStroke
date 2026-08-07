@@ -15,7 +15,9 @@ from app.modules.swimmers.models import Swimmer
 from app.modules.teams.models import Team, TeamMember
 
 from .models import User
-from .schemas import MemberCreate, MemberResponse, UserCreate, UserUpdate
+from .schemas import (
+    DevIdentity, MemberCreate, MemberResponse, UserCreate, UserUpdate,
+)
 
 
 def normalize_email(email: str) -> str:
@@ -121,6 +123,53 @@ async def list_members(db: AsyncSession, team_id: int) -> list[MemberResponse]:
     )
     filas = (await db.execute(stmt)).all()
     return [to_member(u, m, by_user.get(u.id), team=team) for u, m in filas]
+
+
+async def dev_identities(db: AsyncSession, dev_email: str) -> list[DevIdentity]:
+    """Cuentas activas del equipo del usuario de desarrollo, para el conmutador.
+
+    Existe para que el frontend no lleve emails a fuego: la lista sale de la DB
+    que se esté usando, así que un `seed.py` distinto o una cuenta añadida a mano
+    aparecen solas.
+
+    Si el usuario de desarrollo no existe todavía (base recién creada, sin
+    sembrar) devuelve lista vacía en vez de reventar: el conmutador se dibuja
+    vacío y la aplicación sigue funcionando.
+    """
+    dev_user = await get_by_email(db, dev_email)
+    if dev_user is None:
+        return []
+    membership = (await db.execute(
+        select(TeamMember).where(
+            TeamMember.user_id == dev_user.id, TeamMember.is_active.is_(True),
+        )
+    )).scalar_one_or_none()
+    if membership is None:
+        return []
+
+    team = await db.get(Team, membership.team_id)
+    by_user = await _swimmer_by_user(db, membership.team_id)
+    stmt = (
+        select(User, TeamMember)
+        .join(TeamMember, TeamMember.user_id == User.id)
+        # Solo las que se pueden suplantar de verdad: `_dev_user` rechaza las
+        # cuentas inactivas, así que ofrecerlas sería ofrecer un botón roto.
+        .where(
+            TeamMember.team_id == membership.team_id,
+            TeamMember.is_active.is_(True),
+            User.is_active.is_(True),
+        )
+        .order_by(TeamMember.role, User.name)
+    )
+    filas = (await db.execute(stmt)).all()
+    return [
+        DevIdentity(
+            email=u.email, name=u.name, role=m.role,
+            is_owner=bool(team and team.owner_id == u.id),
+            swimmer_name=s.name if (s := by_user.get(u.id)) else None,
+        )
+        for u, m in filas
+    ]
 
 
 async def get_member(db: AsyncSession, user: User, membership: TeamMember) -> MemberResponse:

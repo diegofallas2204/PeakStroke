@@ -11,6 +11,7 @@ resuelva una sola vez evita que cada endpoint tenga que acordarse de buscarlo.
 """
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from typing import Any
@@ -24,6 +25,12 @@ from app.core.database import get_db
 from app.core.security import TokenError, decode_token
 from app.modules.auth.models import User
 from app.modules.teams.models import ROLE_COACH, Team, TeamMember
+
+logger = logging.getLogger(__name__)
+
+# Cabecera del conmutador de identidad de desarrollo. Su nombre vive aquí para
+# que el endpoint que lista las identidades y los tests no lo escriban a mano.
+DEV_USER_HEADER = "X-PeakStroke-Dev-User"
 
 _UNAUTHORIZED = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -92,9 +99,35 @@ async def _principal_for(db: AsyncSession, user: User) -> Principal:
     return Principal(user=user, membership=membership, is_owner=is_owner)
 
 
-async def _dev_user(db: AsyncSession) -> User:
-    """El entrenador que se suplanta cuando la autenticación está apagada."""
+async def _dev_user(db: AsyncSession, request: Request) -> User:
+    """La cuenta que se suplanta cuando la autenticación está apagada.
+
+    Por defecto, el entrenador de desarrollo. La cabecera `X-PeakStroke-Dev-User`
+    permite cambiarla en caliente para ver la aplicación con los ojos de otro
+    rol sin reiniciar el proceso ni tocar `.env`.
+
+    **Solo se lee si `settings.dev_identity_enabled`** (ver allí el porqué de
+    sus dos condiciones). Con el login encendido esta función ni siquiera se
+    llama, así que la cabecera es papel mojado — y `test_dev_identity.py` lo
+    fija con un test, porque romper esa línea abriría suplantación arbitraria
+    sin que se note leyendo el diff.
+
+    Un email inexistente o una cuenta inactiva **caen al usuario por defecto**
+    con un aviso en el log. Devolver 500 convertiría una errata en la barra de
+    desarrollo en una aplicación caída.
+    """
     from app.modules.auth import service as auth_service
+
+    if settings.dev_identity_enabled:
+        pedido = request.headers.get(DEV_USER_HEADER)
+        if pedido:
+            user = await auth_service.get_by_email(db, pedido)
+            if user is not None and user.is_active:
+                return user
+            logger.warning(
+                "%s: '%s' no existe o está inactivo. Se sigue con %s.",
+                DEV_USER_HEADER, pedido, settings.dev_user_email,
+            )
 
     user = await auth_service.get_by_email(db, settings.dev_user_email)
     if user is None:
@@ -113,7 +146,7 @@ async def get_current_principal(
     db: AsyncSession = Depends(get_db),
 ) -> Principal:
     if not settings.auth_enabled:
-        return await _principal_for(db, await _dev_user(db))
+        return await _principal_for(db, await _dev_user(db, request))
 
     try:
         user_id = decode_token(_bearer_token(request), "access")

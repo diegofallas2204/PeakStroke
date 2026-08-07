@@ -50,6 +50,23 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.environment.lower() in {"production", "prod"}
 
+    @property
+    def dev_identity_enabled(self) -> bool:
+        """Si se lee la cabecera `X-PeakStroke-Dev-User` o se ignora.
+
+        Esa cabecera permite atribuir la petición a **cualquier** cuenta con
+        solo escribir su email: es exactamente el agujero que la autenticación
+        existe para cerrar. Se lee únicamente cuando ya no hay nada que abrir
+        porque el login está apagado.
+
+        La segunda condición no es redundante aunque lo parezca.
+        `_check_production` impide *construir* Settings con `auth_enabled=False`
+        en producción, pero solo se ejecuta al construirlo: nada evita que algo
+        mute `auth_enabled` en caliente más tarde. Que ambas tengan que fallar a
+        la vez es lo que hace que un despiste no baste.
+        """
+        return not self.auth_enabled and not self.is_production
+
     @model_validator(mode="after")
     def _check_production(self) -> Settings:
         """Impide desplegar con la configuración de desarrollo puesta."""

@@ -54,6 +54,19 @@ class AuthConfig(BaseModel):
     auth_enabled: bool
 
 
+class DevIdentity(BaseModel):
+    """Una cuenta que se puede suplantar desde el conmutador de desarrollo.
+
+    Deliberadamente más pobre que `MemberResponse`: es un selector, no una ficha.
+    Lo justo para pintar la lista y mandar la cabecera.
+    """
+    email: str
+    name: str
+    role: str
+    is_owner: bool = False
+    swimmer_name: str | None = None
+
+
 class MemberCreate(BaseModel):
     """Alta de un miembro del equipo desde la sección Perfil.
 
