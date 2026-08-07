@@ -41,7 +41,7 @@ async def _issue_session(db: AsyncSession, response: Response, user: User) -> Se
 
     response.set_cookie(
         key=settings.refresh_cookie_name,
-        value=create_refresh_token(user.id),
+        value=create_refresh_token(user.id, user.token_version),
         httponly=True,                       # invisible para cualquier JS de la página
         secure=settings.refresh_cookie_secure,
         samesite="lax",                      # corta el CSRF de terceros manteniendo la navegación normal
@@ -49,7 +49,7 @@ async def _issue_session(db: AsyncSession, response: Response, user: User) -> Se
         path="/api/v1/auth",                 # la cookie solo viaja a los endpoints que la necesitan
     )
     return SessionResponse(
-        access_token=create_access_token(user.id),
+        access_token=create_access_token(user.id, user.token_version),
         expires_in=settings.access_token_minutes * 60,
         user=await service.get_member(db, user, membership),
     )
@@ -70,18 +70,42 @@ async def refresh(request: Request, response: Response, db: AsyncSession = Depen
     if not cookie:
         raise _BAD_CREDENTIALS
     try:
-        user_id = decode_token(cookie, "refresh")
+        claims = decode_token(cookie, "refresh")
     except TokenError:
         raise _BAD_CREDENTIALS from None
 
-    user = await service.get_user(db, user_id)
+    user = await service.get_user(db, claims.user_id)
     if user is None or not user.is_active:
+        raise _BAD_CREDENTIALS
+    # Un refresh emitido antes del último `logout` no vuelve a la vida.
+    if user.token_version != claims.token_version:
         raise _BAD_CREDENTIALS
     return await _issue_session(db, response, user)
 
 
 @router.post("/logout", status_code=204)
-async def logout(response: Response):
+async def logout(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    """Cierra la sesión de verdad: invalida los tokens, no solo la cookie.
+
+    Se identifica por la cookie de refresh y no por el access token a propósito.
+    El access dura 15 minutos: exigirlo dejaría sin poder cerrar sesión justo a
+    quien lleva un rato con la pestaña abierta, que es el caso normal.
+
+    Una cookie ausente, caducada o falsa **no es un error**: se borra lo que
+    haya y se devuelve 204. Cerrar sesión dos veces, o desde una pestaña cuya
+    sesión ya expiró, tiene que terminar en "estás fuera" y no en un 401 que
+    nadie sabe cómo resolver.
+    """
+    cookie = request.cookies.get(settings.refresh_cookie_name)
+    if cookie:
+        try:
+            claims = decode_token(cookie, "refresh")
+        except TokenError:
+            claims = None
+        if claims is not None:
+            user = await service.get_user(db, claims.user_id)
+            if user is not None:
+                await service.revoke_sessions(db, user)
     response.delete_cookie(settings.refresh_cookie_name, path="/api/v1/auth")
 
 

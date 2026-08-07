@@ -53,6 +53,21 @@ async def create_user(db: AsyncSession, data: UserCreate, team_id: int) -> User:
     return user
 
 
+async def revoke_sessions(db: AsyncSession, user: User) -> None:
+    """Invalida todos los tokens ya emitidos para esa cuenta.
+
+    Sube la generación de sesiones. Cualquier access o refresh que lleve la
+    anterior deja de validar en la siguiente petición — no en 15 minutos ni en
+    30 días, en la siguiente.
+
+    Es lo que convierte `logout` en algo más que borrar una cookie del
+    navegador. Un refresh token capturado sobrevivía a "cerrar sesión" y servía
+    para emitir access tokens nuevos durante un mes.
+    """
+    user.token_version += 1
+    await db.commit()
+
+
 async def set_password(db: AsyncSession, user: User, new_password: str) -> User:
     user.password_hash = hash_password(new_password)
     await db.commit()

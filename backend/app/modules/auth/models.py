@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, func
+from sqlalchemy import Boolean, DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -31,6 +31,15 @@ class User(Base):
     # Desactivar la cuenta cierra el acceso a toda la aplicación. Para quitar el
     # acceso solo a un equipo se desactiva la pertenencia (`TeamMember`).
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Generación de sesiones. Va dentro de cada token emitido y se compara al
+    # validarlo: subirla invalida de golpe todo lo que se emitió antes.
+    #
+    # Es lo que hace que "cerrar sesión" cierre algo. Sin esto, `logout` solo
+    # borraba la cookie del navegador y el refresh token seguía siendo válido
+    # sus 30 días completos — justo cuando el usuario lo pulsa porque cree que
+    # le han comprometido la cuenta. Un entero es más barato que una lista de
+    # revocación y no necesita almacenamiento aparte.
+    token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # timezone=True desde el principio: en SQLite es cosmético, en PostgreSQL es
     # la diferencia entre timestamptz y un timestamp naive imposible de arreglar.
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

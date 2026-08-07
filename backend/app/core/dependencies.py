@@ -223,24 +223,40 @@ async def get_current_principal(
         return await _principal_for(db, await _dev_user(db, request))
 
     try:
-        user_id = decode_token(_bearer_token(request), "access")
+        claims = decode_token(_bearer_token(request), "access")
     except TokenError:
         raise _UNAUTHORIZED from None
 
-    user = await db.get(User, user_id)
+    user = await db.get(User, claims.user_id)
     # Un token válido de una cuenta ya desactivada no debe seguir abriendo puertas.
     if user is None or not user.is_active:
+        raise _UNAUTHORIZED
+    # Ni uno emitido antes de que el usuario cerrara sesión. La comprobación es
+    # gratis: el usuario ya está cargado. Sin ella, `logout` tardaría hasta 15
+    # minutos en surtir efecto sobre el access token que el atacante ya tiene.
+    if user.token_version != claims.token_version:
         raise _UNAUTHORIZED
     return await _principal_for(db, user)
 
 
 def require_role(*roles: str) -> Callable[..., Coroutine[Any, Any, Principal]]:
-    """Dependencia que exige uno de los roles indicados dentro del equipo."""
+    """Dependencia que exige uno de los roles indicados dentro del equipo.
+
+    **Comprueba el rol siempre, también con el login apagado.** Hasta el
+    2026-08-06 había aquí un atajo que devolvía el principal sin mirar nada si
+    `auth_enabled=false`, justificado en que "el usuario de desarrollo es
+    siempre el mismo, así que exigir un rol concreto solo estorbaría".
+
+    Esa premisa murió el mismo día en que se añadió `X-PeakStroke-Dev-User`. Con
+    el conmutador de identidad hay un rol real —el de la cuenta suplantada— y el
+    atajo pasó a ser un agujero: un atleta llamaba
+    `PATCH /auth/members/{su_id} {"role":"coach"}`, se ascendía, y con eso
+    desactivaba TODO el filtro por nadador, que solo actúa sobre atletas.
+
+    403 y no 404 a propósito: aquí el recurso no es ajeno, es el rol el que no
+    alcanza. Decirlo claro no filtra nada que quien pregunta no sepa ya.
+    """
     async def checker(principal: Principal = Depends(get_current_principal)) -> Principal:
-        # En modo bypass no hay rol real que comprobar: el usuario de desarrollo
-        # es siempre el mismo, así que exigir un rol concreto solo estorbaría.
-        if not settings.auth_enabled:
-            return principal
         if principal.role not in roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -252,10 +268,13 @@ def require_role(*roles: str) -> Callable[..., Coroutine[Any, Any, Principal]]:
 
 
 def require_owner() -> Callable[..., Coroutine[Any, Any, Principal]]:
-    """Solo el dueño del equipo: transferir la propiedad, borrar el equipo."""
+    """Solo el dueño del equipo: renombrarlo, transferir la propiedad.
+
+    Mismo motivo que `require_role` para comprobar siempre: con el conmutador de
+    identidad, un entrenador asistente puede suplantarse y la diferencia entre
+    dueño y asistente es justo lo que la Fase 4 del plan quiere poder ver.
+    """
     async def checker(principal: Principal = Depends(get_current_principal)) -> Principal:
-        if not settings.auth_enabled:
-            return principal
         if not principal.is_owner:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
