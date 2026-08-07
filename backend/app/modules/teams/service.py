@@ -55,12 +55,6 @@ async def get_membership(
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
-async def memberships_by_user(db: AsyncSession, team_id: int) -> dict[int, TeamMember]:
-    """Índice user_id -> pertenencia, para no consultar una por una."""
-    stmt = select(TeamMember).where(TeamMember.team_id == team_id)
-    return {m.user_id: m for m in (await db.execute(stmt)).scalars()}
-
-
 async def transfer_ownership(db: AsyncSession, team: Team, new_owner_id: int) -> Team:
     """Cede la propiedad a otro entrenador **activo** del mismo equipo.
 

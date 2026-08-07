@@ -9,7 +9,7 @@ from app.engine.envelope import science_envelope
 from app.engine.feasibility import analyze_feasibility
 from app.engine.km_distribution import distribute_km
 from app.engine.progression import (
-    WeekEntry, generate_plan, performance_status, recalculate_remaining,
+    generate_plan, performance_status, recalculate_remaining,
 )
 from app.engine.time_utils import to_clock, to_seconds
 from app.engine.zones import calc_zones
