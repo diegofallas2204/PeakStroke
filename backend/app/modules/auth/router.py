@@ -12,7 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.dependencies import Principal, get_current_principal, require_coach
+from app.core.dependencies import (
+    DEV_BYPASS_HEADER, DEV_USER_HEADER, Principal, bypass_pedido,
+    get_current_principal, require_coach,
+)
 from app.core.security import (
     TokenError, create_access_token, create_refresh_token, decode_token,
 )
@@ -110,10 +113,22 @@ async def logout(request: Request, response: Response, db: AsyncSession = Depend
 
 
 @router.get("/config", response_model=AuthConfig)
-async def auth_config():
-    """Le dice al frontend si hay que pedir login o se está suplantando al
-    usuario de desarrollo. En producción siempre responde True."""
-    return AuthConfig(auth_enabled=settings.auth_enabled)
+async def auth_config(request: Request):
+    """En qué modo está la aplicación: login real, o conmutador de desarrollo.
+
+    Los campos de desarrollo salen a `None`/`False` en cuanto el login se
+    enciende, así que el frontend no tiene que saber la regla — le basta con no
+    dibujar la barra si no vienen.
+    """
+    if not settings.dev_identity_enabled:
+        return AuthConfig(auth_enabled=settings.auth_enabled)
+    return AuthConfig(
+        auth_enabled=settings.auth_enabled,
+        dev_identities_enabled=True,
+        dev_bypass_active=bypass_pedido(request),
+        dev_user_header=DEV_USER_HEADER,
+        dev_bypass_header=DEV_BYPASS_HEADER,
+    )
 
 
 @router.get("/dev-identities", response_model=list[DevIdentity])

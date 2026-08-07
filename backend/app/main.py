@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import init_db
-from app.core.dependencies import DEV_USER_HEADER
+from app.core.dependencies import DEV_BYPASS_HEADER, DEV_USER_HEADER
 # Importado por su efecto: registra todos los modelos en Base.metadata para que
 # SQLAlchemy pueda resolver las FKs entre módulos (p. ej. swimmers -> teams).
 from app.core import model_registry  # noqa: F401
@@ -39,13 +39,13 @@ app.add_middleware(
     # Authorization se suma para cuando el cliente empiece a mandar el access
     # token; hasta entonces simplemente no se usa.
     #
-    # X-PeakStroke-Dev-User es la del conmutador de identidad. Hoy no hace falta
+    # Las dos del conmutador de desarrollo. Hoy no hacen falta
     # porque `vite.config.ts` proxya `/api` al 8000 y todo es mismo origen, pero
     # sin declararla el preflight la tumba en cuanto alguien sirva el `dist/`
     # construido desde otro puerto — y el conmutador dejaría de funcionar sin un
     # error que lo explique. El endpoint que la lee ya responde 404 con el login
     # encendido, así que declararla no abre nada.
-    allow_headers=["Content-Type", "Authorization", DEV_USER_HEADER],
+    allow_headers=["Content-Type", "Authorization", DEV_USER_HEADER, DEV_BYPASS_HEADER],
 )
 
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])

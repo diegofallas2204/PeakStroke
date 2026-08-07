@@ -10,7 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import Principal, get_current_principal, require_coach
+from app.core.dependencies import (
+    Principal, exigir_o_bypass, get_current_principal, require_coach,
+)
 
 from . import access, service
 from .schemas import (
@@ -131,7 +133,7 @@ async def update_week(
     # redistribuye la mejora restante de todo el macrociclo. 403 y no 404: el
     # recurso sí es suyo, lo que no alcanza es el rol.
     if data.touches_coach_only_fields() and not principal.is_coach:
-        raise HTTPException(403, "Solo un entrenador puede marcar el parón de una semana")
+        exigir_o_bypass(principal, "entrenador para marcar el parón de una semana")
 
     event = await service.update_week(db, week_id, data, principal)
     if event is None:

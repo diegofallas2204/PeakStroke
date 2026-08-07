@@ -50,8 +50,22 @@ class UserResponse(BaseModel):
 
 
 class AuthConfig(BaseModel):
-    """Lo que el frontend necesita saber antes de decidir si pide login."""
+    """Lo que el frontend necesita saber antes de decidir qué pintar.
+
+    Es el único sitio donde se pregunta "¿en qué modo estoy?", para que la barra
+    de desarrollo no tenga que deducirlo de tres respuestas distintas.
+    """
     auth_enabled: bool
+    # Si existe el conmutador de identidad. Cuando es False el frontend no debe
+    # dibujar la barra de desarrollo: las cabeceras no las lee nadie.
+    dev_identities_enabled: bool = False
+    # Si ESTA petición viaja en modo desarrollador. Sale de la cabecera que la
+    # propia petición mandó, así que la barra puede reflejar el estado real en
+    # vez de recordar lo que creía haber puesto.
+    dev_bypass_active: bool = False
+    # Los nombres de las cabeceras, para que el cliente no los lleve a fuego.
+    dev_user_header: str | None = None
+    dev_bypass_header: str | None = None
 
 
 class DevIdentity(BaseModel):

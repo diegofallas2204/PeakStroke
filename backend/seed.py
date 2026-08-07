@@ -283,7 +283,14 @@ async def seed() -> None:
     print(f"  - {len(SWIMMERS) + len(SWIMMERS_EXTRA)} atletas ({len(SWIMMERS)} en el macrociclo, 1 de baja)")
     print("  - Macrociclo 'Temporada Nacional 2026' (12 semanas, semana actual: 7)")
     print("  - Tiempos reales semanas 1-6 + 12 tests aeróbicos")
-    print("  - Cambia de identidad sin reiniciar: cabecera X-PeakStroke-Dev-User")
+    print()
+    print("  Conmutador de desarrollo (solo con el login apagado y fuera de producción):")
+    print("    X-PeakStroke-Dev-User: <email>   quién eres. La interfaz que ves es")
+    print("                                     la de ese rol, fielmente.")
+    print("    X-PeakStroke-Dev-Bypass: true    modo desarrollador: te saltas los")
+    print("                                     guards de rol sin dejar de ver lo")
+    print("                                     que ve esa persona.")
+    print("    GET /api/v1/auth/config          en qué modo estás ahora mismo.")
 
 
 if __name__ == "__main__":

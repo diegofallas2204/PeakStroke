@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Coroutine
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from fastapi import Depends, HTTPException, Request, status
@@ -29,9 +29,29 @@ from app.modules.teams.models import ROLE_ATHLETE, ROLE_COACH, Team, TeamMember
 
 logger = logging.getLogger(__name__)
 
-# Cabecera del conmutador de identidad de desarrollo. Su nombre vive aquí para
-# que el endpoint que lista las identidades y los tests no lo escriban a mano.
+# Cabeceras del conmutador de desarrollo. Sus nombres viven aquí para que el
+# endpoint que las anuncia, el CORS y los tests no los escriban a mano.
+#
+# Son dos ejes distintos y esa separación es el punto:
+#
+#   X-PeakStroke-Dev-User    ──▶  QUIÉN eres.  La interfaz que ves es la de ese
+#                                 rol, fielmente: un atleta recibe 403 donde un
+#                                 atleta recibe 403. Sin eso no se puede revisar
+#                                 la UI de atleta, porque todo respondería 200.
+#
+#   X-PeakStroke-Dev-Bypass  ──▶  Si además puedes SALTARTE los guards de rol.
+#                                 Levanta lo que puedes hacer, no lo que ves: el
+#                                 filtro por nadador sigue puesto, así que sigues
+#                                 mirando la aplicación con los ojos de esa
+#                                 persona mientras te desatascas.
+#
+# Juntarlas en una sola sería perder justo lo que hace útil al conmutador.
 DEV_USER_HEADER = "X-PeakStroke-Dev-User"
+DEV_BYPASS_HEADER = "X-PeakStroke-Dev-Bypass"
+
+# Solo ASCII: una cabecera HTTP no puede llevar tildes, así que "sí" nunca
+# llegaría hasta aquí aunque lo aceptáramos.
+_VERDADERO = {"1", "true", "yes", "on", "si"}
 
 _UNAUTHORIZED = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -63,6 +83,13 @@ class Principal:
     # entrenador (normal) y también en un atleta al que nadie le creó la ficha
     # (anomalía de datos, y por eso el filtro de abajo falla cerrado).
     swimmer_id: int | None = None
+    # Modo desarrollador: los guards de rol dejan pasar. Es un tercer eje,
+    # ortogonal al rol, y **nunca sale de la base de datos**: ni de una columna,
+    # ni de un campo del usuario, ni del cuerpo de la petición. Solo de una
+    # cabecera, y solo cuando `settings.dev_identity_enabled`. Que no exista
+    # ninguna forma de persistirlo es lo que garantiza que no pueda llegar a
+    # producción por un dato mal puesto.
+    is_developer: bool = False
 
     @property
     def id(self) -> int:
@@ -222,12 +249,27 @@ async def _dev_user(db: AsyncSession, request: Request) -> User:
     return user
 
 
+def bypass_pedido(request: Request) -> bool:
+    """Si esta petición pide modo desarrollador, y si tiene derecho a pedirlo.
+
+    Misma puerta que la cabecera de identidad, a propósito: son la misma
+    facilidad de desarrollo y deben apagarse juntas. Con el login encendido —o
+    en producción— la cabecera es texto que nadie lee.
+    """
+    if not settings.dev_identity_enabled:
+        return False
+    return (request.headers.get(DEV_BYPASS_HEADER) or "").strip().lower() in _VERDADERO
+
+
 async def get_current_principal(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> Principal:
     if not settings.auth_enabled:
-        return await _principal_for(db, await _dev_user(db, request))
+        principal = await _principal_for(db, await _dev_user(db, request))
+        if bypass_pedido(request):
+            principal = replace(principal, is_developer=True)
+        return principal
 
     try:
         claims = decode_token(_bearer_token(request), "access")
@@ -262,13 +304,13 @@ def require_role(*roles: str) -> Callable[..., Coroutine[Any, Any, Principal]]:
 
     403 y no 404 a propósito: aquí el recurso no es ajeno, es el rol el que no
     alcanza. Decirlo claro no filtra nada que quien pregunta no sepa ya.
+
+    La única excepción es el modo desarrollador (`X-PeakStroke-Dev-Bypass`), que
+    no puede existir con el login encendido. Ver `bypass_pedido`.
     """
     async def checker(principal: Principal = Depends(get_current_principal)) -> Principal:
         if principal.role not in roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Tu rol no permite esta acción",
-            )
+            exigir_o_bypass(principal, f"rol {'/'.join(roles)}")
         return principal
 
     return checker
@@ -283,13 +325,31 @@ def require_owner() -> Callable[..., Coroutine[Any, Any, Principal]]:
     """
     async def checker(principal: Principal = Depends(get_current_principal)) -> Principal:
         if not principal.is_owner:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Solo el dueño del equipo puede hacer esto",
-            )
+            exigir_o_bypass(principal, "dueño del equipo")
         return principal
 
     return checker
+
+
+def exigir_o_bypass(principal: Principal, exigido: str) -> None:
+    """Lanza 403, salvo que quien pregunta esté en modo desarrollador.
+
+    El aviso en el log no es decorativo: el modo desarrollador existe para
+    desatascarse mientras se depura, y una traza que diga qué guard se saltó y
+    con qué identidad es la diferencia entre *usarlo* y *olvidar que está
+    puesto*. Si aparece en un log que no sea tu portátil, algo va muy mal —
+    `dev_identity_enabled` tendría que haberlo hecho imposible.
+    """
+    if principal.is_developer:
+        logger.warning(
+            "MODO DESARROLLADOR: %s (%s) se salta el guard de %s",
+            principal.user.email, principal.role, exigido,
+        )
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Tu rol no permite esta acción (se requiere: {exigido})",
+    )
 
 
 # Atajos para los guards más frecuentes.
