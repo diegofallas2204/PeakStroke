@@ -103,6 +103,22 @@ no existe en la base de datos y no hay forma de persistirlo.
 asistente (no dueño), dos atletas normales, atleta sin ficha de nadador, atleta
 sin macrociclo y atleta con la ficha dada de baja.
 
+En el frontend, la barra vive en **Ajustes → Desarrollo**. Quién eres se muestra
+siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
+
+## Roles en el frontend
+- `navConfig.ts` es la **única** lista de secciones y permisos. La consumen el
+  rail, el drawer móvil y la guarda de ruta (`RutaPorRol`): esconder una sección
+  del menú no la hace inalcanzable, y dos listas separadas acaban divergiendo
+- `useRole()` devuelve `undefined` mientras la sesión carga. **`undefined` no es
+  "sin permiso", es "todavía no se sabe"**: el rail sale vacío y las rutas
+  esperan, en vez de decidir con un valor que aún no existe
+- `useIsCoach()` / `useIsOwner()` / `useIsAthlete()` — nadie calcula el rol a mano
+- Lo que cambia entre roles va en un módulo aparte (`dashboard/vistaPorRol.ts`),
+  no en `if (isAthlete)` repartidos por la página
+- **Nunca una restricción solo en la UI sobre un endpoint abierto.** Esconder un
+  botón cuyo endpoint acepta la petición es teatro: se cierra el backend primero
+
 ## Equipos, roles y aislamiento (NO negociable)
 - El **equipo es la frontera de todo**: `swimmers`, `plans` y `aerobic_tests`
   llevan `team_id` NOT NULL. Una persona pertenece a un equipo y solo a uno

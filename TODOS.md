@@ -13,6 +13,11 @@ Prioridad: P1 = bloquea trabajo en curso · P2 = debería caer pronto · P3 = de
 > ~~TODO-5~~ La nota 18 del vault dice ya el alcance real del paso 4 y recoge el
 > hallazgo de la escritura ajena.
 > **TODO-2 sigue abierto y ahora tiene harness**: ver TODO-2 más abajo.
+>
+> **Frontend cerrado el 2026-08-07**: conmutador de identidad y modo
+> desarrollador en Ajustes, navegación filtrada por rol con guardas de ruta,
+> versión de atleta de las 4 páginas y estados vacíos por rol (T12–T18 del plan).
+> ~~TODO-3~~ sigue abierto pero cambió de forma: ver abajo.
 
 ---
 
@@ -150,9 +155,14 @@ usuario.
 usando el mismo equipo, la selección de una se filtra a la otra.
 
 **Contexto:** ya señalado en el paso 5 de la nota 18 del vault y en
-`Decisions/Cacheo en el browser y carga del API`. El reset a `null` que introduce el toggle
-de desarrollo es un parche: resuelve el síntoma al cambiar de identidad en dev, no la fuga
-entre cuentas.
+`Decisions/Cacheo en el browser y carga del API`.
+
+**Actualizado el 2026-08-07:** el conmutador de desarrollo ya llama a
+`limpiarCacheDeIdentidad()` (`lib/queryClient.ts`) antes de recargar, que borra la entrada
+de localStorage además de vaciar la memoria — sin eso, la escritura pendiente del persister
+(throttle de 1 s) rehidrataba los datos del anterior. Eso cierra la fuga **al cambiar de
+identidad en desarrollo**, pero NO la de dos cuentas reales compartiendo navegador: la clave
+`ps-selected-plan` sigue siendo global. Falta namespacearla por `user.id`.
 
 **Por dónde empezar:** namespacear la clave por `user.id`, igual que se hizo con
 `IDENTITY_KEYS` en `main.tsx`. Ojo: el id no está disponible en el primer render.
