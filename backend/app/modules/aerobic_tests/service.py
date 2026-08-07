@@ -11,6 +11,11 @@ from sqlalchemy.orm import selectinload
 
 from app.core.dependencies import Principal
 from app.engine.aerobic import analyze_splits, css_from_400_50
+# Lectura explícita de la puerta de acceso de otro módulo (permitido por las
+# reglas del proyecto): un test aeróbico puede colgar de un macrociclo, y quién
+# ve qué macrociclo lo decide `plans`, no este módulo. Duplicar aquí la regla
+# sería tener dos respuestas para la misma pregunta.
+from app.modules.plans.access import get_plan
 
 from .models import AerobicSplit, AerobicTest
 from .schemas import AerobicTestCreate, AerobicTestResponse
@@ -24,33 +29,38 @@ def to_response(test: AerobicTest) -> AerobicTestResponse:
     return resp
 
 
-def _visible(principal: Principal):
-    """Base común de toda lectura: equipo, no dado de baja, y acotado al atleta.
+def _visible(principal: Principal, *, include_inactive: bool = False):
+    """Base común de toda lectura: equipo, acotado al atleta, y de alta.
 
     Que las tres condiciones vivan juntas es el punto. Repartidas por cada
     consulta, tarde o temprano una se queda sin alguna — que es exactamente lo
     que pasó con el filtro por nadador.
+
+    `include_inactive` es lo que hace que dar de baja no equivalga a borrar.
+    Sin él, `set_active(..., True)` sería código muerto: un test retirado no se
+    podría ni consultar para reactivarlo, y desde la aplicación el efecto sería
+    idéntico al borrado que esta columna vino a evitar.
     """
     stmt = (
         select(AerobicTest).options(selectinload(AerobicTest.splits))
-        .where(
-            AerobicTest.team_id == principal.team_id,
-            AerobicTest.is_active.is_(True),
-        )
+        .where(AerobicTest.team_id == principal.team_id)
     )
+    if not include_inactive:
+        stmt = stmt.where(AerobicTest.is_active.is_(True))
     return principal.scope_to_own_swimmer(stmt, AerobicTest.swimmer_id)
 
 
 async def list_tests(
     db: AsyncSession, principal: Principal,
     swimmer_id: int | None = None, plan_id: int | None = None,
+    *, include_inactive: bool = False,
 ) -> list[AerobicTest]:
     """`swimmer_id` filtra dentro de lo visible; nunca lo amplía.
 
     El parámetro llega del cliente, así que sin acotar antes por sesión bastaba
     con escribir el número de un compañero en la barra de direcciones.
     """
-    stmt = _visible(principal).order_by(
+    stmt = _visible(principal, include_inactive=include_inactive).order_by(
         AerobicTest.test_date.desc(), AerobicTest.id.desc(),
     )
     if swimmer_id is not None:
@@ -63,29 +73,38 @@ async def list_tests(
 async def get_test(
     db: AsyncSession, test_id: int, principal: Principal,
 ) -> AerobicTest | None:
-    """None si el test es de otro equipo, de otro atleta o está de baja.
+    """None si el test es de otro equipo o de otro atleta. El router lo traduce
+    a 404 en ambos casos: distinguirlos confirmaría que ese id existe.
 
-    El router lo traduce a 404 en los tres casos: distinguirlos confirmaría que
-    ese id existe.
+    **Sí devuelve los dados de baja**, igual que `swimmers.get_swimmer`. Es lo
+    que permite que la ficha muestre "este test está retirado, ¿lo reactivas?"
+    en vez de un 404 que no ofrece salida.
     """
-    stmt = _visible(principal).where(AerobicTest.id == test_id)
+    stmt = _visible(principal, include_inactive=True).where(AerobicTest.id == test_id)
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
 async def create_test(
     db: AsyncSession, data: AerobicTestCreate, principal: Principal,
 ) -> AerobicTest | None:
-    """Crea el test. **None si `swimmer_id` no le corresponde a quien lo pide.**
+    """Crea el test. **None si el nadador o el macrociclo no le corresponden.**
 
-    El destinatario llega en el cuerpo, no en la URL, así que aquí no hay
-    consulta que acotar: hay que preguntarlo. Un atleta creando un test a nombre
-    de otro no es un error de validación, es un recurso que para él no existe —
-    y el router responde 404, igual que en todas las demás puertas.
+    Los dos destinatarios llegan en el cuerpo y no en la URL, así que aquí no
+    hay consulta que acotar: hay que preguntarlo. Crear a nombre de alguien que
+    para ti no existe no es un error de validación, es un recurso que no existe
+    — y el router responde 404, igual que en todas las demás puertas.
 
-    El equipo sigue saliendo de la sesión. Las FKs compuestas del esquema
-    rechazan el test si el nadador o el macrociclo indicados son de otro club.
+    El `plan_id` importa tanto como el `swimmer_id`, y se olvidó hasta el
+    2026-08-07: la FK compuesta solo impide cruzar EQUIPOS, no cruzar
+    macrociclos dentro del equipo. Sin esta comprobación, una atleta que recibe
+    404 en `GET /plans/2` podía colgar un test suyo de ese macrociclo y aparecer
+    en la lista del entrenador que sí lo lleva.
+
+    El equipo sigue saliendo de la sesión.
     """
     if not principal.owns_swimmer(data.swimmer_id):
+        return None
+    if data.plan_id is not None and await get_plan(db, data.plan_id, principal) is None:
         return None
 
     test = AerobicTest(

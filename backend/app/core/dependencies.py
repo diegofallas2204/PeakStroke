@@ -134,6 +134,15 @@ class Principal:
         `column` es la columna con el `swimmer_id` en el `stmt` que se le pasa,
         porque no todas las tablas lo llaman igual ni lo tienen a la misma
         distancia (`Swimmer.id`, `AerobicTest.swimmer_id`, `AthletePlan.swimmer_id`).
+
+        **Esa columna tiene que pertenecer a una tabla del `stmt`.** Si no,
+        SQLAlchemy no protesta: la añade al FROM y produce un producto
+        cartesiano, con lo que el filtro deja de acotar y la consulta devuelve
+        la tabla entera — el modo de fallo ABIERTO, en un helper que existe para
+        lo contrario. No se comprueba aquí porque hacerlo cuesta 1,3 ms por
+        consulta (obliga a compilar el statement); se comprueba en los tests,
+        donde `pyproject.toml` convierte el aviso de producto cartesiano de
+        SQLAlchemy en un fallo. Ver `test_scope_helper.py`.
         """
         if not self.is_athlete:
             return stmt

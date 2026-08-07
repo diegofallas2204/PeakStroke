@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import Principal, get_current_principal
+from app.core.dependencies import Principal, get_current_principal, require_coach
 from app.engine.aerobic import analyze_splits
 
 from . import service
@@ -27,10 +27,13 @@ async def _test_or_404(db: AsyncSession, test_id: int, principal: Principal):
 @router.get("/", response_model=list[AerobicTestResponse])
 async def list_tests(
     swimmer_id: int | None = None, plan_id: int | None = None,
+    include_inactive: bool = False,
     principal: Principal = Depends(get_current_principal),
     db: AsyncSession = Depends(get_db),
 ):
-    tests = await service.list_tests(db, principal, swimmer_id, plan_id)
+    tests = await service.list_tests(
+        db, principal, swimmer_id, plan_id, include_inactive=include_inactive,
+    )
     return [service.to_response(t) for t in tests]
 
 
@@ -94,3 +97,20 @@ async def deactivate_test(
     ("quitar este test"), igual que en `swimmers`.
     """
     await service.set_active(db, await _test_or_404(db, test_id, principal), False)
+
+
+@router.post("/{test_id}/reactivate", response_model=AerobicTestResponse)
+async def reactivate_test(
+    test_id: int,
+    principal: Principal = Depends(require_coach),
+    db: AsyncSession = Depends(get_db),
+):
+    """Vuelve a poner de alta un test retirado. Mismo patrón que `swimmers`.
+
+    Sin esto, dar de baja y borrar eran indistinguibles desde la aplicación —y
+    entonces la columna `is_active` no cumplía la regla que vino a cumplir.
+    Solo entrenadores: retirar el propio test es una corrección; rescatarlo del
+    archivo es una decisión sobre el histórico del club.
+    """
+    test = await _test_or_404(db, test_id, principal)
+    return service.to_response(await service.set_active(db, test, True))

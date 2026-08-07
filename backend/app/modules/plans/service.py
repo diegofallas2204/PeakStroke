@@ -8,12 +8,15 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import Principal
 from app.engine import progression
 from app.engine.zones import calc_zones, zone_km_distribution
+# Lecturas explícitas de modelos de otros módulos (permitido por las reglas
+# del proyecto). No se importa lógica ajena.
+from app.modules.aerobic_tests.models import AerobicTest
 from app.modules.swimmers.models import Swimmer
 
 from .access import event_unscoped, get_week, plan_unscoped
@@ -127,9 +130,31 @@ async def update_plan(db: AsyncSession, plan: Plan, data: PlanUpdate) -> Plan:
     return (await plan_unscoped(db, plan.id))  # type: ignore[return-value]
 
 
-async def delete_plan(db: AsyncSession, plan: Plan) -> None:
+async def delete_plan(db: AsyncSession, plan: Plan) -> int:
+    """Borra el macrociclo. Devuelve **cuántos tests aeróbicos lo impidieron**.
+
+    0 significa borrado. Cualquier otro número es la razón por la que no, y el
+    router la convierte en un 409 que se puede leer.
+
+    La comprobación existe porque `fk_aerobic_tests_plan_in_team` no lleva
+    `ondelete`, así que la base de datos rechaza el borrado con un
+    `IntegrityError`. Sin capturarlo el entrenador recibía un 500 con una traza,
+    y el fallo depende del dato: un macrociclo sin tests se borra sin problema,
+    con lo que aparecía en producción y no al desarrollar.
+
+    Preguntar antes en vez de capturar la excepción es a propósito: el número de
+    tests es lo que hace accionable el mensaje ("tiene 12 tests asociados"), y
+    de un `IntegrityError` no se puede sacar.
+    """
+    bloqueantes = (await db.execute(
+        select(func.count()).select_from(AerobicTest)
+        .where(AerobicTest.plan_id == plan.id)
+    )).scalar_one()
+    if bloqueantes:
+        return bloqueantes
     await db.delete(plan)
     await db.commit()
+    return 0
 
 
 # ── Atletas en el plan ───────────────────────────────────────────────

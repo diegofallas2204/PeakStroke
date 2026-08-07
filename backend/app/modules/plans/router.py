@@ -78,7 +78,18 @@ async def delete_plan(
     coach: Principal = Depends(require_coach),
     db: AsyncSession = Depends(get_db),
 ):
-    await service.delete_plan(db, await _plan_or_404(db, plan_id, coach))
+    """Borra el macrociclo. **409 si tiene tests aeróbicos colgando.**
+
+    No se borran en cascada a propósito: un test es una medición del atleta en
+    una fecha, no una parte del macrociclo. Que el entrenador decida qué hacer
+    con ellos es más barato que descubrir que se evaporaron.
+    """
+    bloqueantes = await service.delete_plan(db, await _plan_or_404(db, plan_id, coach))
+    if bloqueantes:
+        raise HTTPException(409, (
+            f"Este macrociclo tiene {bloqueantes} test(s) aeróbico(s) asociados. "
+            "Dales de baja o muévelos a otro macrociclo antes de borrarlo."
+        ))
 
 
 @router.post("/{plan_id}/athletes", response_model=PlanResponse, status_code=201)

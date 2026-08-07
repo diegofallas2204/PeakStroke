@@ -303,6 +303,61 @@ async def test_un_atleta_sin_nadador_ligado_tampoco_llega_por_id(client, world: 
     assert r.status_code == 404
 
 
+async def test_no_puede_colgar_un_test_de_un_macrociclo_que_no_ve(client, db, world: World):
+    """El `plan_id` del cuerpo pesa tanto como el `swimmer_id`.
+
+    La FK compuesta solo impide cruzar EQUIPOS, no cruzar macrociclos dentro del
+    equipo. Sin comprobarlo, una atleta que recibe 404 en `GET /plans/{otro}`
+    podía colgar un test suyo de ese macrociclo y aparecer en la lista del
+    entrenador que sí lo lleva.
+    """
+    otro = await client.post(f"{API}/plans/", json={
+        "name": "Macrociclo Ajeno", "start_date": "2026-09-07",
+        "total_weeks": 12, "total_km": 300,
+    }, headers=como(world.owner_email))
+    assert otro.status_code == 201
+    otro_id = otro.json()["id"]
+
+    # Sofía no está inscrita en ese macrociclo, así que para ella no existe.
+    assert (await client.get(
+        f"{API}/plans/{otro_id}", headers=como(world.sofia_email),
+    )).status_code == 404
+
+    r = await client.post(f"{API}/aerobic-tests/", json={
+        "swimmer_id": world.sofia_swimmer_id, "plan_id": otro_id,
+        "test_type": "DIRECT", "test_date": "2026-08-07", "direct_per100": 74.0,
+    }, headers=como(world.sofia_email))
+    assert r.status_code == 404
+
+    del_otro = await client.get(
+        f"{API}/aerobic-tests/?plan_id={otro_id}", headers=como(world.owner_email),
+    )
+    assert del_otro.json() == [], "el test se coló en el macrociclo ajeno"
+
+
+async def test_puede_colgar_un_test_del_macrociclo_en_el_que_si_esta(client, world: World):
+    r = await client.post(f"{API}/aerobic-tests/", json={
+        "swimmer_id": world.sofia_swimmer_id, "plan_id": world.plan_id,
+        "test_type": "DIRECT", "test_date": "2026-08-07", "direct_per100": 74.0,
+    }, headers=como(world.sofia_email))
+    assert r.status_code == 201
+
+
+async def test_un_atleta_sin_ficha_no_ve_ningun_macrociclo(client, world: World):
+    """`visible_to` deriva el nadador del `Principal`, que puede no tener ninguno.
+
+    Antes lo derivaba por su cuenta con `Swimmer.user_id == principal.id`: dos
+    funciones respondiendo la misma pregunta con semánticas distintas, que es el
+    patrón que produjo el agujero del scoping.
+    """
+    r = await client.get(f"{API}/plans/", headers=como(world.huerfano_email))
+    assert r.status_code == 200
+    assert r.json() == []
+
+    uno = await client.get(f"{API}/plans/{world.plan_id}", headers=como(world.huerfano_email))
+    assert uno.status_code == 404
+
+
 async def test_dar_de_baja_la_ficha_no_le_quita_su_historico(client, db, world: World):
     """Dar de baja a un nadador archiva su perfil; no le revoca el acceso.
 

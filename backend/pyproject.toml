@@ -6,3 +6,19 @@ testpaths = ["tests"]
 # Los tests de API son async. En modo "auto" no hace falta decorar cada uno con
 # @pytest.mark.asyncio; los tests síncronos del motor no se ven afectados.
 asyncio_mode = "auto"
+
+# Un producto cartesiano es un fallo de seguridad, no un aviso.
+#
+# `Principal.scope_to_own_swimmer(stmt, column)` acota una consulta al nadador
+# propio. Si alguien le pasa una columna de una tabla que NO está en el FROM,
+# SQLAlchemy no protesta: añade la tabla y produce un producto cartesiano, con
+# lo que el filtro deja de acotar y la consulta devuelve la tabla entera. Es el
+# modo de fallo ABIERTO de un helper que existe justo para lo contrario.
+#
+# El linter de FROM de SQLAlchemy 2.0 ya lo detecta y avisa; aquí ese aviso pasa
+# a reventar el test. Sale gratis en producción —la comprobación equivalente en
+# caliente cuesta 1,3 ms por consulta porque compila el statement— y caza el
+# error donde se cazan los errores.
+filterwarnings = [
+    "error:.*cartesian product.*:sqlalchemy.exc.SAWarning",
+]

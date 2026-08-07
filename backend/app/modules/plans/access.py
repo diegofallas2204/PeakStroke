@@ -21,12 +21,11 @@ archivos y adivinar cuál manda.
 """
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import false, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.dependencies import Principal
-from app.modules.swimmers.models import Swimmer
 
 from .models import AthleteEvent, AthletePlan, Plan, PlanCoach, WeeklyPlan
 
@@ -61,11 +60,20 @@ def visible_to(stmt, principal: Principal):
 
     if principal.is_coach:
         suyos = select(PlanCoach.plan_id).where(PlanCoach.coach_id == principal.id)
+    elif principal.swimmer_id is None:
+        # Atleta sin ficha de nadador: no está inscrito en ningún macrociclo, y
+        # decirlo explícitamente evita una consulta que no puede devolver nada.
+        return stmt.where(false())
     else:
-        suyos = (
-            select(AthletePlan.plan_id)
-            .join(Swimmer, Swimmer.id == AthletePlan.swimmer_id)
-            .where(Swimmer.user_id == principal.id)
+        # Del `Principal`, que ya resolvió el nadador llevando el equipo en la
+        # condición del join. Antes se derivaba aquí otra vez con
+        # `Swimmer.user_id == principal.id` a secas: dos funciones respondiendo
+        # la misma pregunta con semánticas distintas, que es el patrón que
+        # produjo el agujero del scoping. Coincidían solo porque
+        # `Swimmer.user_id` es UNIQUE global, y `teams/models.py` anticipa
+        # quitar la restricción de un-usuario-un-equipo.
+        suyos = select(AthletePlan.plan_id).where(
+            AthletePlan.swimmer_id == principal.swimmer_id,
         )
     return stmt.where(Plan.id.in_(suyos))
 
