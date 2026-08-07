@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import Principal, get_current_principal
-from app.modules.plans.service import current_week_of, get_plan
+from app.core.dependencies import Principal, get_current_principal, require_coach
+from app.modules.plans.access import get_plan
+from app.modules.plans.service import current_week_of
 
 from . import service
 from .schemas import DashboardSummary, TeamWeekResponse
@@ -42,9 +43,20 @@ async def summary(
 @router.get("/team-week", response_model=TeamWeekResponse)
 async def team_week(
     plan_id: int | None = None, week: int | None = None,
-    principal: Principal = Depends(get_current_principal),
+    principal: Principal = Depends(require_coach),
     db: AsyncSession = Depends(get_db),
 ):
+    """La semana de **todo el equipo**: una herramienta de entrenador.
+
+    Fuera del alcance del atleta por decisión explícita del plan, y por eso el
+    guard va aquí y no un filtro de filas: una tabla comparativa con una sola
+    fila no es una versión personal de nada, es una pantalla sin sentido. Que
+    responda 403 dice lo que pasa; devolver una fila fingiría que la pantalla es
+    para él.
+
+    `require_coach` sirve para esto desde que comprueba el rol también con el
+    login apagado (hallazgo CSO-1 del 2026-08-06). Antes no habría servido.
+    """
     plan = await _resolve_plan(db, plan_id, principal)
     week_number = week or current_week_of(plan) or 1
     week_number = max(1, min(week_number, plan.total_weeks))

@@ -146,7 +146,31 @@ class WeekResponse(BaseModel):
 
 
 class WeekUpdateRequest(BaseModel):
+    """Los dos campos de arriba los escribe el atleta; los dos de abajo, no.
+
+    No todos los campos de una semana pesan lo mismo. El tiempo real es el dato
+    que el atleta aporta sobre sí mismo. El parón (`disabled`) es una decisión de
+    entrenamiento —lesión, vacaciones, competencia— que redistribuye la mejora
+    restante entre las semanas activas vía `_recalculate_event`: quien lo pone
+    está reescribiendo la curva, no registrando un resultado.
+
+    Es una autorización **por campo**, no por endpoint, y por eso no la puede
+    resolver una dependencia de FastAPI: la misma ruta acepta las dos cosas. La
+    comprueba `touches_coach_only_fields()`, aquí abajo, para que la regla viva
+    pegada a los campos que gobierna y no en un `if` perdido en el router.
+    """
+
     real_time: float | None = None
     clear_real_time: bool = False
     disabled: bool | None = None
     disable_reason: str | None = None
+
+    def touches_coach_only_fields(self) -> bool:
+        """True si la petición intenta escribir algo reservado al entrenador.
+
+        Mira los campos *enviados*, no los que traen valor: mandar
+        `{"disabled": false}` es tanto reactivar una semana parada como mandar
+        `true` es pararla. Un `None` por omisión no cuenta.
+        """
+        enviados = self.model_fields_set
+        return bool(enviados & {"disabled", "disable_reason"})

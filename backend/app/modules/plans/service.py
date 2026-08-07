@@ -10,26 +10,19 @@ from datetime import date, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.core.dependencies import Principal
 from app.engine import progression
 from app.engine.zones import calc_zones, zone_km_distribution
 from app.modules.swimmers.models import Swimmer
 
-from .access import event_unscoped, get_week, visible_to
+from .access import event_unscoped, get_week, plan_unscoped
 from .models import (
     AthleteEvent, AthletePlan, Competition, Plan, PlanCoach, PlanPhase, WeeklyPlan,
 )
 from .schemas import (
     AddAthleteRequest, AthletePlanResponse, PlanCreate, PlanResponse,
     PlanUpdate, WeekResponse, WeekUpdateRequest,
-)
-
-_PLAN_LOAD = (
-    selectinload(Plan.phases),
-    selectinload(Plan.competitions),
-    selectinload(Plan.athlete_plans).selectinload(AthletePlan.events),
 )
 
 
@@ -105,27 +98,6 @@ async def to_plan_response(
     return resp
 
 
-async def list_plans(db: AsyncSession, principal: Principal) -> list[Plan]:
-    stmt = visible_to(select(Plan).options(*_PLAN_LOAD), principal)
-    return list((await db.execute(stmt.order_by(Plan.created_at.desc()))).scalars())
-
-
-async def get_plan(db: AsyncSession, plan_id: int, principal: Principal) -> Plan | None:
-    """None si no existe **o** si el solicitante no debe verlo.
-
-    Ambos casos se responden con 404: un 403 confirmaría que ese macrociclo
-    existe en algún equipo.
-    """
-    stmt = visible_to(select(Plan).options(*_PLAN_LOAD).where(Plan.id == plan_id), principal)
-    return (await db.execute(stmt)).scalar_one_or_none()
-
-
-async def _plan_unscoped(db: AsyncSession, plan_id: int) -> Plan | None:
-    """Recarga interna tras escribir, cuando el acceso ya está comprobado."""
-    stmt = select(Plan).options(*_PLAN_LOAD).where(Plan.id == plan_id)
-    return (await db.execute(stmt)).scalar_one_or_none()
-
-
 async def create_plan(db: AsyncSession, data: PlanCreate, team_id: int, coach_id: int) -> Plan:
     """El equipo y el entrenador NO vienen del cliente: salen de la sesión.
 
@@ -145,14 +117,14 @@ async def create_plan(db: AsyncSession, data: PlanCreate, team_id: int, coach_id
         plan.competitions.append(Competition(**c.model_dump()))
     db.add(plan)
     await db.commit()
-    return (await _plan_unscoped(db, plan.id))  # type: ignore[return-value]
+    return (await plan_unscoped(db, plan.id))  # type: ignore[return-value]
 
 
 async def update_plan(db: AsyncSession, plan: Plan, data: PlanUpdate) -> Plan:
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(plan, field, value)
     await db.commit()
-    return (await _plan_unscoped(db, plan.id))  # type: ignore[return-value]
+    return (await plan_unscoped(db, plan.id))  # type: ignore[return-value]
 
 
 async def delete_plan(db: AsyncSession, plan: Plan) -> None:

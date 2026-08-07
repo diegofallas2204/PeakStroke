@@ -22,7 +22,7 @@ router = APIRouter()
 
 
 async def _plan_or_404(db: AsyncSession, plan_id: int, principal: Principal):
-    plan = await service.get_plan(db, plan_id, principal)
+    plan = await access.get_plan(db, plan_id, principal)
     if plan is None:
         raise HTTPException(404, "Macrociclo no encontrado")
     return plan
@@ -35,7 +35,7 @@ async def list_plans(
 ):
     return [
         await service.to_plan_response(db, p, principal)
-        for p in await service.list_plans(db, principal)
+        for p in await access.list_plans(db, principal)
     ]
 
 
@@ -124,6 +124,15 @@ async def update_week(
     # Sin require_coach a propósito: registrar el tiempo real de la semana es una
     # de las cosas que el atleta puede hacer sobre SU plan, y `update_week` ya
     # acota por visibilidad.
+    #
+    # Pero no todos los campos son suyos. Desde que el filtro por nadador existe,
+    # la semana que toca ES la suya, así que sin esta comprobación escribir
+    # `disabled` pasaría a ser legítimo — y eso es el parón del entrenador, que
+    # redistribuye la mejora restante de todo el macrociclo. 403 y no 404: el
+    # recurso sí es suyo, lo que no alcanza es el rol.
+    if data.touches_coach_only_fields() and not principal.is_coach:
+        raise HTTPException(403, "Solo un entrenador puede marcar el parón de una semana")
+
     event = await service.update_week(db, week_id, data, principal)
     if event is None:
         raise HTTPException(404, "Semana no encontrada")

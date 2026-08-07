@@ -2,14 +2,15 @@
 
 Uso:  python seed.py        (borra la base local y la repuebla)
 
-Crea: 6 cuentas de desarrollo (2 entrenadores + 4 atletas), 9 nadadores, un
+Crea: 7 cuentas de desarrollo (2 entrenadores + 5 atletas), 10 nadadores, un
 macrociclo activo de 12 semanas cursando la semana 7, tests aeróbicos y tiempos
 reales de las semanas 1-6 con ruido plausible.
 
-Tres de esas cuentas existen para que los casos incómodos se vean al
+Cuatro de esas cuentas existen para que los casos incómodos se vean al
 desarrollar y no en producción: un entrenador que no es dueño, un atleta sin
-ficha de nadador y un atleta con ficha pero sin macrociclo. Los estados vacíos
-son una feature, y sin datos que los produzcan nadie los diseña.
+ficha de nadador, un atleta con ficha pero sin macrociclo y un atleta cuya ficha
+está dada de baja. Los estados vacíos son una feature, y sin datos que los
+produzcan nadie los diseña.
 
 El esquema lo construyen las migraciones de Alembic, no `create_all()`: así el
 entorno local recorre exactamente el mismo camino que recorrerá producción.
@@ -71,7 +72,7 @@ TEAM_NAME = "Club Acuático Demo"
 # Cuentas de desarrollo. La contraseña es deliberadamente trivial y el email
 # apunta a un dominio inexistente: esto NUNCA debe sembrarse en producción.
 #
-# Las tres últimas existen para que los casos incómodos se vean al desarrollar,
+# Las cuatro últimas existen para que los casos incómodos se vean al desarrollar,
 # no en producción. Con un club donde todo el mundo tiene ficha, plan y los
 # mismos permisos, los estados vacíos y las diferencias de rol solo aparecen
 # cuando ya hay usuarios reales sufriéndolos.
@@ -89,17 +90,26 @@ DEV_ACCOUNTS = [
     # Atleta con ficha pero sin macrociclo: el estado vacío del dashboard y del
     # plan semanal, que es una feature y no un descuido.
     ("sinplan@peakstroke.dev", "Atleta Sin Macrociclo", "athlete"),
+    # Atleta cuya FICHA está dada de baja, con la cuenta todavía activa. Es el
+    # caso raro que rompe en silencio: `list_swimmers` excluye a los inactivos,
+    # así que le sale la lista vacía aunque su cuenta entre sin problema.
+    ("debaja@peakstroke.dev", "Atleta Dado de Baja", "athlete"),
 ]
 
-# Un nadador más que los que entran al macrociclo: EVENTS cubre los índices 0-7,
-# así que el noveno se queda fuera a propósito para ligarlo a `sinplan@`.
-SWIMMER_SIN_PLAN = ("Noa Jiménez", date(2009, 4, 2), "F", "medio_fondo", "libre", 56, 164)
+# Dos nadadores más que los que entran al macrociclo: EVENTS cubre los índices
+# 0-7, así que estos dos se quedan fuera a propósito para ligarlos a `sinplan@`
+# y a `debaja@`.
+SWIMMERS_EXTRA = [
+    ("Noa Jiménez", date(2009, 4, 2), "F", "medio_fondo", "libre", 56, 164),
+    ("Bruno Alfaro", date(2008, 8, 17), "M", "velocidad", "libre", 69, 175),
+]
 
 # Para que el resumen final diga qué caso cubre cada cuenta rara.
 _NOTAS = {
     "asistente@peakstroke.dev": "   (entrenador que NO es dueño)",
     "sinficha@peakstroke.dev": "    (atleta sin ficha de nadador)",
     "sinplan@peakstroke.dev": "     (atleta sin macrociclo)",
+    "debaja@peakstroke.dev": "      (ficha de nadador dada de baja)",
 }
 
 
@@ -150,7 +160,7 @@ async def seed() -> None:
         await db.commit()
 
         swimmers = []
-        for name, birth, gender, specialty, stroke, weight, height in (*SWIMMERS, SWIMMER_SIN_PLAN):
+        for name, birth, gender, specialty, stroke, weight, height in (*SWIMMERS, *SWIMMERS_EXTRA):
             swimmers.append(await create_swimmer(db, SwimmerCreate(
                 name=name, birth_date=birth, gender=gender, specialty=specialty,
                 main_stroke=stroke, weight_kg=weight, height_cm=height,
@@ -167,9 +177,15 @@ async def seed() -> None:
         for email, swimmer in (
             ("sofia@peakstroke.dev", swimmers[0]),
             ("carlos@peakstroke.dev", swimmers[1]),
-            ("sinplan@peakstroke.dev", swimmers[-1]),
+            ("sinplan@peakstroke.dev", swimmers[-2]),
+            ("debaja@peakstroke.dev", swimmers[-1]),
         ):
             swimmer.user_id = accounts[email].id
+        # La ficha de baja, con la cuenta intacta: dar de baja a un nadador
+        # archiva su perfil deportivo, no le revoca el acceso (eso es
+        # `team_members.is_active`). Confundir las dos cosas es fácil, y este
+        # dato hace que la diferencia se vea al desarrollar.
+        swimmers[-1].is_active = False
         await db.commit()
 
         start = plan_start_date(date.today())
@@ -264,7 +280,7 @@ async def seed() -> None:
     print(f"  - {len(DEV_ACCOUNTS)} cuentas (contraseña: {DEV_PASSWORD})")
     for email, _, role in DEV_ACCOUNTS:
         print(f"      {role:<8} {email}{_NOTAS.get(email, '')}")
-    print(f"  - {len(SWIMMERS) + 1} atletas ({len(SWIMMERS)} en el macrociclo)")
+    print(f"  - {len(SWIMMERS) + len(SWIMMERS_EXTRA)} atletas ({len(SWIMMERS)} en el macrociclo, 1 de baja)")
     print("  - Macrociclo 'Temporada Nacional 2026' (12 semanas, semana actual: 7)")
     print("  - Tiempos reales semanas 1-6 + 12 tests aeróbicos")
     print("  - Cambia de identidad sin reiniciar: cabecera X-PeakStroke-Dev-User")

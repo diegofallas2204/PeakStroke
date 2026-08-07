@@ -134,17 +134,73 @@ async def test_el_dashboard_solo_trae_sus_filas(client, world: World):
     assert [f["swimmer_id"] for f in r.json()["statuses"]] == [world.sofia_swimmer_id]
 
 
-async def test_la_tabla_del_equipo_no_le_ensena_al_equipo(client, world: World):
+async def test_la_tabla_del_equipo_esta_fuera_de_su_alcance(client, world: World):
     """`/dashboard/team-week` es la puerta más ancha: nombres y tiempos de todos.
 
-    Se acota en vez de bloquearse porque `require_coach` no sirve aquí: con la
-    autenticación apagada —el modo en que corre el proyecto hoy— deja pasar a
-    cualquiera. El filtro por nadador, en cambio, se aplica siempre.
+    403 y no una versión acotada: una tabla comparativa del equipo con una sola
+    fila no es la versión personal de nada. El plan la marca ❌ explícito para el
+    atleta, así que el backend lo dice en vez de fingir una pantalla.
     """
     r = await client.get(f"{API}/dashboard/team-week", headers=como(world.sofia_email))
+    assert r.status_code == 403
+
+
+async def test_el_entrenador_si_ve_la_tabla_del_equipo(client, world: World):
+    r = await client.get(f"{API}/dashboard/team-week", headers=como(world.owner_email))
     assert r.status_code == 200
-    assert len(r.json()["rows"]) == 1
-    assert r.json()["rows"][0]["name"] == "Sofía Test"
+    assert len(r.json()["rows"]) == 3
+
+
+# ── Autorización por campo: el parón es del entrenador ───────────────────────
+
+async def test_no_puede_parar_su_propia_semana(client, db, world: World):
+    """Su semana, sí; su curva de progresión, no.
+
+    Desde que el filtro por nadador existe la fila ES suya, así que sin una
+    comprobación por campo escribir `disabled` pasaría a ser legítimo. Y el
+    parón no registra un resultado: redistribuye la mejora restante del
+    macrociclo entero vía `_recalculate_event`.
+    """
+    semana = await semana_de(db, world.sofia_event_id)
+
+    r = await client.patch(
+        f"{API}/plans/weeks/{semana.id}",
+        json={"disabled": True, "disable_reason": "me lo salto"},
+        headers=como(world.sofia_email),
+    )
+
+    assert r.status_code == 403
+    await db.refresh(semana)
+    assert semana.disabled is False
+
+
+async def test_tampoco_puede_reactivar_una_semana_parada(client, db, world: World):
+    """`{"disabled": false}` es tanto una decisión de entrenamiento como `true`.
+
+    Por eso la comprobación mira los campos *enviados* y no los que traen valor.
+    """
+    semana = await semana_de(db, world.sofia_event_id)
+    semana.disabled = True
+    await db.commit()
+
+    r = await client.patch(
+        f"{API}/plans/weeks/{semana.id}", json={"disabled": False},
+        headers=como(world.sofia_email),
+    )
+    assert r.status_code == 403
+
+
+async def test_el_entrenador_si_puede_parar_una_semana(client, db, world: World):
+    semana = await semana_de(db, world.sofia_event_id)
+    r = await client.patch(
+        f"{API}/plans/weeks/{semana.id}",
+        json={"disabled": True, "disable_reason": "lesión de hombro"},
+        headers=como(world.owner_email),
+    )
+    assert r.status_code == 200
+    await db.refresh(semana)
+    assert semana.disabled is True
+    assert semana.disable_reason == "lesión de hombro"
 
 
 async def test_el_macrociclo_no_le_ensena_el_roster(client, world: World):
@@ -245,3 +301,32 @@ async def test_un_atleta_sin_nadador_ligado_tampoco_llega_por_id(client, world: 
         headers=como(world.huerfano_email),
     )
     assert r.status_code == 404
+
+
+async def test_dar_de_baja_la_ficha_no_le_quita_su_historico(client, db, world: World):
+    """Dar de baja a un nadador archiva su perfil; no le revoca el acceso.
+
+    Son dos cosas distintas y es fácil confundirlas: revocar el acceso es
+    `team_members.is_active`, y ese sí lo comprueba `_principal_for`. Si el
+    scoping mirase también `swimmers.is_active`, un atleta dado de baja no
+    podría ni consultar sus propios tiempos de las temporadas que sí nadó.
+    """
+    from app.modules.swimmers.models import Swimmer
+
+    sofia_sw = await db.get(Swimmer, world.sofia_swimmer_id)
+    sofia_sw.is_active = False
+    await db.commit()
+
+    semanas = await client.get(
+        f"{API}/plans/events/{world.sofia_event_id}/weeks",
+        headers=como(world.sofia_email),
+    )
+    assert semanas.status_code == 200
+    assert len(semanas.json()) == 12
+
+    tests = await client.get(f"{API}/aerobic-tests/", headers=como(world.sofia_email))
+    assert [t["id"] for t in tests.json()] == [world.sofia_test_id]
+
+    # Pero desaparece de los listados, que es lo que "dar de baja" significa.
+    listado = await client.get(f"{API}/swimmers/", headers=como(world.owner_email))
+    assert world.sofia_swimmer_id not in [s["id"] for s in listado.json()]

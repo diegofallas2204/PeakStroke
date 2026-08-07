@@ -13,6 +13,11 @@ Dos filtros, y hay que pasar los dos:
 El segundo se añadió el 2026-08-06. `visible_to` deja pasar el plan entero a
 cualquiera inscrito en él, así que por sí solo permitía que un atleta leyera y
 sobrescribiera las semanas de sus compañeros de macrociclo.
+
+Se lleva la puerta **completa**, `get_plan` y `list_plans` incluidos. Un módulo
+de acceso al que le falta la función de acceso principal organiza peor que no
+haber extraído nada: quien venga a auditar quién ve qué tendría que leer los dos
+archivos y adivinar cuál manda.
 """
 from __future__ import annotations
 
@@ -24,6 +29,12 @@ from app.core.dependencies import Principal
 from app.modules.swimmers.models import Swimmer
 
 from .models import AthleteEvent, AthletePlan, Plan, PlanCoach, WeeklyPlan
+
+_PLAN_LOAD = (
+    selectinload(Plan.phases),
+    selectinload(Plan.competitions),
+    selectinload(Plan.athlete_plans).selectinload(AthletePlan.events),
+)
 
 _EVENT_LOAD = (
     selectinload(AthleteEvent.weeks),
@@ -57,6 +68,27 @@ def visible_to(stmt, principal: Principal):
             .where(Swimmer.user_id == principal.id)
         )
     return stmt.where(Plan.id.in_(suyos))
+
+
+async def list_plans(db: AsyncSession, principal: Principal) -> list[Plan]:
+    stmt = visible_to(select(Plan).options(*_PLAN_LOAD), principal)
+    return list((await db.execute(stmt.order_by(Plan.created_at.desc()))).scalars())
+
+
+async def get_plan(db: AsyncSession, plan_id: int, principal: Principal) -> Plan | None:
+    """None si no existe **o** si el solicitante no debe verlo.
+
+    Ambos casos se responden con 404: un 403 confirmaría que ese macrociclo
+    existe en algún equipo.
+    """
+    stmt = visible_to(select(Plan).options(*_PLAN_LOAD).where(Plan.id == plan_id), principal)
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+async def plan_unscoped(db: AsyncSession, plan_id: int) -> Plan | None:
+    """Recarga interna tras escribir, **cuando el acceso ya está comprobado**."""
+    stmt = select(Plan).options(*_PLAN_LOAD).where(Plan.id == plan_id)
+    return (await db.execute(stmt)).scalar_one_or_none()
 
 
 async def get_event(
