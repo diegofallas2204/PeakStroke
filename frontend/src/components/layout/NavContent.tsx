@@ -5,9 +5,9 @@
 import { NavLink } from 'react-router-dom'
 import { ChevronsUpDown, Settings } from 'lucide-react'
 import { Manta } from '../ui/Manta'
-import { NAV_ITEMS } from './navConfig'
+import { navItemsFor } from './navConfig'
 import { ROLE_META, SECTION_ACCENT } from '../../lib/constants'
-import { useSession } from '../../hooks/useSession'
+import { useRole, useSession } from '../../hooks/useSession'
 import { initials } from '../../lib/format'
 
 type Variant = 'rail' | 'panel'
@@ -100,9 +100,14 @@ export function NavPlanButton({
 export function NavLinks({
   variant, onNavigate,
 }: { variant: Variant; onNavigate?: () => void }) {
+  // Mientras la sesión carga, `navItemsFor` devuelve lista vacía y el rail sale
+  // sin secciones en vez de con las del rol equivocado. Es el mismo trato que
+  // esta pantalla ya le da al avatar: preferir un hueco un instante a enseñar
+  // algo que habrá que quitar.
+  const items = navItemsFor(useRole())
   return (
     <nav className="flex-1 py-1">
-      {NAV_ITEMS.map(({ to, label, icon: Icon, color }) => (
+      {items.map(({ to, label, icon: Icon, color }) => (
         <NavLink
           key={to}
           to={to}

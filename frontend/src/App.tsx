@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import { Sidebar } from './components/layout/Sidebar'
+import { RutaPorRol } from './components/layout/RutaPorRol'
 import { SECTION_ACCENT } from './lib/constants'
 import { Spinner } from './components/ui/primitives'
 import { useSimpleMode } from './hooks/useSimpleMode'
@@ -51,17 +52,22 @@ export default function App() {
       >
         <div className="mx-auto max-w-[1280px] px-4 py-5 sm:px-6 lg:px-7 lg:py-6">
           <Suspense fallback={<Spinner />}>
-            <Routes>
-              <Route path="/" element={<DashboardPage />} />
-              <Route path="/macrociclos" element={<PlansPage />} />
-              <Route path="/atletas" element={<SwimmersPage />} />
-              <Route path="/pruebas" element={<AerobicPage />} />
-              <Route path="/plan-semanal" element={<WeeklyPlanPage />} />
-              <Route path="/equipo" element={<TeamPage />} />
-              <Route path="/comparacion" element={<ComparisonPage />} />
-              <Route path="/simulador" element={<SimulatorPage />} />
-              <Route path="/perfil" element={<ProfilePage />} />
-            </Routes>
+            {/* `RutaPorRol` envuelve TODO el switch, no cada ruta: la regla es
+                una sola y vive en `navConfig`, así que registrar la guarda una
+                vez evita que a alguien se le olvide ponerla en la ruta nueva. */}
+            <RutaPorRol>
+              <Routes>
+                <Route path="/" element={<DashboardPage />} />
+                <Route path="/macrociclos" element={<PlansPage />} />
+                <Route path="/atletas" element={<SwimmersPage />} />
+                <Route path="/pruebas" element={<AerobicPage />} />
+                <Route path="/plan-semanal" element={<WeeklyPlanPage />} />
+                <Route path="/equipo" element={<TeamPage />} />
+                <Route path="/comparacion" element={<ComparisonPage />} />
+                <Route path="/simulador" element={<SimulatorPage />} />
+                <Route path="/perfil" element={<ProfilePage />} />
+              </Routes>
+            </RutaPorRol>
           </Suspense>
         </div>
       </main>

@@ -28,3 +28,33 @@ export function useIsCoach(): boolean {
   const { data } = useSession()
   return data?.role === 'coach'
 }
+
+/**
+ * true solo cuando la sesión ya cargó y además es el dueño del equipo.
+ *
+ * Entrenador en jefe = entrenador que además es `teams.owner_id`; no es un
+ * tercer rol. Este hook existe para que ese cálculo no se repita a mano por la
+ * UI, que es como se acaba con cuatro versiones ligeramente distintas.
+ */
+export function useIsOwner(): boolean {
+  const { data } = useSession()
+  return data?.role === 'coach' && data?.is_owner === true
+}
+
+/** true solo cuando la sesión ya cargó y es un atleta. */
+export function useIsAthlete(): boolean {
+  const { data } = useSession()
+  return data?.role === 'athlete'
+}
+
+/**
+ * El rol efectivo, o `undefined` mientras la sesión carga.
+ *
+ * La diferencia importa: `undefined` no es "no tiene permiso", es "todavía no
+ * se sabe". Quien filtre navegación o rutas debe esperar en vez de decidir con
+ * un valor que aún no existe, o el rail parpadea vacío y las rutas rebotan.
+ */
+export function useRole(): string | undefined {
+  const { data } = useSession()
+  return data?.role
+}

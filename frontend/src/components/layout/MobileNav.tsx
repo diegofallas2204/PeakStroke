@@ -19,8 +19,20 @@ export function MobileNav({
   const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
 
-  // Cerrar al navegar (incluye back/forward del navegador) y con Escape.
-  useEffect(() => setOpen(false), [pathname])
+  // Cerrar al navegar, incluido el back/forward del navegador (los clics en un
+  // enlace ya cierran por `onNavigate`).
+  //
+  // El ajuste va en el render y no en un efecto: un `setState` dentro de
+  // `useEffect` pinta el drawer abierto y lo cierra en un segundo render, que es
+  // justo el parpadeo que se ve al volver atrás. Comparar contra el valor
+  // anterior durante el render es el patrón que React documenta para esto, y
+  // además es lo que pedía la regla `react-hooks/set-state-in-effect`.
+  const [rutaPrevia, setRutaPrevia] = useState(pathname)
+  if (rutaPrevia !== pathname) {
+    setRutaPrevia(pathname)
+    setOpen(false)
+  }
+
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
@@ -28,8 +40,10 @@ export function MobileNav({
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
+  // `undefined` en una ruta que no es sección conocida. Antes caía al primer
+  // elemento del menú, así que una ruta oculta se rotulaba "Dashboard".
   const active = activeNavItem(pathname)
-  const ActiveIcon = active.icon
+  const ActiveIcon = active?.icon
 
   // Las acciones que abren un modal cierran el drawer: en móvil el modal ocupa
   // la pantalla completa y dejar el panel detrás no aporta contexto.
@@ -73,14 +87,18 @@ export function MobileNav({
           </span>
         </p>
 
-        {/* Sección activa — sustituye al indicador lateral del riel */}
-        <span
-          className="ml-auto flex min-w-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold"
-          style={{ color: active.color, background: `${active.color}16` }}
-        >
-          <ActiveIcon size={13} strokeWidth={2.2} className="shrink-0" />
-          <span className="truncate">{active.label}</span>
-        </span>
+        {/* Sección activa — sustituye al indicador lateral del riel.
+            Se omite si la ruta no es ninguna sección conocida: mejor sin
+            etiqueta que con una que no corresponde a lo que hay en pantalla. */}
+        {active && ActiveIcon && (
+          <span
+            className="ml-auto flex min-w-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold"
+            style={{ color: active.color, background: `${active.color}16` }}
+          >
+            <ActiveIcon size={13} strokeWidth={2.2} className="shrink-0" />
+            <span className="truncate">{active.label}</span>
+          </span>
+        )}
       </div>
 
       {/* ── Drawer ─────────────────────────────────────────── */}

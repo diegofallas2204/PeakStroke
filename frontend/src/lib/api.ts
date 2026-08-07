@@ -1,15 +1,40 @@
 // Cliente HTTP tipado contra /api/v1 (proxy de Vite hacia FastAPI).
+import { getDevBypass, getDevIdentity } from '../hooks/useDevIdentity'
 import type {
-  AerobicPreview, AerobicTest, AuthConfig, DashboardSummary, Member, MemberCreated,
-  Plan, SeasonResult, SimulationResult, Swimmer, Team, TeamWeek, Week,
+  AerobicPreview, AerobicTest, AuthConfig, DashboardSummary, DevIdentity, Member,
+  MemberCreated, Plan, SeasonResult, SimulationResult, Swimmer, Team, TeamWeek, Week,
 } from './types'
 
 const BASE = '/api/v1'
 
+// Nombres fijados aquí y no leídos de `/auth/config` a propósito: la primera
+// petición del arranque ES la de config, así que esperarla para saber cómo
+// mandar cabeceras sería circular. El backend expone los nombres para que el
+// cliente pueda comprobar que coinciden, no para descubrirlos.
+const DEV_USER_HEADER = 'X-PeakStroke-Dev-User'
+const DEV_BYPASS_HEADER = 'X-PeakStroke-Dev-Bypass'
+
+/** Las cabeceras del conmutador, si hay algo que decir. */
+function devHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {}
+  const identity = getDevIdentity()
+  if (identity) headers[DEV_USER_HEADER] = identity
+  if (getDevBypass()) headers[DEV_BYPASS_HEADER] = 'true'
+  return headers
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    // Las cabeceras se MEZCLAN, no se reemplazan. Antes `...options` iba después
+    // y un llamador con `headers` propios tiraba el Content-Type en silencio.
+    // Hoy no hay ninguno, pero el conmutador añade las suyas aquí mismo y el
+    // fallo habría sido un 422 sin explicación.
+    headers: {
+      'Content-Type': 'application/json',
+      ...devHeaders(),
+      ...(options?.headers as Record<string, string> | undefined),
+    },
   })
   if (!res.ok) {
     let detail = res.statusText
@@ -38,6 +63,9 @@ export const api = {
     // siempre hay sesión: el frontend no necesita pantalla de login todavía.
     me: () => get<Member>('/auth/me'),
     config: () => get<AuthConfig>('/auth/config'),
+    // Las cuentas que el conmutador puede suplantar. 404 con el login real
+    // encendido: allí este endpoint no existe.
+    devIdentities: () => get<DevIdentity[]>('/auth/dev-identities'),
     members: () => get<Member[]>('/auth/members'),
     createMember: (data: unknown) => post<MemberCreated>('/auth/members', data),
     updateMember: (id: number, data: unknown) => patch<Member>(`/auth/members/${id}`, data),

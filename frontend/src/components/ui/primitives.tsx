@@ -170,6 +170,47 @@ export function EmptyState({
   )
 }
 
+/**
+ * Interruptor de dos estados con su etiqueta y su explicación.
+ *
+ * `role="switch"` + `aria-checked` en vez de un checkbox estilado: un lector de
+ * pantalla anuncia "activado/desactivado" en vez de "casilla marcada", que es lo
+ * que esto es de verdad.
+ */
+export function Toggle({
+  checked, onChange, label, hint, accent = 'var(--color-accent)',
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+  label: string
+  hint?: string
+  accent?: string
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="flex w-full items-center justify-between rounded-xl border border-line bg-surface-2 px-4 py-3 text-left transition-colors hover:border-line-strong"
+    >
+      <div className="min-w-0">
+        <p className="text-[13px] font-semibold">{label}</p>
+        {hint && <p className="mt-0.5 text-[10.5px] text-text-faint">{hint}</p>}
+      </div>
+      <span
+        className="relative ml-4 flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200"
+        style={{ background: checked ? accent : 'var(--color-surface-3)' }}
+      >
+        <span
+          className="absolute h-4 w-4 rounded-full bg-white shadow transition-transform duration-200"
+          style={{ transform: checked ? 'translateX(22px)' : 'translateX(4px)' }}
+        />
+      </span>
+    </button>
+  )
+}
+
 export function Spinner() {
   return (
     <div className="flex items-center justify-center py-16">
