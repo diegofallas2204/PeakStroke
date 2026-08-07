@@ -59,16 +59,26 @@ export function AerobicPage() {
         subtitle="T-30 / T-15, tests personalizados y CSS: el punto de partida del motor de predicción"
         actions={
           <>
-            <select
-              className="field !w-52"
-              value={activeSwimmer ?? ''}
-              onChange={(e) => { setSwimmerId(Number(e.target.value)); setSelectedTest(null) }}
-            >
-              {swimmers?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-            <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-              <Plus size={14} /> Registrar test
-            </button>
+            {/* El selector solo tiene sentido con varios nadadores entre los que
+                elegir. A un atleta le sale un desplegable de una sola opción con
+                su propio nombre, que es ruido. */}
+            {(swimmers?.length ?? 0) > 1 && (
+              <select
+                className="field !w-52"
+                value={activeSwimmer ?? ''}
+                onChange={(e) => { setSwimmerId(Number(e.target.value)); setSelectedTest(null) }}
+              >
+                {swimmers?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            )}
+            {/* Sin nadador no hay a quién registrarle el test: el backend lo
+                rechazaría con un 404 que aquí se leería como un fallo. Es el
+                caso del atleta cuya cuenta nadie ligó todavía a una ficha. */}
+            {activeSwimmer != null && (
+              <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+                <Plus size={14} /> Registrar test
+              </button>
+            )}
           </>
         }
       />
@@ -78,9 +88,15 @@ export function AerobicPage() {
       ) : !tests?.length ? (
         <EmptyState
           icon={<Timer size={24} />}
-          title="Sin tests registrados"
-          hint="Registra un T-30, T-15, un test personalizado (ej. 12×400) o un CSS para calcular la base aeróbica del atleta."
-          action={<button className="btn btn-primary" onClick={() => setShowForm(true)}><Plus size={14} /> Registrar test</button>}
+          title={activeSwimmer == null ? 'Sin ficha deportiva' : 'Sin tests registrados'}
+          hint={activeSwimmer == null
+            ? 'Tu cuenta todavía no está ligada a un nadador, así que no hay a quién registrarle un test. Pídeselo a tu entrenador.'
+            : 'Registra un T-30, T-15, un test personalizado (ej. 12×400) o un CSS para calcular la base aeróbica del atleta.'}
+          action={activeSwimmer != null && (
+            <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+              <Plus size={14} /> Registrar test
+            </button>
+          )}
         />
       ) : (
         <div className="grid grid-cols-[300px_1fr] items-start gap-4">

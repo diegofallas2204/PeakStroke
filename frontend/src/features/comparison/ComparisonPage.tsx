@@ -10,6 +10,7 @@ import {
 import { api } from '../../lib/api'
 import { STROKE_LABEL } from '../../lib/constants'
 import { toClock, signed } from '../../lib/format'
+import { useVacio } from '../../hooks/useVacio'
 import { usePageEnter } from '../../hooks/usePageEnter'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card, EmptyState, Spinner, StatusBadge } from '../../components/ui/primitives'
@@ -41,6 +42,11 @@ export function ComparisonPage() {
     }
   }, [weeks])
 
+  const vacioTitulo = useVacio('Sin datos', 'Todavía no hay nada que comparar')
+  const vacioPista = useVacio(
+    'Asigna atletas a un macrociclo para comparar su rendimiento.',
+    'En cuanto registres tiempos reales en tu plan semanal, aquí verás tu curva ideal contra lo que nadaste.',
+  )
   const ref = usePageEnter([selection?.event.id, isLoading])
 
   return (
@@ -52,8 +58,10 @@ export function ComparisonPage() {
       <EventPicker onChange={setSelection} />
 
       {!selection ? (
-        <EmptyState icon={<GitCompareArrows size={24} />} title="Sin datos"
-          hint="Asigna atletas a un macrociclo para comparar su rendimiento." />
+        <EmptyState
+          icon={<GitCompareArrows size={24} />}
+          title={vacioTitulo}
+          hint={vacioPista} />
       ) : isLoading || !weeks || !stats ? (
         <Spinner />
       ) : (

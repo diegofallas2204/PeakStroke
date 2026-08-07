@@ -9,6 +9,7 @@ import { STROKE_LABEL } from '../../lib/constants'
 import { toClock, tryToSeconds, signed } from '../../lib/format'
 import { usePageEnter } from '../../hooks/usePageEnter'
 import { useSimpleMode } from '../../hooks/useSimpleMode'
+import { useVacio } from '../../hooks/useVacio'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card, EmptyState, Spinner, StatusBadge } from '../../components/ui/primitives'
 import { EventPicker, type EventSelection } from '../../components/ui/EventPicker'
@@ -105,6 +106,12 @@ export function WeeklyPlanPage() {
   }, [weeks, selectedWeek, selection])
 
   const [simple] = useSimpleMode()
+  // Un atleta no crea macrociclos ni asigna a nadie: pedírselo sería una pared.
+  const vacioTitulo = useVacio('Sin datos para mostrar', 'Todavía no tienes plan semanal')
+  const vacioPista = useVacio(
+    'Crea un macrociclo y asigna atletas con sus pruebas para generar el plan.',
+    'Cuando tu entrenador te inscriba en un macrociclo con tus pruebas objetivo, aquí verás tu progresión semana a semana.',
+  )
   const ref = usePageEnter([selection?.event.id, isLoading])
 
   return (
@@ -116,8 +123,10 @@ export function WeeklyPlanPage() {
       <EventPicker onChange={setSelection} />
 
       {!selection ? (
-        <EmptyState icon={<ListChecks size={24} />} title="Sin datos para mostrar"
-          hint="Crea un macrociclo y asigna atletas con sus pruebas para generar el plan." />
+        <EmptyState
+          icon={<ListChecks size={24} />}
+          title={vacioTitulo}
+          hint={vacioPista} />
       ) : isLoading || !weeks ? (
         <Spinner />
       ) : (

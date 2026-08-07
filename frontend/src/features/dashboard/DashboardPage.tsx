@@ -2,24 +2,24 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import {
-  Users, CalendarRange, TrendingUp, Trophy, ArrowRight, Waves, ChevronsUpDown,
-} from 'lucide-react'
+import { Trophy, ArrowRight, Waves, ChevronsUpDown } from 'lucide-react'
 import {
   Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 import { api } from '../../lib/api'
-import { toClock, signed } from '../../lib/format'
-import { SPECIALTY_LABEL, PLAN_STATUS_META } from '../../lib/constants'
+import { PLAN_STATUS_META } from '../../lib/constants'
 import { usePageEnter } from '../../hooks/usePageEnter'
 import { useSelectedPlanId } from '../../hooks/useSelectedPlan'
 import { useSimpleMode } from '../../hooks/useSimpleMode'
+import { useRole } from '../../hooks/useSession'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { weekDateTick } from '../../components/charts/weekAxisTick'
-import { Card, EmptyState, Spinner, StatusBadge, Chip } from '../../components/ui/primitives'
-import { StatCard } from '../../components/ui/StatCard'
+import { Card, EmptyState, Spinner, Chip } from '../../components/ui/primitives'
 import { RingGauge } from '../../components/ui/RingGauge'
+import { DashboardStats } from './DashboardStats'
+import { EstadoTable } from './EstadoTable'
 import { PhaseStrip } from './PhaseStrip'
+import { vistaPara } from './vistaPorRol'
 import { MacroSwitcherModal } from '../plans/MacroSwitcherModal'
 
 export function DashboardPage() {
@@ -31,17 +31,25 @@ export function DashboardPage() {
     retry: false,
   })
   const [simple] = useSimpleMode()
+  const vista = vistaPara(useRole())
   const ref = usePageEnter([data?.plan_id])
 
   if (isLoading) return <Spinner />
   if (isError || !data) {
+    // El vacío del atleta no es el del entrenador: él no puede crear un
+    // macrociclo, así que ofrecerle el botón sería mandarle a una ruta que la
+    // guarda rebota. Ver `vistaPorRol`.
     return (
       <div ref={ref}>
         <EmptyState
           icon={<Waves size={24} />}
-          title="Sin macrociclo activo"
-          hint="Crea tu primer macrociclo para empezar a planificar la temporada."
-          action={<Link to="/macrociclos" className="btn btn-primary">Crear macrociclo <ArrowRight size={14} /></Link>}
+          title={vista.vacio.titulo}
+          hint={vista.vacio.pista}
+          action={vista.vacio.accion && (
+            <Link to={vista.vacio.accion.a} className="btn btn-primary">
+              {vista.vacio.accion.texto} <ArrowRight size={14} />
+            </Link>
+          )}
         />
       </div>
     )
@@ -69,49 +77,21 @@ export function DashboardPage() {
             <button className="btn btn-ghost" onClick={() => setSwitcherOpen(true)}>
               <ChevronsUpDown size={14} /> Cambiar macrociclo
             </button>
-            <Link to="/equipo" className="btn btn-primary">Tabla del equipo <ArrowRight size={14} /></Link>
+            {vista.accion && (
+              <Link to={vista.accion.a} className="btn btn-primary">
+                {vista.accion.texto} <ArrowRight size={14} />
+              </Link>
+            )}
           </>
         }
       />
       <MacroSwitcherModal open={switcherOpen} onClose={() => setSwitcherOpen(false)} />
 
-      <div className="grid grid-cols-4 gap-4">
-        <StatCard
-          label="Atletas en plan" value={data.athletes_total} accent="#3b82f6"
-          icon={<Users size={15} />}
-          sub={simple ? undefined : `${data.events_total} pruebas objetivo activas`}
-          to="/equipo"
-        />
-        <StatCard
-          label="Semana actual" value={data.current_week ?? 0} suffix={`/ ${data.total_weeks}`}
-          accent="#22d3ee" icon={<CalendarRange size={15} />}
-          sub={simple ? undefined : (data.current_phase ? `Fase ${data.current_phase}` : 'Fuera de calendario')}
-          to="/plan-semanal"
-        />
-        <StatCard
-          label="Estado del equipo" value={data.ahead} suffix="adelantados"
-          accent="#34d399" icon={<TrendingUp size={15} />}
-          sub={simple ? undefined : (
-            <span>
-              <span className="text-cyan">{data.on_track} en plan</span>
-              {' · '}
-              <span className="text-coral">{data.behind} atrasados</span>
-            </span>
-          )}
-          to="/comparacion"
-        />
-        <StatCard
-          label="Desviación media" value={data.avg_deviation_percent ?? 0} suffix="%" decimals={2}
-          accent={data.avg_deviation_percent != null && data.avg_deviation_percent > 0 ? '#fb7185' : '#34d399'}
-          icon={<Trophy size={15} />}
-          sub={simple ? undefined : 'Real vs. plan (negativo = más rápido)'}
-          to="/comparacion"
-        />
-      </div>
+      <DashboardStats data={data} vista={vista} simple={simple} />
 
       {!simple && (
         <div className="grid grid-cols-[1fr_300px] gap-4">
-          <Card title="Progresión del equipo · % de mejora acumulada" className="card-hover flex flex-col">
+          <Card title={vista.tituloProgresion} className="card-hover flex flex-col">
             <div className="min-h-[252px] flex-1">
               <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data.progression} margin={{ top: 20, right: 8, left: -18, bottom: 6 }}>
@@ -215,50 +195,12 @@ export function DashboardPage() {
         </Card>
       )}
 
-      <Card title={`Estado por atleta · Semana ${data.current_week ?? '—'}`} className="card-hover">
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th>Atleta</th>
-              {!simple && <th>Especialidad</th>}
-              <th>Prueba</th>
-              <th>Esperado</th><th>Real</th><th>Diferencia</th>
-              {!simple && <th>Progreso a meta</th>}
-              <th>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.statuses.map((row) => (
-              <tr key={row.event_id}>
-                <td className="font-semibold">{row.name}</td>
-                {!simple && <td className="text-text-dim">{SPECIALTY_LABEL[row.specialty] ?? row.specialty}</td>}
-                <td className="text-text-dim">{row.event_label}</td>
-                <td className="mono">{toClock(row.expected_time)}</td>
-                <td className="mono font-semibold">{toClock(row.real_time)}</td>
-                <td className="mono" style={{ color: row.diff_seconds == null ? 'var(--color-text-faint)' : row.diff_seconds <= 0 ? 'var(--color-mint)' : 'var(--color-coral)' }}>
-                  {row.diff_seconds != null ? `${signed(row.diff_seconds)}s` : '—'}
-                </td>
-                {!simple && (
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-3">
-                        <div
-                          className="h-full rounded-full transition-all duration-700"
-                          style={{
-                            width: `${Math.min(row.progress_percent, 100)}%`,
-                            background: 'linear-gradient(90deg,var(--color-accent),var(--color-cyan))',
-                          }}
-                        />
-                      </div>
-                      <span className="mono text-[10.5px] text-text-dim">{row.progress_percent.toFixed(0)}%</span>
-                    </div>
-                  </td>
-                )}
-                <td><StatusBadge status={row.status} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <Card title={vista.tituloTabla(data.current_week ?? '—')} className="card-hover">
+        <EstadoTable
+          filas={data.statuses}
+          muestraColumnaAtleta={vista.muestraColumnaAtleta}
+          simple={simple}
+        />
       </Card>
     </div>
   )

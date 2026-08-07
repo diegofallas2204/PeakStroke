@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { UserX } from 'lucide-react'
 import { api } from '../../lib/api'
 import { usePageEnter } from '../../hooks/usePageEnter'
-import { useAuthConfig, useSession } from '../../hooks/useSession'
+import { useAuthConfig, useIsCoach, useSession } from '../../hooks/useSession'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { EmptyState, Spinner } from '../../components/ui/primitives'
 import { AccountCard, DevSessionNotice } from './AccountCard'
@@ -22,7 +22,10 @@ export function ProfilePage() {
   const [passwordOpen, setPasswordOpen] = useState(false)
   const [memberOpen, setMemberOpen] = useState(false)
 
-  const isCoach = session?.role === 'coach'
+  // Del hook y no calculado aquí: el mismo `role === 'coach'` estaba escrito a
+  // mano en cuatro sitios, que es como se acaba con cuatro versiones que se
+  // parecen. `useIsOwner` vive al lado para la capa de dueño.
+  const isCoach = useIsCoach()
   const { data: members, isLoading: loadingMembers } = useQuery({
     queryKey: ['members'],
     queryFn: () => api.auth.members(),
