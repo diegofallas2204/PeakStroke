@@ -40,6 +40,18 @@ class User(Base):
     # le han comprometido la cuenta. Un entero es más barato que una lista de
     # revocación y no necesita almacenamiento aparte.
     token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Contador de rotación del refresh token, distinto del de revocación a
+    # propósito. Sube en CADA uso de `/auth/refresh` y solo lo mira el refresh,
+    # nunca el access.
+    #
+    # Separarlos es lo que hace que la rotación no eche a nadie: si el refresh
+    # subiera `token_version`, todos los access tokens vivos —el de las otras
+    # pestañas incluido— morirían en el acto y cada pestaña saldría a refrescar,
+    # invalidándose entre ellas.
+    #
+    # Un refresh que llega con un contador viejo es un **replay**: alguien está
+    # reusando un token que ya se gastó. Ver `auth/router.py::refresh`.
+    refresh_rotation: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # timezone=True desde el principio: en SQLite es cosmético, en PostgreSQL es
     # la diferencia entre timestamptz y un timestamp naive imposible de arreglar.
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

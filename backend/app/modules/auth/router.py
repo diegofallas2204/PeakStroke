@@ -7,6 +7,8 @@ qué hablar sin tocar el backend.
 """
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +30,8 @@ from .schemas import (
     MemberResponse, PasswordChange, SessionResponse, UserUpdate,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 _BAD_CREDENTIALS = HTTPException(
@@ -37,14 +41,22 @@ _BAD_CREDENTIALS = HTTPException(
 
 
 async def _issue_session(db: AsyncSession, response: Response, user: User) -> SessionResponse:
-    """Emite el par de tokens: access en el cuerpo, refresh en cookie httpOnly."""
+    """Emite el par de tokens: access en el cuerpo, refresh en cookie httpOnly.
+
+    Cada emisión gasta una rotación. El refresh que se acaba de entregar es el
+    único válido a partir de aquí; el anterior queda marcado como usado y su
+    reaparición se trata como robo.
+    """
     membership = await teams_service.get_membership(db, user.id)
     if membership is None or not membership.is_active:
         raise _BAD_CREDENTIALS
 
+    user.refresh_rotation += 1
+    await db.commit()
+
     response.set_cookie(
         key=settings.refresh_cookie_name,
-        value=create_refresh_token(user.id, user.token_version),
+        value=create_refresh_token(user.id, user.token_version, user.refresh_rotation),
         httponly=True,                       # invisible para cualquier JS de la página
         secure=settings.refresh_cookie_secure,
         samesite="lax",                      # corta el CSRF de terceros manteniendo la navegación normal
@@ -68,7 +80,25 @@ async def login(data: LoginRequest, response: Response, db: AsyncSession = Depen
 
 @router.post("/refresh", response_model=SessionResponse)
 async def refresh(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
-    """Renueva el access token y rota el refresh (cada uso emite uno nuevo)."""
+    """Renueva el par de tokens. **Un refresh solo sirve una vez.**
+
+    Rotar de verdad significa que el token entregado deja de valer en cuanto se
+    usa. Antes se emitía uno nuevo y el viejo seguía vivo hasta expirar, que es
+    reemitir, no rotar — y el docstring afirmaba lo contrario.
+
+    Lo que compra la rotación real es **detectar el robo**. Si un refresh gastado
+    reaparece solo hay dos explicaciones, y en las dos la respuesta correcta es
+    la misma:
+
+      · alguien copió la cookie y la está usando en paralelo, o
+      · alguien copió la cookie, la usó, y ahora vuelve el usuario legítimo con
+        la suya, que quedó atrás.
+
+    En ambos casos hay dos partes con el mismo token y no se puede saber cuál es
+    la buena, así que se cortan las dos: `revoke_sessions` sube la generación y
+    todo lo emitido muere. El usuario legítimo tiene que volver a entrar —
+    molesto— y el atacante se queda fuera con la contraseña que no tiene.
+    """
     cookie = request.cookies.get(settings.refresh_cookie_name)
     if not cookie:
         raise _BAD_CREDENTIALS
@@ -83,6 +113,17 @@ async def refresh(request: Request, response: Response, db: AsyncSession = Depen
     # Un refresh emitido antes del último `logout` no vuelve a la vida.
     if user.token_version != claims.token_version:
         raise _BAD_CREDENTIALS
+
+    if claims.rotation != user.refresh_rotation:
+        logger.warning(
+            "Refresh token reusado para %s (rotación %s, esperada %s): "
+            "se revocan todas las sesiones",
+            user.email, claims.rotation, user.refresh_rotation,
+        )
+        await service.revoke_sessions(db, user)
+        response.delete_cookie(settings.refresh_cookie_name, path="/api/v1/auth")
+        raise _BAD_CREDENTIALS
+
     return await _issue_session(db, response, user)
 
 
@@ -156,15 +197,30 @@ async def me(
     return await service.get_member(db, principal.user, principal.membership)
 
 
-@router.post("/me/password", status_code=204)
+@router.post("/me/password", response_model=SessionResponse)
 async def change_password(
     data: PasswordChange,
+    response: Response,
     principal: Principal = Depends(get_current_principal),
     db: AsyncSession = Depends(get_db),
 ):
+    """Cambia la contraseña **y corta todas las demás sesiones**.
+
+    Cambiar la contraseña y cerrar sesión son las dos mitades del mismo gesto:
+    "creo que me han comprometido la cuenta". Cerrar una y dejar la otra abierta
+    dejaba al atacante 30 días de refresh token después de que la víctima
+    reaccionara.
+
+    Devuelve una sesión nueva en vez de 204 para no echar de la aplicación a
+    quien acaba de hacer lo correcto: sus tokens viejos mueren con el resto, y
+    en la misma respuesta recibe los nuevos. Las otras pestañas y dispositivos
+    sí se quedan fuera, que es justo lo que se pretende.
+    """
     if not await service.authenticate(db, principal.user.email, data.current_password):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La contraseña actual no es correcta")
     await service.set_password(db, principal.user, data.new_password)
+    await service.revoke_sessions(db, principal.user)
+    return await _issue_session(db, response, principal.user)
 
 
 # --- Miembros del equipo — solo entrenadores, y solo del equipo propio ------

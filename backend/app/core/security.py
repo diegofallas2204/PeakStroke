@@ -53,14 +53,21 @@ class TokenError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class TokenClaims:
-    """Lo que un token afirma: quién es, y de qué generación de sesiones viene."""
+    """Lo que un token afirma: quién es, de qué generación, y de qué rotación.
+
+    `token_version` lo llevan los dos tipos y sube al revocar (cerrar sesión,
+    cambiar la contraseña). `rotation` solo lo lleva el refresh y sube en cada
+    uso: es lo que permite detectar que alguien está reusando un token gastado.
+    """
 
     user_id: int
     token_version: int
+    rotation: int = 0
 
 
 def _create_token(
-    subject: str, token_type: TokenType, expires: timedelta, token_version: int,
+    subject: str, token_type: TokenType, expires: timedelta,
+    token_version: int, rotation: int = 0,
 ) -> str:
     now = datetime.now(UTC)
     payload: dict[str, Any] = {
@@ -70,6 +77,8 @@ def _create_token(
         "iat": now,
         "exp": now + expires,
     }
+    if token_type == "refresh":
+        payload["rot"] = rotation
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
@@ -79,9 +88,10 @@ def create_access_token(user_id: int, token_version: int) -> str:
     )
 
 
-def create_refresh_token(user_id: int, token_version: int) -> str:
+def create_refresh_token(user_id: int, token_version: int, rotation: int) -> str:
     return _create_token(
-        str(user_id), "refresh", timedelta(days=settings.refresh_token_days), token_version,
+        str(user_id), "refresh", timedelta(days=settings.refresh_token_days),
+        token_version, rotation,
     )
 
 
@@ -109,6 +119,7 @@ def decode_token(token: str, expected_type: TokenType) -> TokenClaims:
             # Los tokens anteriores a la revocación no llevan `ver`. Se tratan
             # como generación 0, que es la que tienen las cuentas ya existentes.
             token_version=int(payload.get("ver", 0)),
+            rotation=int(payload.get("rot", 0)),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise TokenError("el token no identifica a ningún usuario") from exc

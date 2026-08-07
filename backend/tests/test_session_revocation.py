@@ -116,3 +116,88 @@ async def test_cerrar_sesion_no_afecta_a_otras_cuentas(client, world: World, aut
 
     assert (await client.get(f"{API}/auth/me", headers=_bearer(token_owner))).status_code == 401
     assert (await client.get(f"{API}/auth/me", headers=_bearer(token_sofia))).status_code == 200
+
+
+# ── Rotación real: un refresh solo sirve una vez ─────────────────────────────
+
+async def test_un_refresh_gastado_no_vuelve_a_valer(client, world: World, auth_on):
+    """**El test que cierra TODO-14.**
+
+    Antes el docstring decía "rota el refresh (cada uso emite uno nuevo)" y el
+    viejo seguía valiendo sus 30 días. Emitir uno nuevo no es rotar.
+    """
+    await _entrar(client, world.sofia_email)
+    primero = client.cookies.get(settings.refresh_cookie_name)
+
+    assert (await client.post(f"{API}/auth/refresh")).status_code == 200
+    segundo = client.cookies.get(settings.refresh_cookie_name)
+    assert segundo != primero, "la cookie no cambió: no hubo rotación"
+
+    client.cookies.set(settings.refresh_cookie_name, primero, path="/api/v1/auth")
+    assert (await client.post(f"{API}/auth/refresh")).status_code == 401
+
+
+async def test_reusar_un_refresh_gastado_corta_todas_las_sesiones(
+    client, db, world: World, auth_on,
+):
+    """Lo que compra la rotación real: **detectar el robo**.
+
+    Un refresh gastado que reaparece solo se explica de dos formas —alguien lo
+    copió, o el legítimo volvió con el suyo después de que otro lo usara— y en
+    las dos hay dos partes con el mismo token. Como no se puede saber cuál es la
+    buena, se cortan las dos.
+    """
+
+    await _entrar(client, world.sofia_email)
+    robada = client.cookies.get(settings.refresh_cookie_name)
+    await client.post(f"{API}/auth/refresh")           # el atacante la gasta
+    legitima = client.cookies.get(settings.refresh_cookie_name)
+
+    version_antes = (await db.execute(
+        select(User).where(User.email == world.sofia_email)
+    )).scalar_one().token_version
+
+    client.cookies.set(settings.refresh_cookie_name, robada, path="/api/v1/auth")
+    assert (await client.post(f"{API}/auth/refresh")).status_code == 401
+
+    sofia = (await db.execute(
+        select(User).where(User.email == world.sofia_email)
+    )).scalar_one()
+    assert sofia.token_version == version_antes + 1, "no se revocaron las sesiones"
+
+    # Y la que era buena tampoco vale ya: el corte es para las dos partes.
+    client.cookies.set(settings.refresh_cookie_name, legitima, path="/api/v1/auth")
+    assert (await client.post(f"{API}/auth/refresh")).status_code == 401
+
+
+async def test_refrescar_varias_veces_seguidas_funciona(client, world: World, auth_on):
+    """La rotación no puede convertirse en "solo puedes refrescar una vez"."""
+    await _entrar(client, world.sofia_email)
+    for _ in range(5):
+        assert (await client.post(f"{API}/auth/refresh")).status_code == 200
+
+
+async def test_cambiar_la_contrasena_corta_las_demas_sesiones(client, world: World, auth_on):
+    """**El test que cierra TODO-10.**
+
+    Cambiar la contraseña y cerrar sesión son las dos mitades del mismo gesto.
+    Antes se cerraba una y la otra quedaba abierta 30 días.
+    """
+    viejo = await _entrar(client, world.sofia_email)
+    robada = client.cookies.get(settings.refresh_cookie_name)
+
+    cambio = await client.post(
+        f"{API}/auth/me/password",
+        json={"current_password": PASSWORD, "new_password": "una-clave-nueva-larga"},
+        headers=_bearer(viejo),
+    )
+    assert cambio.status_code == 200
+
+    # Quien lo hizo no se queda fuera: recibe una sesión nueva en la respuesta.
+    nuevo = cambio.json()["access_token"]
+    assert (await client.get(f"{API}/auth/me", headers=_bearer(nuevo))).status_code == 200
+
+    # Pero lo que había antes muere, en las dos formas.
+    assert (await client.get(f"{API}/auth/me", headers=_bearer(viejo))).status_code == 401
+    client.cookies.set(settings.refresh_cookie_name, robada, path="/api/v1/auth")
+    assert (await client.post(f"{API}/auth/refresh")).status_code == 401
