@@ -5,13 +5,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.dependencies import Principal
 from app.engine import progression
 from app.engine.zones import calc_zones, zone_km_distribution
+from app.modules.plans.access import visible_to
 from app.modules.plans.models import AthleteEvent, AthletePlan, Plan
-from app.core.dependencies import Principal
-from app.modules.plans.service import (
-    current_week_of, effective_status, get_plan, visible_to,
-)
+from app.modules.plans.service import current_week_of, effective_status, get_plan
 from app.modules.swimmers.models import Swimmer
 
 from .schemas import (

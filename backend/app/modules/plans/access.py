@@ -1,0 +1,99 @@
+"""Quién puede ver qué macrociclo, y por dónde se entra a sus semanas.
+
+Este módulo es **la única puerta** a los macrociclos y a todo lo que cuelga de
+ellos. Vive separado de `service.py` a propósito: el CRUD y el motor cambian a
+menudo, las reglas de acceso casi nunca, y mezclarlos hacía que un diff de 300
+líneas de negocio pudiera esconder un cambio de una línea en quién ve qué.
+"""
+from __future__ import annotations
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core.dependencies import Principal
+from app.modules.swimmers.models import Swimmer
+
+from .models import AthleteEvent, AthletePlan, Plan, PlanCoach, WeeklyPlan
+
+_EVENT_LOAD = (
+    selectinload(AthleteEvent.weeks),
+    selectinload(AthleteEvent.athlete_plan).selectinload(AthletePlan.plan)
+    .selectinload(Plan.competitions),
+)
+
+
+def visible_to(stmt, principal: Principal):
+    """Acota una consulta de macrociclos a los que el solicitante puede ver.
+
+    Tres casos, en este orden:
+      · **Dueño del equipo** — todos los de su equipo. Sin esta excepción, los
+        macrociclos de un entrenador que se va no los podría rescatar nadie.
+      · **Entrenador** — solo aquellos en los que figura en `plan_coaches`.
+      · **Atleta** — solo aquellos en los que está inscrito.
+
+    Es la única puerta: `list_plans` y `get_plan` pasan por aquí, así que un
+    macrociclo ajeno no se cuela ni listándolo ni pidiéndolo por id.
+    """
+    stmt = stmt.where(Plan.team_id == principal.team_id)
+    if principal.sees_every_plan:
+        return stmt
+
+    if principal.is_coach:
+        suyos = select(PlanCoach.plan_id).where(PlanCoach.coach_id == principal.id)
+    else:
+        suyos = (
+            select(AthletePlan.plan_id)
+            .join(Swimmer, Swimmer.id == AthletePlan.swimmer_id)
+            .where(Swimmer.user_id == principal.id)
+        )
+    return stmt.where(Plan.id.in_(suyos))
+
+
+async def get_event(
+    db: AsyncSession, event_id: int, principal: Principal,
+) -> AthleteEvent | None:
+    """Prueba objetivo de un atleta dentro de un plan, solo si le es visible.
+
+    Es la comprobación que impide el acceso directo por id: las pruebas y las
+    semanas se piden por su propio identificador, sin mencionar el plan, así que
+    sin esto bastaría con probar números para leer los datos de otro club.
+
+    `principal` es obligatorio. Antes tenía default `None` (= sin filtrar), y un
+    default inseguro solo hace falta olvidarlo una vez para abrir un agujero.
+    Para las recargas internas, cuando el acceso YA está comprobado, está
+    `event_unscoped()`, que dice en su nombre lo que hace.
+    """
+    stmt = visible_to(
+        select(AthleteEvent).options(*_EVENT_LOAD)
+        .join(AthletePlan, AthletePlan.id == AthleteEvent.athlete_plan_id)
+        .join(Plan, Plan.id == AthletePlan.plan_id)
+        .where(AthleteEvent.id == event_id),
+        principal,
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+async def event_unscoped(db: AsyncSession, event_id: int) -> AthleteEvent | None:
+    """Recarga interna tras escribir, **cuando el acceso ya está comprobado**.
+
+    Misma convención que `service._plan_unscoped`. No la llames desde un router:
+    para eso está `get_event`.
+    """
+    stmt = select(AthleteEvent).options(*_EVENT_LOAD).where(AthleteEvent.id == event_id)
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+async def get_week(
+    db: AsyncSession, week_id: int, principal: Principal,
+) -> WeeklyPlan | None:
+    """Semana concreta, solo si su macrociclo le es visible al solicitante."""
+    stmt = visible_to(
+        select(WeeklyPlan)
+        .join(AthleteEvent, AthleteEvent.id == WeeklyPlan.athlete_event_id)
+        .join(AthletePlan, AthletePlan.id == AthleteEvent.athlete_plan_id)
+        .join(Plan, Plan.id == AthletePlan.plan_id)
+        .where(WeeklyPlan.id == week_id),
+        principal,
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()

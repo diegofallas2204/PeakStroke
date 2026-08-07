@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.dependencies import Principal, get_current_principal, require_coach
 
-from . import service
+from . import access, service
 from .schemas import (
     AddAthleteRequest, PlanCreate, PlanResponse, PlanUpdate,
     WeekResponse, WeekUpdateRequest,
@@ -109,7 +109,7 @@ async def event_weeks(
     principal: Principal = Depends(get_current_principal),
     db: AsyncSession = Depends(get_db),
 ):
-    event = await service.get_event(db, event_id, principal)
+    event = await access.get_event(db, event_id, principal)
     if event is None:
         raise HTTPException(404, "Prueba no encontrada")
     return await service.event_weeks_response(db, event)
@@ -127,5 +127,4 @@ async def update_week(
     event = await service.update_week(db, week_id, data, principal)
     if event is None:
         raise HTTPException(404, "Semana no encontrada")
-    event = await service.get_event(db, event.id)
-    return await service.event_weeks_response(db, event)  # type: ignore[arg-type]
+    return await service.event_weeks_response(db, event)

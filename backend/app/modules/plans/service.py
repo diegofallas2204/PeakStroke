@@ -1,4 +1,9 @@
-"""Lógica de negocio del módulo plans: CRUD + orquestación del motor."""
+"""Lógica de negocio del módulo plans: CRUD + orquestación del motor.
+
+Las reglas de **acceso** (quién ve qué) no viven aquí sino en `access.py`. Este
+módulo asume que el acceso ya se comprobó, salvo donde llama explícitamente a
+`access.get_week` / `access.get_event`.
+"""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -12,6 +17,7 @@ from app.engine import progression
 from app.engine.zones import calc_zones, zone_km_distribution
 from app.modules.swimmers.models import Swimmer
 
+from .access import event_unscoped, get_week, visible_to
 from .models import (
     AthleteEvent, AthletePlan, Competition, Plan, PlanCoach, PlanPhase, WeeklyPlan,
 )
@@ -84,33 +90,6 @@ async def to_plan_response(db: AsyncSession, plan: Plan) -> PlanResponse:
         athletes.append(item)
     resp.athletes = athletes
     return resp
-
-
-def visible_to(stmt, principal: Principal):
-    """Acota una consulta de macrociclos a los que el solicitante puede ver.
-
-    Tres casos, en este orden:
-      · **Dueño del equipo** — todos los de su equipo. Sin esta excepción, los
-        macrociclos de un entrenador que se va no los podría rescatar nadie.
-      · **Entrenador** — solo aquellos en los que figura en `plan_coaches`.
-      · **Atleta** — solo aquellos en los que está inscrito.
-
-    Es la única puerta: `list_plans` y `get_plan` pasan por aquí, así que un
-    macrociclo ajeno no se cuela ni listándolo ni pidiéndolo por id.
-    """
-    stmt = stmt.where(Plan.team_id == principal.team_id)
-    if principal.sees_every_plan:
-        return stmt
-
-    if principal.is_coach:
-        suyos = select(PlanCoach.plan_id).where(PlanCoach.coach_id == principal.id)
-    else:
-        suyos = (
-            select(AthletePlan.plan_id)
-            .join(Swimmer, Swimmer.id == AthletePlan.swimmer_id)
-            .where(Swimmer.user_id == principal.id)
-        )
-    return stmt.where(Plan.id.in_(suyos))
 
 
 async def list_plans(db: AsyncSession, principal: Principal) -> list[Plan]:
@@ -213,48 +192,6 @@ async def remove_athlete(db: AsyncSession, plan_id: int, athlete_plan_id: int) -
 
 
 # ── Semanas ──────────────────────────────────────────────────────────
-_EVENT_LOAD = (
-    selectinload(AthleteEvent.weeks),
-    selectinload(AthleteEvent.athlete_plan).selectinload(AthletePlan.plan)
-    .selectinload(Plan.competitions),
-)
-
-
-async def get_event(
-    db: AsyncSession, event_id: int, principal: Principal | None = None,
-) -> AthleteEvent | None:
-    """Prueba objetivo de un atleta dentro de un plan.
-
-    Con `principal`, solo la devuelve si ese macrociclo le es visible. Es la
-    comprobación que impide el acceso directo por id: las pruebas y las semanas
-    se piden por su propio identificador, sin mencionar el plan, así que sin
-    esto bastaría con probar números para leer los datos de otro club.
-    """
-    stmt = select(AthleteEvent).options(*_EVENT_LOAD).where(AthleteEvent.id == event_id)
-    if principal is not None:
-        stmt = visible_to(
-            stmt.join(AthletePlan, AthletePlan.id == AthleteEvent.athlete_plan_id)
-                .join(Plan, Plan.id == AthletePlan.plan_id),
-            principal,
-        )
-    return (await db.execute(stmt)).scalar_one_or_none()
-
-
-async def get_week(
-    db: AsyncSession, week_id: int, principal: Principal,
-) -> WeeklyPlan | None:
-    """Semana concreta, solo si su macrociclo le es visible al solicitante."""
-    stmt = visible_to(
-        select(WeeklyPlan)
-        .join(AthleteEvent, AthleteEvent.id == WeeklyPlan.athlete_event_id)
-        .join(AthletePlan, AthletePlan.id == AthleteEvent.athlete_plan_id)
-        .join(Plan, Plan.id == AthletePlan.plan_id)
-        .where(WeeklyPlan.id == week_id),
-        principal,
-    )
-    return (await db.execute(stmt)).scalar_one_or_none()
-
-
 async def event_weeks_response(db: AsyncSession, event: AthleteEvent) -> list[WeekResponse]:
     swimmer = await db.get(Swimmer, event.athlete_plan.swimmer_id)
     specialty = swimmer.specialty if swimmer else "medio_fondo"
@@ -287,6 +224,12 @@ async def event_weeks_response(db: AsyncSession, event: AthleteEvent) -> list[We
 async def update_week(
     db: AsyncSession, week_id: int, data: WeekUpdateRequest, principal: Principal,
 ) -> AthleteEvent | None:
+    """None —y el router lo traduce a 404— si esa semana no le corresponde.
+
+    `access.get_week` es la única comprobación de acceso de todo el camino: a
+    partir de ahí las recargas son `event_unscoped`, porque volver a filtrar lo
+    que ya se autorizó solo añade sitios donde equivocarse.
+    """
     week = await get_week(db, week_id, principal)
     if week is None:
         return None
@@ -299,10 +242,13 @@ async def update_week(
         week.disable_reason = data.disable_reason if data.disabled else None
     await db.commit()
 
-    event = await get_event(db, week.athlete_event_id)
-    if event is not None:
-        await _recalculate_event(db, event)
-    return event
+    event = await event_unscoped(db, week.athlete_event_id)
+    if event is None:
+        return None
+    await _recalculate_event(db, event)
+    # Segunda recarga: `_recalculate_event` reescribe `recalc_time` de todas las
+    # semanas, y la respuesta tiene que salir con esos valores ya puestos.
+    return await event_unscoped(db, event.id)
 
 
 async def _recalculate_event(db: AsyncSession, event: AthleteEvent) -> None:
