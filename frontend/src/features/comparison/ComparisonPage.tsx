@@ -3,10 +3,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { GitCompareArrows } from 'lucide-react'
-import {
-  Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer,
-  Tooltip, XAxis, YAxis,
-} from 'recharts'
 import { api } from '../../lib/api'
 import { STROKE_LABEL } from '../../lib/constants'
 import { toClock, signed } from '../../lib/format'
@@ -16,7 +12,7 @@ import { PageHeader } from '../../components/layout/PageHeader'
 import { Card, EmptyState, Spinner, StatusBadge } from '../../components/ui/primitives'
 import { EventPicker, type EventSelection } from '../../components/ui/EventPicker'
 import { ProgressionChart } from '../../components/charts/ProgressionChart'
-import { ChartTooltip } from '../../components/charts/chartTheme'
+import { DeviationTable } from './DeviationTable'
 
 export function ComparisonPage() {
   const [selection, setSelection] = useState<EventSelection | null>(null)
@@ -116,24 +112,7 @@ export function ComparisonPage() {
             />
           </Card>
 
-          {stats.withReal.length > 0 && (
-            <Card title="Desviación semanal (segundos vs. plan)" className="card-hover">
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={stats.withReal} margin={{ top: 6, right: 8, left: -16, bottom: 0 }}>
-                  <CartesianGrid stroke="rgba(148,163,224,.06)" vertical={false} />
-                  <XAxis dataKey="date_label" tick={{ fill: '#8b93b8', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fill: '#8b93b8', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v}s`} />
-                  <Tooltip content={<ChartTooltip formatter={(v: number) => `${signed(v)}s`} />} cursor={{ fill: 'rgba(148,163,224,.04)' }} />
-                  <ReferenceLine y={0} stroke="rgba(148,163,224,.25)" />
-                  <Bar dataKey="diff_seconds" name="Desviación" radius={[5, 5, 5, 5]} maxBarSize={26}>
-                    {stats.withReal.map((w) => (
-                      <Cell key={w.id} fill={(w.diff_seconds ?? 0) <= 0 ? '#34d399' : '#fb7185'} fillOpacity={0.85} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-          )}
+          {stats.withReal.length > 0 && <DeviationTable weeks={stats.withReal} />}
         </>
       )}
     </div>
