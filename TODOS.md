@@ -14,6 +14,20 @@ Prioridad: P1 = bloquea trabajo en curso · P2 = debería caer pronto · P3 = de
 > hallazgo de la escritura ajena.
 > **TODO-2 sigue abierto y ahora tiene harness**: ver TODO-2 más abajo.
 >
+> **Cerrado el 2026-08-09**: ~~TODO-4~~ — `SimulatorPage.tsx` bajó de 458 a 100
+> líneas; ver abajo. En la misma pasada se borró `components/ui/ZoneTag.tsx`, que
+> no importaba nadie.
+>
+> **Abierto el 2026-08-09**: TODO-16 — cuatro archivos pasan de 300 líneas; dos
+> de ellos crecieron con el código de vinculación. Ver abajo.
+>
+> **Abierto el 2026-08-10** (sesión de salida del test + alta por correo, **307
+> tests en verde**): TODO-17 y TODO-18, los dos aplazados a sabiendas por la
+> auditoría de seguridad de esa sesión. El hallazgo grave de esa auditoría —una
+> pertenencia revocada podía iniciar sesión como cuenta del pool— se introdujo y
+> se cerró dentro de la misma sesión, con `tests/test_cuenta_sin_equipo.py`
+> fijándolo; no llegó a ninguna rama compartida.
+>
 > **Frontend cerrado el 2026-08-07**: conmutador de identidad y modo
 > desarrollador en Ajustes, navegación filtrada por rol con guardas de ruta,
 > versión de atleta de las 4 páginas y estados vacíos por rol (T12–T18 del plan).
@@ -145,6 +159,76 @@ Ver la nota del principio del archivo.
 ---
 
 
+## TODO-16 — Cuatro archivos pasan del límite de ~300 líneas (P3)
+
+**Qué:** partir los que se han quedado grandes.
+
+| archivo | líneas | nota |
+|---|---:|---|
+| `backend/app/domain/engine.py` | 714 | **Excepción legítima**: port verbatim del sandbox, fuente de verdad. No tocar |
+| `backend/app/core/dependencies.py` | 386 | Ya estaba en 366; el 2026-08-09 subió al separar `get_current_user` de `get_current_principal` |
+| `backend/app/modules/plans/service.py` | 333 | Preexistente. Las reglas ya salieron a `access.py` y `enrollment.py`; queda CRUD + motor |
+| `frontend/src/lib/types.ts` | 346 | Ya estaba en 317; subió con `LinkCode` y `AssignableAthlete` |
+
+**Por qué:** ninguno es una violación nueva, pero dos empeoraron en la misma
+sesión y el límite existe para que eso no pase inadvertido.
+
+**Por dónde empezar:** `types.ts` es el más fácil y el menos arriesgado —
+partirlo por dominio (`types/identity.ts`, `types/plans.ts`, `types/engine.ts`)
+con un barrel que reexporte, para no tocar 40 imports. `dependencies.py` podría
+separar el `Principal` de las dependencias de FastAPI, pero es el archivo del que
+cuelga todo el aislamiento: **cualquier corte ahí se propone antes de aplicarse**.
+
+**Esfuerzo:** S (`types.ts`) · M (los otros dos). **Depende de:** nada.
+
+---
+
+## TODO-17 — La invitación no debería crear la cuenta (P2)
+
+**Qué:** `POST /link-codes/invite` crea la cuenta si el correo no existe y le
+devuelve la contraseña temporal al entrenador. Cuando exista registro público,
+debería limitarse a dejar la invitación esperando a que esa persona se registre.
+
+**Por qué:** hoy un entrenador puede ocupar cualquier correo que no controle y
+además conoce su contraseña. **No es una regresión** —`POST /auth/members` tiene
+la misma propiedad desde siempre— pero el alta por correo la hace mucho más
+fácil de ejercer, y con registro público pasa de incómoda a explotable: quien
+llegue después encuentra su correo tomado.
+
+**Contexto:** hallazgo #3 de la auditoría del 2026-08-10
+(`.gstack/security-reports/2026-08-11-040500.json`). Se aceptó a sabiendas
+porque hoy no hay registro público: el entrenador es la única forma de entrar.
+
+**Por dónde empezar:** separar `invite` en dos caminos según exista la cuenta.
+El de "no existe" solo escribe el `LinkCode` con `invited_email`; `GET
+/link-codes/mine` ya busca por correo, así que la invitación aparece sola en
+cuanto esa persona se registre. La ficha sí se puede crear desde el principio.
+
+**Esfuerzo:** S. **Depende de:** que exista registro público. **Bloquea:** abrir
+el registro.
+
+---
+
+## TODO-18 — Sin límite de intentos en el canje de códigos (P3)
+
+**Qué:** `POST /link-codes/redeem` acepta intentos ilimitados.
+
+**Por qué:** hoy es teórico —30^8 ≈ 6,5e11 combinaciones con TTL de 72 h, y desde
+el 2026-08-10 un código dirigido exige además coincidir con el correo invitado—
+pero la cuenta de "impracticable" se hace con la app en localhost. Con el login
+encendido y la app en internet, la ausencia de límite es lo primero que se prueba.
+
+**Contexto:** hallazgo #4 de la misma auditoría. Los códigos **sin** destinatario
+(`POST /link-codes/`, el que se dicta al borde de la piscina) son los expuestos:
+valen para quien los tenga.
+
+**Por dónde empezar:** límite por IP y por cuenta sobre el endpoint de canje.
+Antes de encender `PEAKSTROKE_AUTH_ENABLED=true` en algo que mire a internet.
+
+**Esfuerzo:** S. **Depende de:** nada. **Bloquea:** exponer la app.
+
+---
+
 ## TODO-3 — `useSelectedPlan` aislado por usuario (P2)
 
 **Qué:** el macrociclo seleccionado vive hoy en un `localStorage` global
@@ -171,18 +255,30 @@ identidad en desarrollo**, pero NO la de dos cuentas reales compartiendo navegad
 
 ---
 
-## TODO-4 — `SimulatorPage.tsx` excede el límite de tamaño (P3)
+## ~~TODO-4 — `SimulatorPage.tsx` excede el límite de tamaño~~ — CERRADO 2026-08-09
 
-**Qué:** 458 líneas contra la regla de "ningún archivo supera ~300 líneas" del `CLAUDE.md`.
+458 → **100 líneas**. La página quedó como pura orquestación; cada bloque de resultado
+vive en su propio archivo, ninguno pasa de 101 líneas:
 
-**Por qué:** es la regla de organización que el propio proyecto declara no negociable, y
-ahora mismo se incumple en silencio. `DashboardPage.tsx` (255) y `WeeklyPlanPage.tsx` (214)
-la cruzarán si se les añaden ramas por rol sin extraer subcomponentes.
+| archivo | qué es |
+|---|---|
+| `SimParams.tsx` | la fila de parámetros y las dos reglas de autocorrección |
+| `SimFeasibility.tsx` | veredicto de factibilidad del macro |
+| `SimSeason.tsx` | proyección anual (3 macrociclos) |
+| `SimCurveChart.tsx` | la gráfica **y** el armado de `chartData` (macro + extensión) |
+| `SimPlanTable.tsx` | la tabla semana a semana, compartida por plan y extensión |
+| `SimExtension.tsx` | aviso de semanas extra + tabla de extensión |
+| `simDefaults.ts` | forma y valores iniciales de los parámetros |
 
-**Contexto:** pre-existente, no lo causa ningún plan en curso. Detectado en la revisión del
-2026-08-06.
+Dos notas para quien lo retome:
 
-**Por dónde empezar:** el candidato obvio a extraer es `renderWeekTick` y la configuración
-de gráficas; `SimZones.tsx` ya demuestra que el patrón de extracción funciona aquí.
+- `renderWeekTick` **ya estaba extraído** desde antes (`components/charts/weekAxisTick.tsx`).
+  La pista que daba este TODO estaba obsoleta; el bulto real era el JSX de las tarjetas.
+- `simDefaults.ts` existe por la regla de fast refresh de ESLint: un archivo de componentes
+  no puede exportar además constantes. No lo fusiones de vuelta en `SimParams.tsx`.
 
-**Esfuerzo:** S (humano) → S (con CC). **Depende de:** nada.
+**Verificado** con `tsc -b` limpio, `npm run build` en verde y el simulador en el navegador:
+el texto renderizado es **byte a byte idéntico** al de antes (6045 chars, mismo hash) con los
+parámetros por defecto, y se ejercitaron a mano las ramas alternativas — autocorrección de
+estilo/especialidad al pasar a 400m (Tier 1), curva sigmoidal con la científica de
+referencia, meta dentro del techo (sin extensión) y modo simple.

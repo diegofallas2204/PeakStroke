@@ -24,9 +24,16 @@ from pathlib import Path
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, engine, Base
+# Poblar `Base.metadata` con TODOS los modelos, no solo los que este archivo
+# importa de rebote. `reset_schema` usa `drop_all`, que solo conoce el metadata:
+# sin esto, una tabla de un módulo que el seed no toca —`link_codes` fue la
+# primera— sobrevive al borrado y luego Alembic revienta al intentar crearla.
+import app.core.model_registry  # noqa: F401
 from app.core.dependencies import Principal
 from app.modules.aerobic_tests.schemas import AerobicTestCreate
 from app.modules.aerobic_tests.service import create_test
+from app.core.security import hash_password
+from app.modules.auth.models import User
 from app.modules.auth.schemas import UserCreate
 from app.modules.auth.service import create_user
 from app.modules.plans.schemas import (
@@ -96,6 +103,13 @@ DEV_ACCOUNTS = [
     ("debaja@peakstroke.dev", "Atleta Dado de Baja", "athlete"),
 ]
 
+# Cuenta del **pool global**: existe en el sistema y no pertenece a ningún club.
+# Va aparte de `DEV_ACCOUNTS` porque `create_user` crea la pertenencia junto a la
+# cuenta, y aquí el punto es justo que no la haya. Es lo que ve alguien recién
+# registrado —o recién invitado— antes de canjear su código: solo su perfil, con
+# la solicitud de ingreso esperando.
+POOL_ACCOUNT = ("sinequipo@peakstroke.dev", "Atleta Sin Equipo")
+
 # Dos nadadores más que los que entran al macrociclo: EVENTS cubre los índices
 # 0-7, así que estos dos se quedan fuera a propósito para ligarlos a `sinplan@`
 # y a `debaja@`.
@@ -110,6 +124,7 @@ _NOTAS = {
     "sinficha@peakstroke.dev": "    (atleta sin ficha de nadador)",
     "sinplan@peakstroke.dev": "     (atleta sin macrociclo)",
     "debaja@peakstroke.dev": "      (ficha de nadador dada de baja)",
+    "sinequipo@peakstroke.dev": "   (cuenta del pool: sin club todavía)",
 }
 
 
@@ -157,6 +172,14 @@ async def seed() -> None:
         # El entrenador es el dueño del equipo (ve todos los macrociclos).
         coach = accounts[DEV_ACCOUNTS[0][0]]
         team.owner_id = coach.id
+
+        # La cuenta del pool, a mano y sin pertenencia: `create_user` siempre la
+        # crea, y aquí lo que se quiere probar es la aplicación sin ella.
+        pool_email, pool_name = POOL_ACCOUNT
+        db.add(User(
+            email=pool_email, name=pool_name,
+            password_hash=hash_password(DEV_PASSWORD),
+        ))
         await db.commit()
 
         swimmers = []
@@ -277,9 +300,10 @@ async def seed() -> None:
 
     print("Base de datos sembrada:")
     print(f"  - Equipo '{TEAM_NAME}' (dueño: {DEV_ACCOUNTS[0][0]})")
-    print(f"  - {len(DEV_ACCOUNTS)} cuentas (contraseña: {DEV_PASSWORD})")
+    print(f"  - {len(DEV_ACCOUNTS) + 1} cuentas (contraseña: {DEV_PASSWORD})")
     for email, _, role in DEV_ACCOUNTS:
         print(f"      {role:<8} {email}{_NOTAS.get(email, '')}")
+    print(f"      {'—':<8} {POOL_ACCOUNT[0]}{_NOTAS.get(POOL_ACCOUNT[0], '')}")
     print(f"  - {len(SWIMMERS) + len(SWIMMERS_EXTRA)} atletas ({len(SWIMMERS)} en el macrociclo, 1 de baja)")
     print("  - Macrociclo 'Temporada Nacional 2026' (12 semanas, semana actual: 7)")
     print("  - Tiempos reales semanas 1-6 + 12 tests aeróbicos")

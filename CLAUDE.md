@@ -50,6 +50,20 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
   estilo, × factor piscina), calibradas con el pool nacional. Fuente de verdad:
   `backend/app/domain/engine.py` (`ZONE_OVER_RACE`); `engine/zones.py` lo adapta a
   la forma {min,mid,max} que consume el frontend
+- **Una prescripción son DOS números: el ritmo y la salida.** `calc_zones`
+  devuelve además `send_off` y `rest` por zona (`engine/send_off.py`), así que la
+  mitad que faltaba llega sola a la tabla del equipo y al plan semanal. El
+  descanso es un ratio sobre el trabajo que crece con la intensidad (R1 0.08 →
+  V 3.50, con topes en segundos), y la salida se redondea **hacia arriba** al
+  múltiplo de 5 s del reloj de pared: hacia abajo recortaría el descanso, que es
+  como una zona se convierte en otra
+- **Un test aeróbico se nada sobre un intervalo.** `aerobic_tests.send_off` y
+  `aerobic_test_splits.send_off_time` lo guardan; `input_mode` dice si los
+  números que apuntó el entrenador son tiempos nadados (`rep`) o llegadas
+  acumuladas del reloj (`clock`). **En la base de datos siempre se guarda el
+  tiempo NADADO**: la conversión la hace `create_test` una vez, al escribir. Sin
+  esto, un entrenador que apuntara lo que el reloj marcaba —lo normal— producía
+  una base aeróbica acumulada, y con ella zonas y predicción
 - Jerarquía de zonas (lento -> rápido): R1 > R2 > MVO2 > RL > V
 - Pruebas >= 400m = Tier 1 (regla aeróbica); < 400m = Tier 2 (ventanas de velocidad)
 - Eje X de los gráficos: fecha real DD/MM **y** número de semana `S#` (tick de dos
@@ -128,6 +142,38 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   tercer rol. El dueño es único y transferible (`POST /teams/mine/transfer`)
 - El **atleta es del equipo**, no de un entrenador: `coach_athletes` (M:N) dice
   quién lo lleva; `plan_coaches` (M:N), qué entrenadores llevan cada macrociclo
+- **Ficha (`Swimmer`) y cuenta (`User`) son la misma persona.** Lo único que las
+  separa es si alguien canjeó ya el código. El vínculo lo crea
+  `modules/link_codes/`: lo emite el entrenador sobre una ficha suya y lo canjea
+  la persona desde su perfil — caduca a las 72 h, sirve una vez y emitir uno
+  nuevo revoca el anterior. **Ningún endpoint liga las dos por sí solo**; el
+  desplegable de `MemberCreate.swimmer_id` se retiró el 2026-08-09
+- **Un atleta se da de alta por su correo, en un gesto** (2026-08-10):
+  `POST /link-codes/invite` crea la ficha, la cuenta si no la tenía, y el código
+  dirigido a ese correo. Reinvitar al mismo correo reutiliza la ficha pendiente y
+  reemite. `MemberCreate` quedó para **entrenadores**: son los únicos sin ficha
+  deportiva, así que su alta sí es otro gesto. Dos formularios para atleta —uno
+  que creaba media persona y otro la otra mitad— es lo que había antes
+- **La cuenta sin equipo es un estado legítimo**, no un error: existe en el
+  sistema y no pertenece a ningún club. Es el pool global. Entra, ve su perfil y
+  sus solicitudes de ingreso, y nada más; `Principal` sigue devolviendo 403 en
+  todo lo demás. `role` y `team_id` viajan a `None` juntos
+- **Revocado ≠ sin equipo.** `get_membership` filtra `is_active` y devuelve
+  `None` en los dos casos, así que quien decida sobre el login o sobre `/auth/me`
+  **tiene que pedir `include_inactive=True`** para separarlos. Confundirlos deja
+  entrar a quien acabas de echar, ahora como cuenta del pool, y desde ahí puede
+  canjear un código para volver a un club
+- `get_current_user` en vez de `get_current_principal` solo en **tres**
+  endpoints, y los tres por la misma razón (quien llama puede no ser de ningún
+  equipo todavía): `POST /link-codes/redeem`, `GET /link-codes/mine` y
+  `GET /auth/me`. Cualquier otro uso de esa dependencia es un error — sin
+  `Principal` no hay `team_id` que aplicar
+- **Un atleta, un macrociclo vivo** (`plans/enrollment.py`). Es una regla de
+  dominio, no de permisos: dos macros a la vez son dos planes contradictorios
+  para las mismas fechas, así que bloquea **a todos, dueño incluido**. De ahí
+  sale, de rebote, que un atleta ya inscrito no le aparezca a otro entrenador
+  para meterlo en uno nuevo. `GET /plans/{id}/assignable-athletes` enseña la
+  regla por adelantado; el POST y el `restore` la imponen
 - **`plan_coaches` decide visibilidad**: un entrenador que no esté en la lista no
   ve ni edita ese macrociclo. **Excepción: el dueño**, que llega a todos — sin eso
   los planes de un entrenador que se va quedarían huérfanos
@@ -158,6 +204,10 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   importe hace reventar cualquier FK que lo apunte con `NoReferencedTableError`
   al primer INSERT, aunque la tabla exista en la DB. Antes lo cubría de rebote el
   `create_all()` de `init_db()`
+- El registry también lo importa **`seed.py`**, y no es decorativo: `reset_schema`
+  usa `drop_all`, que solo conoce el metadata. Sin el import, la tabla de un
+  módulo que el seed no toca sobrevive al borrado y `alembic upgrade` revienta
+  con "table already exists" (le pasó a `link_codes` el 2026-08-10)
 - Toda tabla o columna nueva requiere su migración; `--autogenerate` compara contra
   los modelos importados en `alembic/env.py` (si no está importado ahí, es invisible)
 - `render_as_batch=True` para SQLite (no sabe hacer `ALTER COLUMN`)
