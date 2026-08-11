@@ -36,6 +36,17 @@ class AerobicTest(Base):
     test_date: Mapped[date] = mapped_column(Date)
     rep_count: Mapped[int | None] = mapped_column(Integer)
     rep_distance: Mapped[int | None] = mapped_column(Integer)
+    # Intervalo de salida del test, en segundos. Sin él solo se sabe a qué ritmo
+    # nadó el atleta, no cada cuánto salía — y esa es la mitad que define el
+    # estímulo. Nullable porque los tests anteriores al 2026-08-10 no lo tienen.
+    send_off: Mapped[float | None] = mapped_column(Float)
+    # Cómo hay que leer los números que apuntó el entrenador: `rep` = tiempo
+    # nadado, `clock` = llegada acumulada en el reloj de pared. Se guarda porque
+    # es el dato que hace reproducible el análisis: con las llegadas y sin el
+    # modo, los mismos números significan dos cosas distintas.
+    input_mode: Mapped[str] = mapped_column(
+        String(8), default="rep", server_default="rep",
+    )
     avg_per100: Mapped[float] = mapped_column(Float)            # base aeróbica s/100m
     std_dev: Mapped[float | None] = mapped_column(Float)
     trend: Mapped[str | None] = mapped_column(String(12))       # improving|stable|declining
@@ -65,5 +76,18 @@ class AerobicSplit(Base):
     )
     rep_number: Mapped[int] = mapped_column(Integer)
     split_time: Mapped[float] = mapped_column(Float)            # tiempo de la repetición
+    # Segundo en que ARRANCA la repetición, contado desde el inicio del test.
+    # `split_time` siempre fue el tiempo nadado; lo que faltaba era desde cuándo.
+    # Con los dos, la llegada es la suma y el descanso hasta la siguiente sale
+    # solo — que es lo que el entrenador necesita para prescribir. Nullable: los
+    # tests guardados sin intervalo de salida no lo pueden saber a posteriori.
+    send_off_time: Mapped[float | None] = mapped_column(Float)
 
     test: Mapped[AerobicTest] = relationship(back_populates="splits")
+
+    @property
+    def arrival_time(self) -> float | None:
+        """Lo que marcaba el reloj de pared al tocar la pared."""
+        if self.send_off_time is None:
+            return None
+        return round(self.send_off_time + self.split_time, 2)

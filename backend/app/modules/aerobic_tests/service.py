@@ -23,9 +23,28 @@ from .schemas import AerobicTestCreate, AerobicTestResponse
 
 def to_response(test: AerobicTest) -> AerobicTestResponse:
     resp = AerobicTestResponse.model_validate(test)
-    if test.splits and test.rep_distance:
-        factor = test.rep_distance / 100.0
-        resp.per100_splits = [round(s.split_time / factor, 2) for s in test.splits]
+    if not (test.splits and test.rep_distance):
+        return resp
+
+    factor = test.rep_distance / 100.0
+    resp.per100_splits = [round(s.split_time / factor, 2) for s in test.splits]
+    if test.send_off is None:
+        return resp
+
+    # Los parciales guardados son SIEMPRE tiempos nadados: la conversión desde
+    # las llegadas de reloj la hizo `create_test` una sola vez, al escribir.
+    # Reanalizar en modo `rep` aquí es correcto y evita que el modo de ingreso
+    # tenga que sobrevivir intacto en la base de datos para que la lectura salga
+    # bien — se guarda por trazabilidad, no porque el cálculo dependa de él.
+    a = analyze_splits(
+        [s.split_time for s in test.splits], test.rep_distance,
+        send_off=test.send_off,
+    )
+    resp.rest_per_rep = a.rest_per_rep
+    resp.avg_rest = a.avg_rest
+    resp.work_rest_ratio = a.work_rest_ratio
+    resp.density = a.density
+    resp.missed_intervals = a.missed_intervals
     return resp
 
 
@@ -110,6 +129,7 @@ async def create_test(
     test = AerobicTest(
         team_id=principal.team_id, swimmer_id=data.swimmer_id, plan_id=data.plan_id,
         test_type=data.test_type, test_date=data.test_date, notes=data.notes,
+        input_mode=data.input_mode,
     )
     if data.test_type == "DIRECT":
         if data.direct_per100 is None:
@@ -125,14 +145,26 @@ async def create_test(
         if not data.splits:
             raise ValueError("Se requieren los parciales del test")
         rep_distance = 100 if data.test_type in ("T30", "T15") else data.rep_distance
-        analysis = analyze_splits(data.splits, rep_distance)
+        analysis = analyze_splits(
+            data.splits, rep_distance,
+            send_off=data.send_off, input_mode=data.input_mode,
+        )
         test.rep_count = len(data.splits)
         test.rep_distance = rep_distance
+        test.send_off = data.send_off
         test.avg_per100 = analysis.avg_per100
         test.std_dev = analysis.std_dev
         test.trend = analysis.trend
-        for i, split in enumerate(data.splits):
-            test.splits.append(AerobicSplit(rep_number=i + 1, split_time=split))
+        # Se guarda el tiempo NADADO, venga como venga en la petición. Las
+        # llegadas de reloj son una comodidad del formulario, no un formato de
+        # almacenamiento: dejarlas crudas obligaría a cada lectura a saber en qué
+        # modo se escribió, y basta que una se olvide para que la base aeróbica
+        # de ese test salga con el doble de segundos.
+        for i, nadado in enumerate(analysis.rep_times):
+            test.splits.append(AerobicSplit(
+                rep_number=i + 1, split_time=nadado,
+                send_off_time=analysis.departures[i] if analysis.departures else None,
+            ))
     db.add(test)
     await db.commit()
     return await get_test(db, test.id, principal)
