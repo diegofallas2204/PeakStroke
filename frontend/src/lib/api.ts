@@ -1,8 +1,10 @@
 // Cliente HTTP tipado contra /api/v1 (proxy de Vite hacia FastAPI).
 import { getDevBypass, getDevIdentity } from '../hooks/useDevIdentity'
 import type {
-  AerobicPreview, AerobicTest, AuthConfig, DashboardSummary, DevIdentity, Member,
-  MemberCreated, Plan, SeasonResult, SimulationResult, Swimmer, Team, TeamWeek, Week,
+  AerobicPreview, AerobicTest, AssignableAthlete, AuthConfig, DashboardSummary,
+  DevIdentity, InputMode, InviteResult, JoinRequest, LinkCode, Member,
+  MemberCreated, Plan, SeasonResult, SimulationResult, Swimmer, Team, TeamWeek,
+  TrainingIntervals, Week,
 } from './types'
 
 const BASE = '/api/v1'
@@ -101,12 +103,32 @@ export const api = {
     deactivate: (id: number) => request<Swimmer>(`/swimmers/${id}`, { method: 'DELETE' }),
     reactivate: (id: number) => post<Swimmer>(`/swimmers/${id}/reactivate`, {}),
   },
+  // Ligar una cuenta a una ficha. Lo emite el entrenador, lo canjea la persona:
+  // hasta que no ocurren las dos cosas no hay relación.
+  linkCodes: {
+    list: () => get<LinkCode[]>('/link-codes/'),
+    issue: (swimmerId: number) => post<LinkCode>('/link-codes/', { swimmer_id: swimmerId }),
+    /** Alta de un atleta al equipo por su correo: ficha + cuenta + código. */
+    invite: (data: unknown) => post<InviteResult>('/link-codes/invite', data),
+    /** Mis solicitudes de ingreso pendientes. Nunca traen el código. */
+    mine: () => get<JoinRequest[]>('/link-codes/mine'),
+    revoke: (id: number) => del(`/link-codes/${id}`),
+    redeem: (code: string) =>
+      post<{ swimmer_id: number; swimmer_name: string; team_id: number; team_name: string }>(
+        '/link-codes/redeem', { code },
+      ),
+  },
   plans: {
     list: () => get<Plan[]>('/plans/'),
     getOne: (id: number) => get<Plan>(`/plans/${id}`),
     create: (data: unknown) => post<Plan>('/plans/', data),
     update: (id: number, data: unknown) => patch<Plan>(`/plans/${id}`, data),
     remove: (id: number) => del(`/plans/${id}`),
+    // Los que HOY pueden entrar en ese macrociclo: ni los que ya están dentro
+    // ni los comprometidos con otro que sigue vivo. El POST aplica la misma
+    // regla, así que la lista no es una restricción de la interfaz.
+    assignableAthletes: (planId: number) =>
+      get<AssignableAthlete[]>(`/plans/${planId}/assignable-athletes`),
     addAthlete: (planId: number, data: unknown) => post<Plan>(`/plans/${planId}/athletes`, data),
     removeAthlete: (planId: number, athletePlanId: number) =>
       del(`/plans/${planId}/athletes/${athletePlanId}`),
@@ -117,9 +139,20 @@ export const api = {
     list: (swimmerId?: number) =>
       get<AerobicTest[]>(`/aerobic-tests/${swimmerId ? `?swimmer_id=${swimmerId}` : ''}`),
     create: (data: unknown) => post<AerobicTest>('/aerobic-tests/', data),
-    analyze: (splits: number[], repDistance: number) =>
-      post<AerobicPreview>('/aerobic-tests/analyze', { splits, rep_distance: repDistance }),
+    analyze: (
+      splits: number[], repDistance: number,
+      sendOff?: number | null, inputMode: InputMode = 'rep',
+    ) =>
+      post<AerobicPreview>('/aerobic-tests/analyze', {
+        splits, rep_distance: repDistance,
+        send_off: sendOff ?? null, input_mode: inputMode,
+      }),
     previous: (testId: number) => get<AerobicTest | null>(`/aerobic-tests/${testId}/previous`),
+    /** Ritmo + salida por zona para repeticiones de `repDistance` metros. */
+    trainingIntervals: (testId: number, repDistance = 100) =>
+      get<TrainingIntervals>(
+        `/aerobic-tests/${testId}/training-intervals?rep_distance=${repDistance}`,
+      ),
     remove: (id: number) => del(`/aerobic-tests/${id}`),
   },
   dashboard: {

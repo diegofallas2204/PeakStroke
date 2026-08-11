@@ -56,7 +56,7 @@ export function MembersCard({
       title="Miembros del equipo"
       action={
         <button className="btn btn-primary !py-1.5 !text-[12.5px]" onClick={onInvite}>
-          <Plus size={13.5} /> Dar acceso
+          <Plus size={13.5} /> Agregar entrenador
         </button>
       }
     >

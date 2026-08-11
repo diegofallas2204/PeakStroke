@@ -43,16 +43,23 @@ export const NAV_ITEMS: NavItem[] = [
 // secciones. Pero la barra superior de móvil sí necesita saber rotularlo.
 export const PROFILE_ITEM: NavItem = nav('/perfil', 'Perfil', UserRound)
 
-/** Si ese rol ve esa sección. Sin rol resuelto todavía, nadie ve nada. */
-export function puedeVer(item: NavItem, role: string | undefined): boolean {
-  if (role === undefined) return false
+/**
+ * Si ese rol ve esa sección.
+ *
+ * `undefined` (la sesión no cargó) y `null` (la cuenta no está en ningún club)
+ * no ven nada, por razones distintas: el primero porque todavía no se sabe, el
+ * segundo porque no hay equipo cuyos datos enseñar. La única pantalla del
+ * segundo es Perfil, que no está en esta lista — vive en el pie del rail.
+ */
+export function puedeVer(item: NavItem, role: string | null | undefined): boolean {
+  if (role == null) return false
   if (!item.roles) return true
   return item.roles.includes(role as Role)
 }
 
 /** Las secciones del menú para ese rol. Vacío mientras la sesión carga. */
-export function navItemsFor(role: string | undefined): NavItem[] {
-  if (role === undefined) return []
+export function navItemsFor(role: string | null | undefined): NavItem[] {
+  if (role == null) return []
   return NAV_ITEMS.filter((i) => puedeVer(i, role))
 }
 

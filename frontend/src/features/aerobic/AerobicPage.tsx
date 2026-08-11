@@ -12,6 +12,7 @@ import { PageHeader } from '../../components/layout/PageHeader'
 import { Card, EmptyState, Spinner } from '../../components/ui/primitives'
 import { TestForm } from './TestForm'
 import { SplitsChart } from './SplitsChart'
+import { TrainingIntervalsCard } from './TrainingIntervalsCard'
 
 const TREND_META = {
   improving: { label: 'En mejora', color: '#34d399', icon: TrendingDown },
@@ -180,6 +181,21 @@ function TestDetail({ test, previous }: { test: AerobicTest; previous: AerobicTe
             {test.std_dev != null ? (test.std_dev < 1 ? 'Muy consistente' : test.std_dev < 2 ? 'Consistente' : 'Variable') : 'Sin parciales'}
           </p>
         </Card>
+        {/* La salida ocupa el sitio de la tendencia cuando el test la registró:
+            es el dato nuevo y el que gobierna la prescripción. La tendencia baja
+            a la gráfica de parciales, donde ya se ve dibujada. */}
+        {test.send_off != null ? (
+          <Card className="card-hover">
+            <p className="card-title">Salida · descanso</p>
+            <p className="display mt-1.5 text-[26px] font-bold text-mint">
+              {toClock(test.send_off, 0)}
+            </p>
+            <p className="text-[10.5px] text-text-faint">
+              {test.avg_rest != null && <>{test.avg_rest.toFixed(1)}s de descanso medio</>}
+              {test.density != null && <> · {(test.density * 100).toFixed(0)}% de densidad</>}
+            </p>
+          </Card>
+        ) : (
         <Card className="card-hover">
           <p className="card-title">Tendencia del test</p>
           {trend ? (
@@ -198,7 +214,24 @@ function TestDetail({ test, previous }: { test: AerobicTest; previous: AerobicTe
             <p className="display mt-1.5 text-[26px] font-bold text-text-faint">—</p>
           )}
         </Card>
+        )}
       </div>
+
+      {/* La tendencia se pierde de las tarjetas cuando la salida ocupa su sitio;
+          aquí sigue disponible y además dibujada. */}
+      {test.send_off != null && trend && (
+        <p className="-mt-1 flex items-center gap-1.5 text-[11px]" style={{ color: trend.color }}>
+          <trend.icon size={12} /> {trend.label} a lo largo de las repeticiones
+          {test.missed_intervals.length > 0 && (
+            <span className="text-amber">
+              · no llegó a la salida en {test.missed_intervals.length}{' '}
+              {test.missed_intervals.length === 1 ? 'repetición' : 'repeticiones'}
+            </span>
+          )}
+        </p>
+      )}
+
+      <TrainingIntervalsCard testId={test.id} />
 
       {test.per100_splits.length > 0 ? (
         <Card

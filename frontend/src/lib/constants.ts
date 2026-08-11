@@ -116,7 +116,15 @@ export const ROLE_META: Record<string, { label: string; color: string }> = {
 // De cara al usuario eso se llama entrenador en jefe.
 export const HEAD_COACH = { label: 'Entrenador en jefe', color: '#fbbf24' }
 
-export function roleMeta(role: string, isOwner = false) {
+// Cuenta que existe en el sistema y todavía no está en ningún club. No es un
+// rol: es la ausencia de uno, y por eso no vive en ROLE_META.
+export const NO_TEAM = { label: 'Sin equipo', color: '#8b93b8' }
+
+export function roleMeta(role: string | null | undefined, isOwner = false) {
+  // `null` (sin club) y `undefined` (la sesión aún no cargó) se pintan igual a
+  // propósito: en los dos casos lo honesto es no afirmar un rol. La diferencia
+  // la usan la navegación y las rutas, no la etiqueta.
+  if (!role) return NO_TEAM
   if (isOwner && role === 'coach') return HEAD_COACH
   return ROLE_META[role] ?? ROLE_META.athlete
 }

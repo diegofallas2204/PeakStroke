@@ -21,6 +21,14 @@ export function RutaPorRol({ children }: { children: React.ReactNode }) {
   // mandaría al usuario al dashboard un instante antes de saber quién es.
   if (role === undefined) return <Spinner />
 
+  // `null` es "ya se sabe, y no está en ningún club". Su única pantalla es el
+  // perfil, donde están sus solicitudes de ingreso. Mandarlo al dashboard como
+  // al resto lo dejaría rebotando entre dos pantallas que no puede ver: el
+  // dashboard también es de equipo.
+  if (role === null) {
+    return pathname === '/perfil' ? <>{children}</> : <Navigate to="/perfil" replace />
+  }
+
   const item = NAV_ITEMS.find((i) => i.to === pathname)
   if (item && !puedeVer(item, role)) return <Navigate to="/" replace />
 

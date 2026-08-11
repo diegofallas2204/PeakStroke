@@ -152,6 +152,11 @@ export function TeamPage() {
                         {range ? (
                           <div>
                             <span style={{ color: ZONE_META[zone].color }}>{toClock(range.mid, 1)}</span>
+                            {/* El ritmo solo no se puede cantar: la salida es la
+                                otra mitad de la prescripción. */}
+                            <p className="text-[10px] text-text-dim">
+                              sal. {toClock(range.send_off, 0)}
+                            </p>
                             {row.zone_km?.[zone] != null && (
                               <p className="text-[10px] text-text-faint">{row.zone_km[zone]} km</p>
                             )}
@@ -179,6 +184,8 @@ export function TeamPage() {
         {!simple && (
           <p className="border-t border-line px-4 py-2.5 text-[10px] text-text-faint">
             Tiempo por zona = punto medio del rango (factores por distancia de la prueba).
+            Salida = intervalo para repeticiones de 100m, cuadrado al reloj de pared;
+            el descanso crece con la intensidad de la zona.
             Km por zona = distribución sugerida según la especialidad del atleta.
           </p>
         )}

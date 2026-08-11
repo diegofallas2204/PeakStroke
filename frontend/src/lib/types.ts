@@ -13,8 +13,61 @@ export interface Swimmer {
   created_at: string
   age: number | null
   user_id: number | null
+  /** Email de la cuenta ligada, si la ficha ya tiene una. */
+  user_email: string | null
   /** Los atletas se dan de baja, no se borran. */
   is_active: boolean
+}
+
+/**
+ * Código de vinculación vivo: emitido, sin canjear y sin caducar.
+ *
+ * No viaja dentro de `Swimmer` a propósito — el backend lo sirve aparte
+ * (`GET /link-codes/`) para no tener la definición de "código vivo" en dos
+ * módulos. Quien pinte el estado de una ficha cruza las dos listas por
+ * `swimmer_id`.
+ */
+export interface LinkCode {
+  id: number
+  swimmer_id: number
+  swimmer_name: string
+  /** A quién va dirigido, si se emitió desde el correo. */
+  invited_email: string | null
+  /** Ya formateado con guion: `ABCD-2345`. */
+  code: string
+  expires_at: string
+  created_at: string
+}
+
+/** Alta de un atleta al equipo por su correo: ficha + cuenta + código. */
+export interface InviteResult {
+  link_code: LinkCode
+  account_created: boolean
+  /** Solo si la cuenta se acaba de crear. No se puede volver a consultar. */
+  temporary_password: string | null
+}
+
+/**
+ * Una solicitud de ingreso, vista desde el lado del atleta.
+ *
+ * **Sin el código, a propósito**: teclearlo es la prueba de que quien acepta es
+ * quien el entrenador invitó. Enseñarlo aquí lo dejaría en un botón.
+ */
+export interface JoinRequest {
+  team_name: string
+  swimmer_name: string
+  invited_by: string | null
+  expires_at: string
+  created_at: string
+}
+
+/** Una ficha que hoy puede entrar en un macrociclo. */
+export interface AssignableAthlete {
+  id: number
+  name: string
+  age: number | null
+  specialty: string
+  main_stroke: string
 }
 
 export type Role = 'coach' | 'athlete'
@@ -24,11 +77,18 @@ export interface Member {
   id: number
   email: string
   name: string
-  role: Role
+  /**
+   * `null` = la cuenta existe pero no está en ningún club todavía.
+   *
+   * Es el estado de quien espera invitación, y no es lo mismo que `undefined`
+   * («la sesión aún no cargó»): con `null` ya se sabe quién es, y lo que se
+   * sabe es que solo puede ver su perfil.
+   */
+  role: Role | null
   is_active: boolean
   created_at: string
   last_login_at: string | null
-  team_id: number
+  team_id: number | null
   team_name: string | null
   /** Entrenador en jefe = entrenador que además es dueño del equipo. */
   is_owner: boolean
@@ -68,7 +128,8 @@ export interface AuthConfig {
 export interface DevIdentity {
   email: string
   name: string
-  role: string
+  /** `null` = cuenta del pool, sin club todavía. */
+  role: string | null
   is_owner: boolean
   swimmer_name: string | null
 }
@@ -133,7 +194,23 @@ export interface Plan {
   current_week: number | null
 }
 
-export type ZoneRange = { min: number; mid: number; max: number } | null
+/**
+ * El objetivo de una zona: a qué ritmo y cada cuánto sale la repetición.
+ *
+ * `mid` es el objetivo científico; `min`/`max` son ±1% de tolerancia de
+ * visualización. `send_off` es el intervalo ya cuadrado al reloj de pared (5 s)
+ * y `rest` el descanso real que queda dentro de ese ciclo. Las dos mitades
+ * viajan juntas porque una prescripción son las dos: el ritmo solo no se puede
+ * escribir en la pizarra.
+ */
+export type ZoneRange = {
+  min: number
+  mid: number
+  max: number
+  send_off: number
+  rest: number
+  rep_distance: number
+} | null
 export type Zones = Record<string, ZoneRange>
 
 export interface Week {
@@ -157,6 +234,9 @@ export interface Week {
   is_competition: boolean
 }
 
+/** Cómo hay que leer los números que apuntó el entrenador. */
+export type InputMode = 'rep' | 'clock'
+
 export interface AerobicTest {
   id: number
   swimmer_id: number
@@ -165,13 +245,55 @@ export interface AerobicTest {
   test_date: string
   rep_count: number | null
   rep_distance: number | null
+  /** Intervalo de salida en segundos. `null` en los tests que no lo registraron. */
+  send_off: number | null
+  input_mode: InputMode
   avg_per100: number
   std_dev: number | null
   trend: 'improving' | 'stable' | 'declining' | null
   css_ms: number | null
   notes: string | null
-  splits: { rep_number: number; split_time: number }[]
+  splits: {
+    rep_number: number
+    split_time: number
+    send_off_time: number | null
+    arrival_time: number | null
+  }[]
   per100_splits: number[]
+  /** Derivados de la salida. Vacíos en los tests que no la tienen. */
+  rest_per_rep: number[]
+  avg_rest: number | null
+  /** Descanso medio / trabajo medio. */
+  work_rest_ratio: number | null
+  /** Fracción del ciclo que es nado. */
+  density: number | null
+  /** Repeticiones que no llegaron antes de la salida siguiente (1..N). */
+  missed_intervals: number[]
+}
+
+/** Una línea de pizarra: ritmo objetivo y cada cuánto sale la repetición. */
+export interface TrainingInterval {
+  zone: string
+  label: string
+  pace_100: number
+  work: number
+  rest: number
+  interval: number
+  rest_ratio: number
+  /** La salida a la densidad que el atleta demostró en su test. */
+  measured_interval: number | null
+  denser_than_measured: boolean | null
+}
+
+export interface TrainingIntervals {
+  test_id: number
+  rep_distance: number
+  /** `null` si el atleta no está inscrito en ningún macrociclo. */
+  reference_pace: number | null
+  reference_week: number | null
+  event_label: string | null
+  measured_ratio: number | null
+  zones: TrainingInterval[]
 }
 
 export interface Feasibility {
@@ -314,4 +436,11 @@ export interface AerobicPreview {
   std_dev: number
   trend: string
   trend_slope: number
+  /** Tiempos de nado ya despejados de la llegada, si venían como llegadas. */
+  rep_times: number[]
+  rest_per_rep: number[]
+  avg_rest: number | null
+  work_rest_ratio: number | null
+  density: number | null
+  missed_intervals: number[]
 }

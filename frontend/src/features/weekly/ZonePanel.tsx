@@ -28,9 +28,17 @@ export function ZonePanel({ week, specialty }: { week: Week | null; specialty: s
                   </span>
                   <span className="text-[10.5px] text-text-dim">{meta.label}</span>
                 </div>
-                <span className="mono text-[12px] font-semibold">
-                  {range ? `${toClock(range.min, 1)}–${toClock(range.max, 1)}` : 'No aplica'}
-                </span>
+                <div className="text-right">
+                  <span className="mono text-[12px] font-semibold">
+                    {range ? `${toClock(range.min, 1)}–${toClock(range.max, 1)}` : 'No aplica'}
+                  </span>
+                  {/* La otra mitad de la prescripción: cada cuánto se sale. */}
+                  {range && (
+                    <p className="mono text-[10px] text-text-dim">
+                      salida {toClock(range.send_off, 0)} ×{range.rep_distance}
+                    </p>
+                  )}
+                </div>
               </div>
               {range && (
                 <div className="mt-1.5 flex items-center gap-2">
@@ -49,7 +57,8 @@ export function ZonePanel({ week, specialty }: { week: Week | null; specialty: s
       </div>
       <p className="mt-3 text-[10px] leading-relaxed text-text-faint">
         Pace objetivo por 100m calculado sobre el tiempo esperado de la semana.
-        Distribución de km sugerida para especialidad{' '}
+        La salida es el intervalo para repeticiones de esa distancia, cuadrado al
+        reloj de pared. Distribución de km sugerida para especialidad{' '}
         <span className="font-semibold text-text-dim">{SPECIALTY_LABEL[specialty] ?? specialty}</span>.
       </p>
     </Card>

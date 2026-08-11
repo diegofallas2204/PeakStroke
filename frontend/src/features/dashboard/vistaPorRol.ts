@@ -67,6 +67,6 @@ const ATLETA: Vista = {
   },
 }
 
-export function vistaPara(role: string | undefined): Vista {
+export function vistaPara(role: string | null | undefined): Vista {
   return role === 'athlete' ? ATLETA : ENTRENADOR
 }

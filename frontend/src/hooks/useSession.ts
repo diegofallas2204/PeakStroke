@@ -48,13 +48,25 @@ export function useIsAthlete(): boolean {
 }
 
 /**
- * El rol efectivo, o `undefined` mientras la sesión carga.
+ * El rol efectivo. Tres valores, y los tres significan cosas distintas:
  *
- * La diferencia importa: `undefined` no es "no tiene permiso", es "todavía no
- * se sabe". Quien filtre navegación o rutas debe esperar en vez de decidir con
- * un valor que aún no existe, o el rail parpadea vacío y las rutas rebotan.
+ *   `undefined` — la sesión todavía no cargó. **No es "sin permiso"**: quien
+ *                 filtre navegación o rutas debe esperar, o el rail parpadea
+ *                 vacío y las rutas rebotan.
+ *   `null`      — ya se sabe quién es, y no pertenece a ningún club. Solo tiene
+ *                 su perfil, donde están sus solicitudes de ingreso.
+ *   `'coach'` / `'athlete'` — rol dentro de su club.
+ *
+ * Juntar los dos primeros en un solo valor haría que la pantalla de quien
+ * espera invitación fuera un spinner eterno.
  */
-export function useRole(): string | undefined {
+export function useRole(): string | null | undefined {
   const { data } = useSession()
   return data?.role
+}
+
+/** true cuando la sesión ya cargó y esa cuenta no está en ningún club. */
+export function useSinEquipo(): boolean {
+  const { data } = useSession()
+  return data != null && data.role == null
 }

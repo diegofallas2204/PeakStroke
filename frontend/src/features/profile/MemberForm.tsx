@@ -1,26 +1,29 @@
-// Alta de una cuenta desde Perfil. No hay registro público: el entrenador crea
-// la cuenta y, si quiere, la liga a un nadador ya registrado.
+// Alta de un ENTRENADOR desde Perfil.
+//
+// **Ya no da de alta atletas.** Hasta el 2026-08-10 este formulario tenía un
+// desplegable de rol, y con él la aplicación tenía dos formas de meter a un
+// atleta: esta —que creaba una cuenta suelta, sin ficha— y la de Atletas, que
+// creaba una ficha suelta, sin cuenta. Ficha y cuenta siempre fueron la misma
+// persona, así que lo que producían las dos era media persona cada una, y unirlas
+// después era un tercer paso que había que acordarse de dar.
+//
+// El atleta entra ahora por un solo sitio: «Agregar atleta» en Atletas, que crea
+// ficha + cuenta + código de una vez (`features/swimmers/InviteAthleteModal`).
+// Aquí se quedó lo que de verdad es distinto: un entrenador no tiene ficha
+// deportiva, así que su alta nunca fue el mismo gesto.
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check, Copy, UserPlus } from 'lucide-react'
 import { api } from '../../lib/api'
-import type { MemberCreated, Role } from '../../lib/types'
+import type { MemberCreated } from '../../lib/types'
 import { Field, Modal } from '../../components/ui/primitives'
 
-const EMPTY = { swimmerId: '', name: '', email: '', role: 'athlete' as Role, password: '' }
+const EMPTY = { name: '', email: '', password: '' }
 
 export function MemberForm({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [form, setForm] = useState(EMPTY)
   const [created, setCreated] = useState<MemberCreated | null>(null)
   const queryClient = useQueryClient()
-
-  // Solo se ofrecen los nadadores que aún no tienen cuenta: la relación es 1:1.
-  const { data: swimmers } = useQuery({
-    queryKey: ['swimmers', ''],
-    queryFn: () => api.swimmers.list(),
-    enabled: open,
-  })
-  const available = (swimmers ?? []).filter((s) => s.user_id == null)
 
   // Al abrir se limpia el formulario. Ajuste de estado durante el render
   // (patrón oficial de React) en vez de efecto — igual que SwimmerForm.
@@ -34,9 +37,9 @@ export function MemberForm({ open, onClose }: { open: boolean; onClose: () => vo
     mutationFn: () => api.auth.createMember({
       email: form.email.trim(),
       name: form.name.trim(),
-      role: form.role,
+      // Fijo, no elegible: los atletas entran por «Agregar atleta».
+      role: 'coach',
       password: form.password ? form.password : null,
-      swimmer_id: form.swimmerId ? Number(form.swimmerId) : null,
     }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['members'] })
@@ -48,17 +51,15 @@ export function MemberForm({ open, onClose }: { open: boolean; onClose: () => vo
     },
   })
 
-  // Elegir un nadador rellena el nombre: casi siempre coincide.
-  const pickSwimmer = (id: string) => {
-    const swimmer = available.find((s) => String(s.id) === id)
-    setForm((f) => ({ ...f, swimmerId: id, name: swimmer?.name ?? f.name }))
-  }
-
   const valid = form.name.trim().length >= 2 && /.+@.+\..+/.test(form.email) &&
     (!form.password || form.password.length >= 8)
 
   return (
-    <Modal open={open} onClose={onClose} title={created ? 'Cuenta creada' : 'Dar acceso'}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={created ? 'Entrenador agregado' : 'Agregar entrenador'}
+    >
       {created ? (
         <CreatedPanel data={created} onClose={onClose} />
       ) : (
@@ -66,44 +67,21 @@ export function MemberForm({ open, onClose }: { open: boolean; onClose: () => vo
           className="flex flex-col gap-4"
           onSubmit={(e) => { e.preventDefault(); if (valid) mutation.mutate() }}
         >
-          <Field label="Nadador">
-            <select
-              className="field"
-              value={form.swimmerId}
-              onChange={(e) => pickSwimmer(e.target.value)}
-            >
-              <option value="">Sin ligar a una ficha</option>
-              {available.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-            <p className="mt-1.5 text-[10.5px] text-text-faint">
-              {available.length
-                ? 'Solo aparecen los nadadores que aún no tienen cuenta.'
-                : 'Todos los nadadores registrados ya tienen cuenta.'}
-            </p>
-          </Field>
+          <p className="rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-[11.5px] leading-relaxed text-text-dim">
+            Entra al equipo como entrenador y ve los macrociclos en los que se le
+            incluya. Para dar de alta a un atleta, usa{' '}
+            <span className="font-semibold text-text">Agregar atleta</span> en la
+            sección Atletas: eso crea su ficha y su acceso a la vez.
+          </p>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Nombre">
-              <input
-                className="field"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Nombre y apellido"
-              />
-            </Field>
-            <Field label="Rol">
-              <select
-                className="field"
-                value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
-              >
-                <option value="athlete">Atleta</option>
-                <option value="coach">Entrenador</option>
-              </select>
-            </Field>
-          </div>
+          <Field label="Nombre">
+            <input
+              className="field"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="Nombre y apellido"
+            />
+          </Field>
 
           <Field label="Email">
             <input
@@ -111,7 +89,7 @@ export function MemberForm({ open, onClose }: { open: boolean; onClose: () => vo
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="atleta@club.com"
+              placeholder="entrenador@club.com"
             />
           </Field>
 
@@ -135,7 +113,7 @@ export function MemberForm({ open, onClose }: { open: boolean; onClose: () => vo
           <div className="flex justify-end gap-2.5 border-t border-line pt-4">
             <button type="button" className="btn btn-ghost" onClick={onClose}>Cancelar</button>
             <button type="submit" className="btn btn-primary" disabled={!valid || mutation.isPending}>
-              <UserPlus size={14} /> {mutation.isPending ? 'Creando…' : 'Crear cuenta'}
+              <UserPlus size={14} /> {mutation.isPending ? 'Creando…' : 'Crear entrenador'}
             </button>
           </div>
         </form>
