@@ -43,7 +43,11 @@ class UserResponse(BaseModel):
     id: int
     email: str
     name: str
-    role: str
+    # `None` = la cuenta existe pero todavía no pertenece a ningún club. Es el
+    # estado de partida de quien se registra por su cuenta y espera a que un
+    # entrenador lo invite. Ser entrenador o atleta es algo que se es *en* un
+    # club, así que fuera de uno no hay rol que dar.
+    role: str | None
     is_active: bool
     created_at: datetime
     last_login_at: datetime | None
@@ -76,7 +80,8 @@ class DevIdentity(BaseModel):
     """
     email: str
     name: str
-    role: str
+    # `None` = cuenta del pool, sin club todavía. Ver `MemberResponse.role`.
+    role: str | None
     is_owner: bool = False
     swimmer_name: str | None = None
 
@@ -84,19 +89,29 @@ class DevIdentity(BaseModel):
 class MemberCreate(BaseModel):
     """Alta de un miembro del equipo desde la sección Perfil.
 
-    `swimmer_id` liga la cuenta a un perfil deportivo ya existente. Si se omite
-    `password`, el backend genera una temporal y la devuelve una sola vez.
+    Si se omite `password`, el backend genera una temporal y la devuelve una
+    sola vez.
+
+    **Ya no lleva `swimmer_id`.** Hasta el 2026-08-09 el entrenador elegía aquí
+    a qué ficha quedaba ligada la cuenta, de un desplegable y sin que nadie del
+    otro lado confirmara nada. Ese vínculo ahora se crea canjeando un código
+    (`modules/link_codes/`): lo emite el entrenador y lo canjea la persona, y
+    hasta que no ocurren las dos cosas no hay relación.
     """
     email: EmailStr
     name: str = Field(min_length=2, max_length=120)
     role: Role = "athlete"
     password: str | None = Field(default=None, min_length=PASSWORD_MIN, max_length=128)
-    swimmer_id: int | None = None
 
 
 class MemberResponse(UserResponse):
-    """Un usuario con su rol en el equipo y el nadador al que está ligado."""
-    team_id: int
+    """Un usuario con su rol en el equipo y el nadador al que está ligado.
+
+    `team_id` y `role` van a `None` juntos: es la cuenta que todavía no está en
+    ningún club. La interfaz lo lee como "solo puedes ver tu perfil, y ahí están
+    tus solicitudes de ingreso".
+    """
+    team_id: int | None
     team_name: str | None = None
     # Entrenador en jefe = entrenador que además es dueño del equipo.
     is_owner: bool = False

@@ -14,9 +14,9 @@ from app.core.dependencies import (
     Principal, exigir_o_bypass, get_current_principal, require_coach,
 )
 
-from . import access, service
+from . import access, enrollment, service
 from .schemas import (
-    AddAthleteRequest, PlanCreate, PlanResponse, PlanUpdate,
+    AddAthleteRequest, AssignableAthlete, PlanCreate, PlanResponse, PlanUpdate,
     WeekResponse, WeekUpdateRequest,
 )
 
@@ -92,6 +92,28 @@ async def delete_plan(
         ))
 
 
+@router.get("/{plan_id}/assignable-athletes", response_model=list[AssignableAthlete])
+async def assignable_athletes(
+    plan_id: int,
+    coach: Principal = Depends(require_coach),
+    db: AsyncSession = Depends(get_db),
+):
+    """Los atletas que hoy pueden entrar en este macrociclo.
+
+    Existe para que el formulario no ofrezca lo que el POST va a rechazar. La
+    regla la impone `add_athlete` de todas formas: esto es la cortesía, no la
+    cerradura (ver `enrollment.py`).
+    """
+    plan = await _plan_or_404(db, plan_id, coach)
+    return [
+        AssignableAthlete(
+            id=s.id, name=s.name, specialty=s.specialty, main_stroke=s.main_stroke,
+            age=service.age_at(s.birth_date, plan.start_date),
+        )
+        for s in await enrollment.assignable_swimmers(db, plan)
+    ]
+
+
 @router.post("/{plan_id}/athletes", response_model=PlanResponse, status_code=201)
 async def add_athlete(
     plan_id: int, data: AddAthleteRequest,
@@ -99,8 +121,18 @@ async def add_athlete(
     db: AsyncSession = Depends(get_db),
 ):
     plan = await _plan_or_404(db, plan_id, coach)
-    if any(ap.swimmer_id == data.swimmer_id for ap in plan.athlete_plans):
+    if any(ap.swimmer_id == data.swimmer_id and ap.is_active for ap in plan.athlete_plans):
         raise HTTPException(409, "El atleta ya está asignado a este macrociclo")
+    # Un atleta, un macrociclo vivo. El bloqueo aplica también al dueño del
+    # equipo: no es una cuestión de permisos sino de que ese plan no existe.
+    ocupado = await enrollment.blocking_plan(
+        db, plan.team_id, data.swimmer_id, target_plan_id=plan_id,
+    )
+    if ocupado is not None:
+        raise HTTPException(409, (
+            f"Ese atleta ya está en el macrociclo «{ocupado.name}». "
+            "Sácalo de ahí antes de inscribirlo en otro."
+        ))
     await service.add_athlete(db, plan, data)
     return await service.to_plan_response(db, await _plan_or_404(db, plan_id, coach), coach)
 
@@ -133,7 +165,13 @@ async def restore_athlete(
     Sacar a alguien de un macrociclo es la clase de clic que se da por error, y
     volver a inscribirlo desde cero no reconstruye lo que nadó.
     """
-    await _plan_or_404(db, plan_id, coach)
+    plan = await _plan_or_404(db, plan_id, coach)
+    ocupado = await enrollment.blocking_plan_for(db, athlete_plan_id, plan.team_id)
+    if ocupado is not None:
+        raise HTTPException(409, (
+            f"Ese atleta entró mientras tanto en el macrociclo «{ocupado.name}». "
+            "Sácalo de ahí antes de devolverlo a este."
+        ))
     if not await service.restore_athlete(db, plan_id, athlete_plan_id):
         raise HTTPException(404, "No hay ninguna inscripción dada de baja con ese id")
 

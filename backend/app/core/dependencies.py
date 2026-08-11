@@ -270,15 +270,23 @@ def bypass_pedido(request: Request) -> bool:
     return (request.headers.get(DEV_BYPASS_HEADER) or "").strip().lower() in _VERDADERO
 
 
-async def get_current_principal(
+async def get_current_user(
     request: Request,
     db: AsyncSession = Depends(get_db),
-) -> Principal:
+) -> User:
+    """Quién llama, **sin exigirle pertenencia a ningún equipo**.
+
+    Es deliberadamente más débil que `get_current_principal` y por eso casi
+    ningún endpoint debería usarla: sin `Principal` no hay `team_id`, y sin
+    `team_id` no hay frontera que aplicar. Existe para el único caso en que
+    pedir pertenencia sería absurdo — canjear un código de vinculación, que es
+    justo lo que la crea (`modules/link_codes/router.py`).
+
+    Antes de usarla en un endpoint nuevo, la pregunta es: ¿qué datos de equipo
+    toca? Si la respuesta no es "ninguno", la dependencia correcta es la otra.
+    """
     if not settings.auth_enabled:
-        principal = await _principal_for(db, await _dev_user(db, request))
-        if bypass_pedido(request):
-            principal = replace(principal, is_developer=True)
-        return principal
+        return await _dev_user(db, request)
 
     try:
         claims = decode_token(_bearer_token(request), "access")
@@ -294,7 +302,19 @@ async def get_current_principal(
     # minutos en surtir efecto sobre el access token que el atacante ya tiene.
     if user.token_version != claims.token_version:
         raise _UNAUTHORIZED
-    return await _principal_for(db, user)
+    return user
+
+
+async def get_current_principal(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> Principal:
+    principal = await _principal_for(db, await get_current_user(request, db))
+    # `bypass_pedido` ya exige `dev_identity_enabled`, que a su vez exige el
+    # login apagado: con autenticación real la cabecera no la lee nadie.
+    if bypass_pedido(request):
+        principal = replace(principal, is_developer=True)
+    return principal
 
 
 def require_role(*roles: str) -> Callable[..., Coroutine[Any, Any, Principal]]:

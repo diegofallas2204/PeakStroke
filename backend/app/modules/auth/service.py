@@ -104,17 +104,25 @@ async def authenticate(db: AsyncSession, email: str, password: str) -> User | No
 # --- Miembros del equipo (sección Perfil) -----------------------------------
 
 def to_member(
-    user: User, membership: TeamMember, swimmer: Swimmer | None,
+    user: User, membership: TeamMember | None, swimmer: Swimmer | None,
     *, team: Team | None = None,
 ) -> MemberResponse:
+    """La ficha de sesión de una cuenta.
+
+    `membership` puede faltar: es la cuenta que existe en el sistema pero aún no
+    está en ningún club — recién registrada, o esperando a que un entrenador la
+    invite. Sin pertenencia no hay rol ni equipo, y decirlo con `None` es más
+    honesto que inventarse un "athlete" que no significa nada todavía.
+    """
     return MemberResponse(
         id=user.id, email=user.email, name=user.name,
-        role=membership.role,
+        role=membership.role if membership else None,
         # Activo = cuenta activa Y pertenencia activa. Revocar el acceso a un
         # equipo no desactiva la cuenta, pero deja al miembro fuera igualmente.
-        is_active=user.is_active and membership.is_active,
+        # Sin pertenencia manda la cuenta: no hay acceso que revocar.
+        is_active=user.is_active and (membership.is_active if membership else True),
         created_at=user.created_at, last_login_at=user.last_login_at,
-        team_id=membership.team_id,
+        team_id=membership.team_id if membership else None,
         team_name=team.name if team else None,
         is_owner=bool(team and team.owner_id == user.id),
         swimmer_id=swimmer.id if swimmer else None,
@@ -177,7 +185,7 @@ async def dev_identities(db: AsyncSession, dev_email: str) -> list[DevIdentity]:
         .order_by(TeamMember.role, User.name)
     )
     filas = (await db.execute(stmt)).all()
-    return [
+    identidades = [
         DevIdentity(
             email=u.email, name=u.name, role=m.role,
             is_owner=bool(team and team.owner_id == u.id),
@@ -186,12 +194,54 @@ async def dev_identities(db: AsyncSession, dev_email: str) -> list[DevIdentity]:
         for u, m in filas
     ]
 
+    # Las cuentas del **pool**: existen y no están en ningún club. Sin ellas en
+    # el conmutador, el estado de quien espera invitación —la pantalla que solo
+    # tiene perfil y solicitudes— no se puede mirar sin crear datos a mano, que
+    # es el motivo por el que ese estado no existía y nadie lo echaba de menos.
+    sin_club = (await db.execute(
+        select(User)
+        .outerjoin(TeamMember, TeamMember.user_id == User.id)
+        .where(TeamMember.id.is_(None), User.is_active.is_(True))
+        .order_by(User.name)
+    )).scalars().all()
+    identidades.extend(
+        DevIdentity(email=u.email, name=u.name, role=None) for u in sin_club
+    )
+    return identidades
 
-async def get_member(db: AsyncSession, user: User, membership: TeamMember) -> MemberResponse:
-    team = await db.get(Team, membership.team_id)
+
+async def get_member(
+    db: AsyncSession, user: User, membership: TeamMember | None,
+) -> MemberResponse:
+    team = await db.get(Team, membership.team_id) if membership else None
     stmt = select(Swimmer).where(Swimmer.user_id == user.id)
     swimmer = (await db.execute(stmt)).scalar_one_or_none()
     return to_member(user, membership, swimmer, team=team)
+
+
+async def session_for(db: AsyncSession, user: User) -> MemberResponse | None:
+    """Quién es quien llama, tenga club o no. **None si se lo revocaron.**
+
+    `/auth/me` pasa por aquí y no por `get_current_principal` a propósito: una
+    cuenta sin pertenencia es un estado legítimo del sistema —el atleta que se
+    registró y espera invitación— y responderle 403 la dejaría sin poder ni ver
+    la pantalla donde canjea el código que la sacaría de ahí.
+
+    Es la única concesión: `/me` no toca ningún dato de equipo. Todo lo demás
+    sigue exigiendo `Principal`, porque sin `team_id` no hay frontera que aplicar.
+
+    La consulta trae **también las pertenencias inactivas** para poder separar
+    tres estados que se parecen y significan cosas distintas: sin club (entra y
+    ve sus solicitudes), en un club (entra normal) y revocado (no entra). Filtrar
+    por `is_active` aquí fundiría el tercero con el primero, y quien perdió el
+    acceso reaparecería como cuenta del pool.
+    """
+    membership = (await db.execute(
+        select(TeamMember).where(TeamMember.user_id == user.id)
+    )).scalar_one_or_none()
+    if membership is not None and not membership.is_active:
+        return None
+    return await get_member(db, user, membership)
 
 
 async def member_of_team(
@@ -223,10 +273,14 @@ async def update_member(
 async def create_member(
     db: AsyncSession, data: MemberCreate, team_id: int,
 ) -> tuple[User, str | None]:
-    """Crea la cuenta y la liga a un nadador. Devuelve (usuario, contraseña temporal).
+    """Crea la cuenta. Devuelve (usuario, contraseña temporal).
 
     La contraseña temporal solo viene rellena si la generamos aquí: una vez
     guardado el hash no hay forma de recuperarla.
+
+    **No liga ninguna ficha.** Crear el acceso y decir de quién es son dos
+    gestos distintos desde el 2026-08-09, y el segundo lo cierra el código de
+    vinculación (`modules/link_codes/`). Ver `MemberCreate`.
     """
     generated = data.password is None
     password = data.password or secrets.token_urlsafe(9)
@@ -234,12 +288,4 @@ async def create_member(
     user = await create_user(db, UserCreate(
         email=data.email, name=data.name, password=password, role=data.role,
     ), team_id)
-
-    if data.swimmer_id is not None:
-        swimmer = await db.get(Swimmer, data.swimmer_id)
-        # La FK compuesta ya impide ligar un nadador de otro equipo; comprobarlo
-        # aquí convierte un error de integridad en un "no encontrado" limpio.
-        if swimmer is not None and swimmer.team_id == team_id:
-            swimmer.user_id = user.id
-            await db.commit()
     return user, (password if generated else None)

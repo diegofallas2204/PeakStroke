@@ -58,8 +58,17 @@ class SwimmerResponse(BaseModel):
     notes: str | None
     created_at: datetime
     age: int | None = None
-    # Cuenta ligada, si la tiene. Lo consume la sección Perfil para ofrecer solo
-    # los nadadores que aún no tienen acceso.
+    # Cuenta ligada, si la tiene.
     user_id: int | None = None
     # Los nadadores se dan de baja, no se borran.
     is_active: bool = True
+
+    # Email de la cuenta ligada. Ficha y cuenta son la misma persona, y hasta
+    # el 2026-08-09 saber cuál de las dos existía obligaba a cruzar a ojo la
+    # lista de atletas con la de miembros del equipo. Con el email aquí, la
+    # lista de atletas se basta sola.
+    #
+    # El estado intermedio —código emitido y sin canjear— **no** viaja en este
+    # schema: vive en `GET /link-codes/`, que es de quien es. Duplicar aquí la
+    # definición de "código vivo" pondría la misma invariante en dos módulos.
+    user_email: str | None = None

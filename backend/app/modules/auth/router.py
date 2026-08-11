@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import (
     DEV_BYPASS_HEADER, DEV_USER_HEADER, Principal, bypass_pedido,
-    get_current_principal, require_coach,
+    get_current_principal, get_current_user, require_coach,
 )
 from app.core.security import (
     TokenError, create_access_token, create_refresh_token, decode_token,
@@ -47,9 +47,17 @@ async def _issue_session(db: AsyncSession, response: Response, user: User) -> Se
     único válido a partir de aquí; el anterior queda marcado como usado y su
     reaparición se trata como robo.
     """
-    membership = await teams_service.get_membership(db, user.id)
-    if membership is None or not membership.is_active:
+    # `include_inactive=True` **no es un detalle**: sin él, `get_membership`
+    # devuelve None tanto para "no está en ningún club" como para "está y se lo
+    # revocaron", y las dos cosas acabarían entrando. Revocar el acceso dejaría
+    # de echar a nadie: la persona seguiría entrando como cuenta del pool y
+    # podría canjear un código para volver a meterse en un equipo.
+    membership = await teams_service.get_membership(db, user.id, include_inactive=True)
+    if membership is not None and not membership.is_active:
         raise _BAD_CREDENTIALS
+    # Sin pertenencia **sí** se entra: es la cuenta que espera invitación, y
+    # dejarla fuera del login la dejaría sin poder canjear el código que la
+    # metería en el club.
 
     user.refresh_rotation += 1
     await db.commit()
@@ -191,10 +199,30 @@ async def dev_identities(db: AsyncSession = Depends(get_db)):
 
 @router.get("/me", response_model=MemberResponse)
 async def me(
-    principal: Principal = Depends(get_current_principal),
+    user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await service.get_member(db, principal.user, principal.membership)
+    """Quién soy. **No exige pertenecer a ningún equipo.**
+
+    Es el segundo endpoint que usa `get_current_user` en vez de
+    `get_current_principal`, y por la misma razón que el primero (el canje del
+    código): quien todavía no está en ningún club tiene que poder entrar y ver
+    su perfil, que es donde están sus solicitudes de ingreso. Con `Principal`
+    recibiría 403 y se quedaría sin puerta.
+
+    No toca ningún dato de equipo: devuelve la cuenta y, si la hay, su
+    pertenencia. Cualquier otro endpoint sí necesita `Principal`.
+
+    Una pertenencia revocada responde 403, igual que `_principal_for`: no es una
+    cuenta del pool, es una a la que alguien le quitó el acceso, y presentarla
+    como si nunca hubiera estado en un club sería mentir sobre su estado.
+    """
+    sesion = await service.session_for(db, user)
+    if sesion is None:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Tu acceso a este equipo está revocado",
+        )
+    return sesion
 
 
 @router.post("/me/password", response_model=SessionResponse)

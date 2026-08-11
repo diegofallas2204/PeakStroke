@@ -17,6 +17,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import Principal
+# Lectura explícita de un modelo de otro módulo (permitido por las reglas del
+# proyecto): la ficha viaja con el email de su cuenta. No se importa lógica.
+from app.modules.auth.models import User
 
 from .models import Swimmer
 from .schemas import SwimmerCreate, SwimmerResponse, SwimmerUpdate
@@ -35,6 +38,25 @@ def to_response(swimmer: Swimmer) -> SwimmerResponse:
     resp = SwimmerResponse.model_validate(swimmer)
     resp.age = _age(swimmer.birth_date)
     return resp
+
+
+async def with_accounts(db: AsyncSession, swimmers: list[Swimmer]) -> list[SwimmerResponse]:
+    """Las fichas, cada una con el email de su cuenta si la tiene.
+
+    Una consulta para toda la lista en vez de una por ficha: la página de
+    atletas pinta el equipo entero y el N+1 se nota enseguida.
+    """
+    respuestas = [to_response(s) for s in swimmers]
+    user_ids = [s.user_id for s in swimmers if s.user_id is not None]
+    if not user_ids:
+        return respuestas
+
+    stmt = select(User.id, User.email).where(User.id.in_(user_ids))
+    emails = dict((await db.execute(stmt)).all())
+    for resp, swimmer in zip(respuestas, swimmers, strict=True):
+        if swimmer.user_id is not None:
+            resp.user_email = emails.get(swimmer.user_id)
+    return respuestas
 
 
 async def list_swimmers(

@@ -91,6 +91,22 @@ class AddAthleteRequest(BaseModel):
     events: list[EventInput] = Field(min_length=1)
 
 
+class AssignableAthlete(BaseModel):
+    """Una ficha que hoy puede entrar en el macrociclo.
+
+    Se devuelve la edad **al inicio del plan**, no la de hoy: es la que usa el
+    motor para ajustar el techo de mejora de un menor, así que enseñar otra en
+    el formulario que dispara la simulación sería enseñar un dato distinto del
+    que se va a aplicar.
+    """
+
+    id: int
+    name: str
+    age: int | None = None
+    specialty: str
+    main_stroke: str
+
+
 class AthletePlanResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int

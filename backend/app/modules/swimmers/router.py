@@ -30,7 +30,7 @@ async def list_swimmers(
     swimmers = await service.list_swimmers(
         db, principal, search, include_inactive=include_inactive,
     )
-    return [service.to_response(s) for s in swimmers]
+    return await service.with_accounts(db, swimmers)
 
 
 @router.post("/", response_model=SwimmerResponse, status_code=201)

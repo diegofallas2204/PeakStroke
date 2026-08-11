@@ -13,6 +13,7 @@ Lo importan `app/main.py` (arranque de la app) y `alembic/env.py` (autogenerate)
 """
 from app.modules.aerobic_tests import models as _aerobic  # noqa: F401
 from app.modules.auth import models as _auth  # noqa: F401
+from app.modules.link_codes import models as _link_codes  # noqa: F401
 from app.modules.plans import models as _plans  # noqa: F401
 from app.modules.swimmers import models as _swimmers  # noqa: F401
 from app.modules.teams import models as _teams  # noqa: F401

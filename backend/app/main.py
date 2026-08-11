@@ -15,6 +15,7 @@ from app.core import model_registry  # noqa: F401
 from app.modules.aerobic_tests.router import router as aerobic_router
 from app.modules.auth.router import router as auth_router
 from app.modules.dashboard.router import router as dashboard_router
+from app.modules.link_codes.router import router as link_codes_router
 from app.modules.plans.router import router as plans_router
 from app.modules.simulator.router import router as simulator_router
 from app.modules.swimmers.router import router as swimmers_router
@@ -51,6 +52,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(teams_router, prefix="/api/v1/teams", tags=["teams"])
 app.include_router(swimmers_router, prefix="/api/v1/swimmers", tags=["swimmers"])
+app.include_router(link_codes_router, prefix="/api/v1/link-codes", tags=["link-codes"])
 app.include_router(plans_router, prefix="/api/v1/plans", tags=["plans"])
 app.include_router(aerobic_router, prefix="/api/v1/aerobic-tests", tags=["aerobic-tests"])
 app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["dashboard"])
