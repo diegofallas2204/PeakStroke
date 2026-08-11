@@ -12,6 +12,12 @@ La forma de salida {min, mid, max} se conserva para el frontend: `mid` es el
 objetivo científico del dominio; `min`/`max` son una tolerancia de visualización
 de ±1% alrededor del objetivo (no es ciencia, es ancho de banda para la UI).
 
+Desde el 2026-08-10 cada zona trae además `send_off` y `rest`: el intervalo de
+salida para repeticiones de `rep_distance` metros. Va aquí y no en cada
+consumidor porque una prescripción son **dos** números —a qué ritmo y cada
+cuánto— y separarlos garantizaba que la mitad se olvidara en algún sitio. Ver
+`engine/send_off.py` para de dónde sale el descanso de cada zona.
+
 Fuente de verdad del modelo: `app/domain/engine.py` (port del sandbox).
 """
 from __future__ import annotations
@@ -24,7 +30,15 @@ from app.domain import (
     zone_factors,
 )
 
-ZONE_ORDER = ["R1", "R2", "MVO2", "RL", "V"]
+from .send_off import ZONE_ORDER as _ZONE_ORDER
+from .send_off import clock_interval, rest_for
+
+# Reexportado, no redefinido: `send_off.REST_RATIO` tiene una entrada por zona y
+# `rest_for` revienta con una que no conozca, así que dos listas de zonas que se
+# separen convierten una zona nueva en un 500 en la tabla del equipo. La
+# canónica vive con la tabla de descansos; aquí se reexporta como lista porque
+# es lo que consumen los llamadores de siempre.
+ZONE_ORDER = list(_ZONE_ORDER)
 
 ZONE_LABELS = {
     "R1": "Base aeróbica",
@@ -77,18 +91,24 @@ def calc_zones(
     distance: int,
     stroke: str = "freestyle",
     pool: str = "50",
+    rep_distance: int = 100,
 ) -> dict[str, dict[str, float] | None]:
     """Tiempos objetivo por 100m para cada zona (con rango min/mid/max).
 
     Usa los factores por perfil×distancia del dominio (calibrados con el pool
     nacional), la corrección de estilo y el factor de piscina. `pace_100m` es el
     ritmo de carrera por 100m de la semana.
+
+    `rep_distance` es la distancia de las repeticiones que se van a nadar (100m
+    por defecto, la unidad del sistema) y solo afecta a `send_off`/`rest`: el
+    ritmo objetivo es por 100m siempre.
     """
     profile = profile_for_event(distance)
     factors = zone_factors(profile, distance)
     stroke_key = STROKE_ALIASES.get(stroke.lower().strip(), "freestyle")
     corr = STROKE_TPACE_CORRECTION_S.get(stroke_key, 0.0)
     pf = pool_factor(profile, pool)
+    rep_factor = max(rep_distance, 1) / 100.0
 
     zones: dict[str, dict[str, float] | None] = {}
     for zone in ZONE_ORDER:
@@ -97,10 +117,17 @@ def calc_zones(
             zones[zone] = None
             continue
         target = (pace_100m * factor + corr) * pf
+        work = target * rep_factor
+        interval = clock_interval(work + rest_for(zone, work))
         zones[zone] = {
             "min": round(target * (1 - _ZONE_DISPLAY_TOLERANCE), 2),
             "mid": round(target, 2),
             "max": round(target * (1 + _ZONE_DISPLAY_TOLERANCE), 2),
+            # Cada cuánto sale la repetición y cuánto se descansa dentro de ese
+            # ciclo. `rest` es el real tras cuadrar al reloj, no el teórico.
+            "send_off": interval,
+            "rest": round(interval - work, 2),
+            "rep_distance": rep_distance,
         }
     return zones
 
