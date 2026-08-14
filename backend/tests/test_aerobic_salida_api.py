@@ -8,7 +8,6 @@ cliente, y que los tests antiguos, sin salida, siguen funcionando.
 from __future__ import annotations
 
 import pytest
-
 from conftest import API, World, como
 
 

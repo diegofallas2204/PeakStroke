@@ -18,6 +18,7 @@ código y el segundo es el precio del primero.
 from __future__ import annotations
 
 import pytest
+from conftest import API, PASSWORD, World, como
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,7 +26,6 @@ from app.core.config import settings
 from app.core.security import hash_password
 from app.modules.auth.models import User
 from app.modules.teams.models import TeamMember
-from conftest import API, PASSWORD, World, como
 
 POOL_EMAIL = "delpool@test.dev"
 

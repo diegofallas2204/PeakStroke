@@ -25,15 +25,16 @@ from pathlib import Path
 # Permite ejecutarlo como `python tools/create_user.py` desde backend/.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import AsyncSessionLocal, engine  # noqa: E402
-from app.modules.auth.schemas import UserCreate  # noqa: E402
-from app.modules.auth.service import create_user, get_by_email  # noqa: E402
-from app.modules.teams.models import ROLE_COACH, ROLES, Team  # noqa: E402
+from app.core.database import AsyncSessionLocal, engine
+from app.modules.auth.schemas import UserCreate
+from app.modules.auth.service import create_user, get_by_email
+from app.modules.teams.models import ROLE_COACH, ROLES, Team
 
 
-async def _resolve_team(db, team_id: int | None, new_team: str | None) -> Team | None:
+async def _resolve_team(db: AsyncSession, team_id: int | None, new_team: str | None) -> Team | None:
     """Decide en qué equipo entra la cuenta. None = no se pudo determinar."""
     if new_team:
         team = Team(name=new_team)

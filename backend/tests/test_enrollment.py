@@ -11,9 +11,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pytest
-from httpx import AsyncClient
-
 from conftest import API, World, como
+from httpx import AsyncClient
 
 pytestmark = pytest.mark.asyncio
 

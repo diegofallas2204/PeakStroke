@@ -17,27 +17,25 @@ hasta que las predicciones se sientan bien. El manual PDF explica cada parámetr
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
 from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 
 # La consola de Windows usa cp1252 por defecto; forzamos UTF-8 para los símbolos.
-try:
+with contextlib.suppress(AttributeError, ValueError):
     sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
-except (AttributeError, ValueError):
-    pass
 
 # Permitir `from app...` al correr desde tools/.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.engine.curves import CURVES, CURVE_LABELS  # noqa: E402
-from app.engine.feasibility import analyze_feasibility  # noqa: E402
-from app.engine.progression import generate_plan  # noqa: E402
-from app.engine.time_utils import to_clock, to_seconds  # noqa: E402
-from app.engine.zones import ZONE_LABELS, ZONE_ORDER, zone_factors_for  # noqa: E402
-
-from tools.tuning_io import apply_tuning, load_tuning, TUNING_PATH  # noqa: E402
+from app.engine.curves import CURVE_LABELS, CURVES
+from app.engine.feasibility import analyze_feasibility
+from app.engine.progression import generate_plan
+from app.engine.time_utils import to_clock, to_seconds
+from app.engine.zones import ZONE_LABELS, ZONE_ORDER, zone_factors_for
+from tools.tuning_io import TUNING_PATH, apply_tuning, load_tuning
 
 # --- Colores ANSI (degradan a texto plano si la terminal no los soporta) ---
 _USE_COLOR = sys.stdout.isatty()

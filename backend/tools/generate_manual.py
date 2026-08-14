@@ -15,8 +15,16 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import (
-    HRFlowable, ListFlowable, ListItem, PageBreak, Paragraph,
-    Preformatted, SimpleDocTemplate, Spacer, Table, TableStyle,
+    HRFlowable,
+    ListFlowable,
+    ListItem,
+    PageBreak,
+    Paragraph,
+    Preformatted,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
 )
 
 OUT = Path(__file__).resolve().parent / "Manual_Ajuste_Predicciones.pdf"
@@ -144,7 +152,8 @@ def build() -> list:
     s.append(Paragraph("Comandos dentro del modo interactivo:", BODY))
     s.append(bullets([
         "<font face='Courier'><b>n</b></font> — nuevo escenario (cambia tiempos, distancia, estilo, semanas, curva).",
-        "<font face='Courier'><b>r</b></font> — recargar <font face='Courier'>tuning.json</font> y recalcular el mismo escenario.",
+        "<font face='Courier'><b>r</b></font> — recargar <font face='Courier'>tuning.json</font> "
+        "y recalcular el mismo escenario.",
         "<font face='Courier'><b>z</b></font> — detalle de zonas de una semana (factor aplicado + min/mid/max).",
         "<font face='Courier'><b>t</b></font> — ver el tuning activo de un vistazo.",
         "<font face='Courier'><b>q</b></font> — salir.",
@@ -163,7 +172,8 @@ def build() -> list:
     s.append(bullets([
         "<b>curvas</b> — forma de la progresión semana a semana.",
         "<b>tier1_fondo</b> — realismo del veredicto para pruebas de <b>400 m o más</b> (regla aeróbica).",
-        "<b>tier2_velocidad</b> — realismo del veredicto para pruebas de <b>menos de 400 m</b> (ventanas de velocidad).",
+        "<b>tier2_velocidad</b> — realismo del veredicto para pruebas de <b>menos de 400 m</b> "
+        "(ventanas de velocidad).",
         "<b>zonas_entrenamiento</b> — los <b>tiempos de zona por semana</b> (R1, R2, MVO2, RL, V). "
         "Es la tabla que ve cada atleta; lo que más se afina.",
     ]))

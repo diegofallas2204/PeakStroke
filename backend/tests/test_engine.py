@@ -9,7 +9,9 @@ from app.engine.envelope import science_envelope
 from app.engine.feasibility import analyze_feasibility
 from app.engine.km_distribution import distribute_km
 from app.engine.progression import (
-    generate_plan, performance_status, recalculate_remaining,
+    generate_plan,
+    performance_status,
+    recalculate_remaining,
 )
 from app.engine.time_utils import to_clock, to_seconds
 from app.engine.zones import calc_zones
@@ -39,7 +41,7 @@ class TestCurves:
     @pytest.mark.parametrize("curve", CURVES)
     def test_monotonic(self, curve):
         values = [curve_progress(x / 20, curve) for x in range(21)]
-        assert all(b >= a for a, b in zip(values, values[1:]))
+        assert all(b >= a for a, b in zip(values, values[1:], strict=False))
 
 
 class TestZones:
@@ -180,7 +182,7 @@ class TestProgression:
     def test_monotonic_improvement(self):
         weeks = generate_plan(100, 67.8, 64.5, 12, 320, "sigmoid", date(2026, 4, 27), 4)
         times = [w.expected_time for w in weeks]
-        assert all(b <= a for a, b in zip(times, times[1:]))
+        assert all(b <= a for a, b in zip(times, times[1:], strict=False))
 
     def test_recalculate_anchors_on_real(self):
         # Recalcula desde el ancla real (66.9) sobre las 6 semanas restantes; queda

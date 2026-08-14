@@ -14,8 +14,13 @@ from app.modules.plans.service import current_week_of, effective_status
 from app.modules.swimmers.models import Swimmer
 
 from .schemas import (
-    AthleteStatusRow, CompetitionInfo, DashboardSummary, PhaseStrip,
-    TeamWeekPoint, TeamWeekResponse, TeamWeekZones,
+    AthleteStatusRow,
+    CompetitionInfo,
+    DashboardSummary,
+    PhaseStrip,
+    TeamWeekPoint,
+    TeamWeekResponse,
+    TeamWeekZones,
 )
 
 _STROKE_LABELS = {

@@ -69,7 +69,7 @@ class EventInput(BaseModel):
     goal_time: float = Field(gt=0)
 
     @model_validator(mode="after")
-    def _valid_event(self) -> "EventInput":
+    def _valid_event(self) -> EventInput:
         if not is_valid_event(self.distance, self.stroke):
             opciones = ", ".join(allowed_strokes(self.distance))
             raise ValueError(

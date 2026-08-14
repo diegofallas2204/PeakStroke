@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password, needs_rehash, verify_password
+
 # Lecturas explícitas de modelos de otros módulos (permitido por las reglas del
 # proyecto): la sección Perfil necesita el rol —que vive en la pertenencia— y a
 # qué nadador va ligada cada cuenta. No se importa lógica ajena.
@@ -16,7 +17,11 @@ from app.modules.teams.models import Team, TeamMember
 
 from .models import User
 from .schemas import (
-    DevIdentity, MemberCreate, MemberResponse, UserCreate, UserUpdate,
+    DevIdentity,
+    MemberCreate,
+    MemberResponse,
+    UserCreate,
+    UserUpdate,
 )
 
 

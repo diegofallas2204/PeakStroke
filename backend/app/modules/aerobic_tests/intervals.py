@@ -22,6 +22,7 @@ from sqlalchemy.orm import selectinload
 from app.core.dependencies import Principal
 from app.engine.send_off import ZONE_ORDER, training_intervals
 from app.engine.zones import ZONE_LABELS, calc_zones
+
 # Lectura explícita de la puerta de acceso y de los modelos de `plans`
 # (permitido por las reglas del proyecto): de qué semana sale el ritmo lo decide
 # ese módulo, no este. Duplicar `visible_to` aquí sería tener dos respuestas.
@@ -31,7 +32,8 @@ from app.modules.plans.service import current_week_of
 
 from .models import AerobicTest
 from .schemas import (
-    TrainingIntervalResponse, TrainingIntervalsResponse,
+    TrainingIntervalResponse,
+    TrainingIntervalsResponse,
 )
 
 

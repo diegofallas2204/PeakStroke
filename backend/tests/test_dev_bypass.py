@@ -21,10 +21,10 @@ en cuanto el login se enciende o el entorno es producción.
 from __future__ import annotations
 
 import pytest
+from conftest import API, World, como
 
 from app.core.config import settings
 from app.core.dependencies import DEV_BYPASS_HEADER
-from conftest import API, World, como
 
 
 def con_bypass(email: str) -> dict[str, str]:

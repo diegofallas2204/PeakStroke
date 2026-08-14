@@ -22,31 +22,35 @@ import random
 from datetime import date, timedelta
 from pathlib import Path
 
-from app.core.config import settings
-from app.core.database import AsyncSessionLocal, engine, Base
+from sqlalchemy import select
+
 # Poblar `Base.metadata` con TODOS los modelos, no solo los que este archivo
 # importa de rebote. `reset_schema` usa `drop_all`, que solo conoce el metadata:
 # sin esto, una tabla de un módulo que el seed no toca —`link_codes` fue la
 # primera— sobrevive al borrado y luego Alembic revienta al intentar crearla.
 import app.core.model_registry  # noqa: F401
+from app.core.config import settings
+from app.core.database import AsyncSessionLocal, Base, engine
 from app.core.dependencies import Principal
+from app.core.security import hash_password
 from app.modules.aerobic_tests.schemas import AerobicTestCreate
 from app.modules.aerobic_tests.service import create_test
-from app.core.security import hash_password
 from app.modules.auth.models import User
 from app.modules.auth.schemas import UserCreate
 from app.modules.auth.service import create_user
+from app.modules.plans.models import AthleteEvent, AthletePlan, WeeklyPlan
 from app.modules.plans.schemas import (
-    AddAthleteRequest, CompetitionInput, EventInput, PlanCreate,
+    AddAthleteRequest,
+    CompetitionInput,
+    EventInput,
+    PlanCreate,
+    WeekUpdateRequest,
 )
 from app.modules.plans.service import add_athlete, create_plan, update_week
-from app.modules.plans.schemas import WeekUpdateRequest
-from app.modules.plans.models import WeeklyPlan, AthleteEvent, AthletePlan
 from app.modules.swimmers.schemas import SwimmerCreate
 from app.modules.swimmers.service import create_swimmer
 from app.modules.teams.models import CoachAthlete
 from app.modules.teams.service import create_team, get_membership
-from sqlalchemy import select
 
 random.seed(7)
 
@@ -152,8 +156,9 @@ async def reset_schema() -> None:
 
 def migrate() -> None:
     """Aplica todas las migraciones (equivale a `alembic upgrade head`)."""
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     command.upgrade(Config(str(Path(__file__).parent / "alembic.ini")), "head")
 

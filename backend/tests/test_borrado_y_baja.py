@@ -17,11 +17,10 @@ los tests se dan de baja en vez de borrarse, sus filas **nunca** salen de
 """
 from __future__ import annotations
 
+from conftest import API, World, como
 from sqlalchemy import func, select
 
 from app.modules.aerobic_tests.models import AerobicSplit, AerobicTest
-from conftest import API, World, como
-
 
 # ── Dar de baja conserva el dato ─────────────────────────────────────────────
 

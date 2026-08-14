@@ -21,10 +21,10 @@ que ese id existe, que es justo lo que no se quiere filtrar.
 from __future__ import annotations
 
 import pytest
+from conftest import API, World, como
 from sqlalchemy import select
 
 from app.modules.plans.models import WeeklyPlan
-from conftest import API, World, como
 
 
 async def semana_de(db, event_id: int, numero: int = 2) -> WeeklyPlan:

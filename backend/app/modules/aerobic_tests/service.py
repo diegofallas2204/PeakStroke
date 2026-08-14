@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.dependencies import Principal
 from app.engine.aerobic import analyze_splits, css_from_400_50
+
 # Lectura explícita de la puerta de acceso de otro módulo (permitido por las
 # reglas del proyecto): un test aeróbico puede colgar de un macrociclo, y quién
 # ve qué macrociclo lo decide `plans`, no este módulo. Duplicar aquí la regla

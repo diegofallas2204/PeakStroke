@@ -10,8 +10,11 @@ from app.engine.aerobic import analyze_splits
 
 from . import intervals, service
 from .schemas import (
-    AerobicTestCreate, AerobicTestResponse,
-    AnalyzePreviewRequest, AnalyzePreviewResponse, TrainingIntervalsResponse,
+    AerobicTestCreate,
+    AerobicTestResponse,
+    AnalyzePreviewRequest,
+    AnalyzePreviewResponse,
+    TrainingIntervalsResponse,
 )
 
 router = APIRouter()

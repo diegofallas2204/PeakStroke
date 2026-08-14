@@ -25,7 +25,7 @@ class SimulationRequest(BaseModel):
     swimmer_age: int | None = None
 
     @model_validator(mode="after")
-    def _valid_event(self) -> "SimulationRequest":
+    def _valid_event(self) -> SimulationRequest:
         if not is_valid_event(self.distance, self.stroke):
             opciones = ", ".join(allowed_strokes(self.distance))
             raise ValueError(
@@ -80,7 +80,7 @@ class SeasonRequest(BaseModel):
     n_macros: int = Field(default=3, ge=1, le=4)
 
     @model_validator(mode="after")
-    def _valid_event(self) -> "SeasonRequest":
+    def _valid_event(self) -> SeasonRequest:
         if not is_valid_event(self.distance, self.stroke):
             opciones = ", ".join(allowed_strokes(self.distance))
             raise ValueError(

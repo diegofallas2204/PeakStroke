@@ -12,8 +12,13 @@ from app.engine.progression import WeekEntry, generate_extension, generate_plan
 from app.engine.zones import zone_km_distribution
 
 from .schemas import (
-    FeasibilityResponse, MacroProjectionItem, SeasonRequest, SeasonResponse,
-    SimulationRequest, SimulationResponse, SimWeek,
+    FeasibilityResponse,
+    MacroProjectionItem,
+    SeasonRequest,
+    SeasonResponse,
+    SimulationRequest,
+    SimulationResponse,
+    SimWeek,
 )
 
 router = APIRouter()

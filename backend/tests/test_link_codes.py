@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from conftest import API, World, como
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,8 +20,6 @@ from app.modules.auth.models import User
 from app.modules.link_codes.models import LinkCode
 from app.modules.swimmers.models import Swimmer
 from app.modules.teams.models import TeamMember
-
-from conftest import API, World, como
 
 pytestmark = pytest.mark.asyncio
 

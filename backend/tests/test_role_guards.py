@@ -19,9 +19,7 @@ que ya no se puede.
 from __future__ import annotations
 
 import pytest
-
 from conftest import API, World, como
-
 
 # ── Un atleta no hace cosas de entrenador ────────────────────────────────────
 

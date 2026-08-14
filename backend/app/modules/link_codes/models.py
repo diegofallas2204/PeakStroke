@@ -25,7 +25,12 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
-    DateTime, ForeignKey, ForeignKeyConstraint, Integer, String, func,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Integer,
+    String,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 

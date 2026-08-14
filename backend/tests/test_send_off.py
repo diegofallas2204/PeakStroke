@@ -21,7 +21,9 @@ import pytest
 
 from app.engine.aerobic import analyze_splits
 from app.engine.send_off import (
-    REST_RATIO, clock_interval, training_intervals,
+    REST_RATIO,
+    clock_interval,
+    training_intervals,
 )
 
 

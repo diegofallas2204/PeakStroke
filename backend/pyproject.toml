@@ -22,3 +22,88 @@ asyncio_mode = "auto"
 filterwarnings = [
     "error:.*cartesian product.*:sqlalchemy.exc.SAWarning",
 ]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Ruff — linter del backend.  Correr con: .venv\Scripts\python -m ruff check .
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.ruff]
+# CLAUDE.md pide líneas de ~100. `line-length` es el objetivo (y lo que usaría
+# `ruff format`); el tope duro que hace fallar el check vive en
+# [tool.ruff.lint.pycodestyle] y es más ancho a propósito — ver allí.
+line-length = 100
+target-version = "py312"
+
+# Las migraciones las escribe `alembic revision --autogenerate` a partir de su
+# plantilla, no una persona: linchar código generado solo produce ruido y
+# tentación de editar a mano un fichero que es un registro histórico.
+extend-exclude = [".venv", "alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes (imports/nombres sin usar, f-strings rotas)
+    "I",        # orden de imports
+    "UP",       # sintaxis moderna (py312)
+    "B",        # bugbear (trampas reales en tiempo de ejecución)
+    "C4",       # comprensiones
+    "SIM",      # simplificaciones
+    "ANN",      # type hints — regla no negociable de CLAUDE.md
+    "RUF",      # reglas propias de ruff
+]
+ignore = [
+    # El código está comentado y documentado en español, con tipografía real
+    # (— · «» ¿?). RUF001/2/3 marcan esos caracteres como "ambiguos" pensando en
+    # homoglifos de ataque; aquí solo son prosa.
+    "RUF001", "RUF002", "RUF003",
+    # `__all__` de app/domain está agrupado por intención (motor → dataclasses →
+    # funciones → constantes). Ordenarlo alfabéticamente pierde esa lectura.
+    "RUF022",
+    # `zip(xs, xs[1:])` para recorrer pares consecutivos es idiomático y legible;
+    # `itertools.pairwise` no aporta claridad en un test de tres líneas.
+    "RUF007",
+    # Un if/else con su propio comentario explicando el caso especial (p. ej. "la
+    # última semana siempre es descarga", en `km_distribution`) se lee mejor que
+    # un ternario de 90 caracteres donde el comentario ya no cabe.
+    "SIM108",
+]
+
+[tool.ruff.lint.pycodestyle]
+# Objetivo 100, tope duro 120: las tablas científicas del motor
+# (`I_MAX_TABLE`, `WEEKLY_VOLUME_KM`, `ZONE_OVER_RACE`…) están alineadas en
+# columnas a propósito, y partirlas para ganar 15 caracteres haría ilegible
+# justo el código que más se lee contra el paper. Nada nuevo debería acercarse
+# a este tope.
+max-line-length = 120
+
+[tool.ruff.lint.flake8-bugbear]
+# `Depends(...)` en el valor por defecto NO es el bug que B008 persigue: es cómo
+# se declara una dependencia en FastAPI. Se declaran inmutables para que B008
+# siga cazando el caso real (una lista o un dict compartido entre llamadas).
+extend-immutable-calls = [
+    "fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body",
+    "fastapi.Header", "fastapi.Form", "fastapi.File", "fastapi.Security",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# DEUDA CONOCIDA, no excepción permanente: 65 firmas de `app/` sin anotación de
+# retorno (casi todas manejadores de router) y ~465 de `tests/`. Anotarlas no es
+# mecánico —el tipo correcto de un handler con `response_model` o de un
+# `Select` de SQLAlchemy es una decisión, no un `-> None`— así que se listan
+# aquí en vez de tocarlas de refilón. Al anotar un fichero, se borra su línea.
+"tests/**" = ["ANN", "RUF012"]
+"app/main.py" = ["ANN201"]
+"app/core/database.py" = ["ANN001"]
+"app/core/dependencies.py" = ["ANN001", "ANN201"]
+"app/modules/*/router.py" = ["ANN001", "ANN201", "ANN202"]
+# Manejadores que salieron de `auth/router.py` al partirlo (2026-08-13): la deuda
+# viaja con el código, no con el nombre del fichero.
+"app/modules/auth/members.py" = ["ANN201"]
+"app/modules/auth/sessions.py" = ["ANN201"]
+"app/modules/aerobic_tests/service.py" = ["ANN202"]
+"app/modules/plans/access.py" = ["ANN001", "ANN201"]
+# Script de documentación (genera el PDF del manual). Sus argumentos sin anotar
+# son tipos de reportlab —estilos, colores, **kw de ParagraphStyle— y anotarlos
+# obliga a decidir entre `Any` (que ANN401 prohíbe) y atarse a los internos de
+# la librería. No es código de runtime: reportlab solo está en desarrollo.
+"tools/generate_manual.py" = ["ANN"]

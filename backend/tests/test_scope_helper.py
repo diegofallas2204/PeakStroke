@@ -21,6 +21,7 @@ test en vez de filtrar en silencio.
 from __future__ import annotations
 
 import pytest
+from conftest import World
 from sqlalchemy import select
 from sqlalchemy.exc import SAWarning
 
@@ -28,7 +29,6 @@ from app.core.dependencies import Principal
 from app.modules.aerobic_tests.models import AerobicTest
 from app.modules.plans.models import AthleteEvent, AthletePlan, Plan, WeeklyPlan
 from app.modules.swimmers.models import Swimmer
-from conftest import World
 
 
 async def _principal(db, email: str) -> Principal:

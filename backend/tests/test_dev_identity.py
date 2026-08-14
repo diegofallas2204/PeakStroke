@@ -13,11 +13,11 @@ en verde.
 from __future__ import annotations
 
 import pytest
+from conftest import API, World, como
 
 from app.core.config import settings
 from app.core.dependencies import DEV_USER_HEADER
 from app.modules.teams.models import TeamMember
-from conftest import API, World, como
 
 
 async def test_la_cabecera_cambia_a_quien_se_atribuye_la_peticion(client, world: World):
@@ -48,8 +48,9 @@ async def test_una_cuenta_inactiva_cae_al_por_defecto(client, db, world: World):
     Si se dejara pasar, el conmutador serviría para inspeccionar exactamente lo
     que la revocación pretendía cerrar.
     """
-    from app.modules.auth.models import User
     from sqlalchemy import select
+
+    from app.modules.auth.models import User
 
     user = (await db.execute(
         select(User).where(User.email == world.carlos_email)
