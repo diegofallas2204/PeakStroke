@@ -15,15 +15,20 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from app.domain import MAX_EXTENSION_WEEKS
+
 from .envelope import science_envelope
 
 TIER1_THRESHOLD = 400
 OK_RATIO = 0.85
 WARNING_RATIO = 1.15
-# Tope de semanas de extensión (≈2 macros) — coincide con el motor de dominio
-# (ScienceEngine.MAX_EXTENSION_WEEKS). Evita "semanas necesarias" desorbitadas
-# cuando la meta es muy agresiva: el techo informa, no fantasea con 80 semanas.
-MAX_EXTENSION_WEEKS = 26
+# El tope de semanas de extensión NO se declara aquí: se importa del motor de
+# dominio (`app.domain.MAX_EXTENSION_WEEKS`, alias `ScienceEngine.MAX_EXTENSION_WEEKS`),
+# que es la única fuente. Hasta 2026-08-13 este módulo tenía su propio 26 bajo un
+# comentario que afirmaba coincidir con el dominio, donde valía 30: el simulador
+# sugería 41 semanas mientras el motor extendía hasta 45.
+
+__all__ = ["FeasibilityResult", "MAX_EXTENSION_WEEKS", "analyze_feasibility"]
 
 
 @dataclass

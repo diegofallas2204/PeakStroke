@@ -14,14 +14,12 @@ from app.domain.engine import (
     MACROCYCLE_DEGRADATION,
     STROKE_TPACE_CORRECTION_S,
     ScienceEngine,
-    allowed_strokes,
     classify_level,
     confidence_margin,
     profile_for_event,
     race_pace_100,
     science_curve_progress,
 )
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Funciones puras de apoyo
@@ -128,20 +126,8 @@ class TestFFase:
         assert ordered == sorted(ordered)
 
 
-class TestAllowedStrokes:
-    def test_800_1500_only_libre(self):
-        assert allowed_strokes(800) == ["libre"]
-        assert allowed_strokes(1500) == ["libre"]
-
-    def test_400_libre_and_combinado_only(self):
-        strokes = allowed_strokes(400)
-        assert "libre" in strokes
-        assert "combinado" in strokes
-        assert "mariposa" not in strokes
-
-    def test_100_all_strokes(self):
-        strokes = allowed_strokes(100)
-        assert len(strokes) == 5
+# Los estilos válidos por distancia NO son del dominio: viven en
+# `app.engine.events`. Sus tests están en `test_reglas_unicas.py`.
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -367,7 +353,7 @@ class TestScienceCurve:
 
     def test_monotonic_non_decreasing(self):
         vals = [science_curve_progress(i / 50) for i in range(51)]
-        assert all(b >= a - 1e-9 for a, b in zip(vals, vals[1:]))
+        assert all(b >= a - 1e-9 for a, b in zip(vals, vals[1:], strict=False))
 
     def test_back_loaded(self):
         # Menos del 50% de la mejora en la 1a mitad (vs sigmoide simétrica).

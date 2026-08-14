@@ -55,13 +55,11 @@ ZONE_LABELS: dict[str, str] = {
 }
 
 # ── Estilos válidos por distancia ───────────────────────────────────────────
-# 800/1500 solo libre · 400 libre o combinado · 50/100/200 cualquier estilo.
-def allowed_strokes(distance: int) -> list[str]:
-    if distance in (800, 1500):
-        return ["libre"]
-    if distance == 400:
-        return ["libre", "combinado"]
-    return ["libre", "espalda", "mariposa", "pecho", "combinado"]
+# NO vive aquí. Fuente única: `app.engine.events.allowed_strokes`.
+# Había una copia en este módulo que daba el 50 COMBINADO por válido; esa prueba
+# no existe en natación. La copia no estaba exportada en `domain/__init__.py`, así
+# que nadie la consumía: era una regla muerta que contradecía a la viva.
+# Retirada 2026-08-13 (divergencia 1 de la auditoría de motores duplicados).
 
 # ── Corrección de T-pace por estilo (s/100m sobre crol) ─────────────────────
 # CALIBRADO con el pool nacional, 2026-06-13. El doc §7.1 tenía espalda/mariposa
@@ -282,6 +280,15 @@ MACRO_15_PHASES: list[tuple[int, int, str]] = [
     (14, 15, "taper"),
 ]
 
+# Tope de semanas EXTRA tras el macro cuando la meta supera el techo realista.
+# 30 = dos macros de 15 exactos. FUENTE ÚNICA: `app.engine.feasibility` lo importa
+# de aquí, no lo redeclara (hasta 2026-08-13 tenía su propio 26 y un comentario
+# afirmando que coincidían — divergencia 2 de la auditoría de motores duplicados).
+# Evita "semanas necesarias" desorbitadas: el techo informa, no fantasea con 80
+# semanas. Ojo con subirlo: la extensión mejora a ritmo seguro PLANO, sin aplicar
+# MACROCYCLE_DEGRADATION, así que cada semana extra exagera un poco más.
+MAX_EXTENSION_WEEKS = 30
+
 
 # ── CURVA CIENTÍFICA (fuente única de la forma de progresión) ────────────────
 # Distribución de mejora ponderada por F_FASE: cada fase aporta mejora a un ritmo
@@ -435,7 +442,7 @@ class SeasonProjection:
 class ScienceEngine:
 
     TOTAL_WEEKS = 15
-    MAX_EXTENSION_WEEKS = 30   # tope de semanas extra (≈2 macros) para metas muy agresivas
+    MAX_EXTENSION_WEEKS = MAX_EXTENSION_WEEKS   # alias del módulo (ver constante arriba)
 
     def _nearest_event(self, distance: int) -> int:
         known = sorted(I_MAX_TABLE["elite"].keys())
