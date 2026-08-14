@@ -4,8 +4,8 @@
 > partes. Cada bloque trae una explicación para leer y un **prompt listo para
 > copiar** en una sesión nueva de Claude Code.
 >
-> **Estado: solo A1 está hecho** (2026-08-13, ver el bloque). El resto sigue sin
-> empezar y la beta sigue intacta. Este documento es el mapa.
+> **Estado: A0 y A1 hechos** (2026-08-13 y 2026-08-14, ver cada bloque). El resto
+> sigue sin empezar y la beta sigue intacta. Este documento es el mapa.
 
 ---
 
@@ -22,6 +22,14 @@ Está partido en tres partes, y el orden importa:
 
 **Cada bloque es una sesión.** No los encadenes: cada prompt está escrito para
 funcionar en una sesión que arranca en frío, sin saber nada de esta conversación.
+
+**Y una sesión a la vez.** El 2026-08-14 se corrieron A0 y el backend de TODO-16
+en paralelo sobre el mismo directorio de trabajo. Las dos tocaron `conftest.py`,
+un `git checkout` de una sesión se llevó por delante trabajo sin commitear de la
+otra, y el primer commit salió roto porque importaba un módulo que la otra sesión
+todavía no había commiteado. Se recuperó todo, pero el rato se perdió: git no
+arbitra dos sesiones sobre el mismo árbol. Si hacen falta dos a la vez, que cada
+una tenga su `git worktree`.
 
 **Regla de oro antes de cualquier bloque de la parte C:** haz primero **A0**. Es
 la red de seguridad y sin ella la fusión de motores es a ciegas.
@@ -41,8 +49,10 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 
 Esto es lo que hay hoy, comprobado, no estimado:
 
-> Las cifras de abajo son las del 2026-08-12 y se dejan como quedaron. Lo único
-> que se movió desde entonces es A1: **442 tests en verde** al 2026-08-13.
+> Las cifras de abajo son las del 2026-08-12 y se dejan como quedaron. Lo que se
+> movió desde entonces: A1 (**442 tests** al 2026-08-13), y A0 más el backend de
+> TODO-16 (**478 tests en verde** al 2026-08-14, y el lint del backend ya no es
+> «no existe»: `ruff check .` limpio).
 
 | | |
 |---|---|
@@ -71,11 +81,11 @@ y dejan el terreno limpio para él.
 
 ---
 
-## A0 · Red de seguridad
+## A0 · Red de seguridad — ✅ HECHO (2026-08-14)
 
 **Prioridad: PRIMERO. Nada de la parte C debería empezar sin esto.**
 
-### Qué pasa
+### Qué pasaba
 
 Dos huecos en las herramientas:
 
@@ -101,11 +111,73 @@ mueva un número **falla el test**, y decides si esa diferencia era intencionada
 
 Más `ruff` configurado y en verde.
 
+### Cómo quedó
+
+**El snapshot: 153 casos, 162 tests, un fichero de referencia por camino de
+cálculo** — mezclarlos en uno haría el diff ilegible, que es justo lo único que
+tiene que hacer bien:
+
+| Camino | Casos | Referencia (`backend/tests/snapshots/`) |
+|---|---|---|
+| `engine.progression.generate_plan` | 61 | `motor_progression.json` |
+| `engine.progression.recalculate_remaining` | 14 | `motor_recalculo.json` |
+| `domain.ScienceEngine.generate_plan` | 61 | `motor_science.json` |
+| `domain.ScienceEngine.project_season` | 17 | `motor_temporada.json` |
+
+Ejes cubiertos: los 5 niveles × las 6 distancias, los 5 estilos, piscina 25 y 50,
+`n_mac` 1 y 3, edad de menor (14 y 16), metas factibles y agresivas (con
+extensión), las 5 curvas, duraciones de 10/15/20 semanas, parones por lesión de 2
+y 4 semanas, y el macro plano de meta = tiempo actual.
+
+**Las entradas son literales congelados, no derivados del motor.** Si mañana
+cambian los factores de zona, lo que se mueve es la salida —visible en el diff— y
+no la entrada, que se movería en silencio. Un test comprueba que cada tiempo
+literal sigue clasificando en el nivel bajo el que está escrito. El catálogo de
+casos vive aparte, en `tests/motor_casos.py`: qué se congela se decide allí, cómo
+se compara en `test_motor_snapshot.py`.
+
+**Regenerar es un gesto explícito:** `PEAKSTROKE_UPDATE_SNAPSHOTS=1`. Después hay
+que leer el diff en git, que es la lista exacta de lo que cambió de comportamiento.
+
+**Ya se ganó el sueldo dos veces el mismo día**: A1 (fuente única de los estilos y
+del tope de extensión) y el backend de TODO-16 (partir los cuatro archivos de
++300 líneas) pasaron por encima del motor sin mover **ni un número** de los 153
+casos. Eso es la diferencia entre «los tests pasan» y «se demostró que la salida
+es idéntica» — que es lo que hará falta poder decir en C4.
+
+**Qué NO cubre**, y conviene cerrarlo antes de C4:
+
+- `analyze_feasibility` — y A1 acabó de cambiarle el comportamiento (26 → 30)
+- `generate_extension` del adaptador (la del `ScienceEngine` sí, vía metas agresivas)
+- `performance_status`, `aerobic.*`, `zone_km_distribution`, `training_intervals`
+- `rep_distance ≠ 100`, `weeks_per_micro = 5`, fases personalizadas y el `profile`
+  explícito en `generate_plan` (en `project_season` sí está cubierto)
+
+**Ruff configurado y en verde** en `backend/pyproject.toml`:
+`E,W,F,I,UP,B,C4,SIM,ANN,RUF`, objetivo de 100 columnas con **tope duro en 120** —
+partir las tablas científicas alineadas (`I_MAX_TABLE`, `ZONE_OVER_RACE`) para
+ganar 15 caracteres haría ilegible justo el código que se lee contra el paper. De
+863 avisos a 0. Lo arreglado fue mecánico: orden de imports, `noqa` inservibles,
+anotaciones entrecomilladas, `zip(strict=False)` explícito y `contextlib.suppress`.
+
+**Lo que ruff encontró y NO se tocó** queda listado fichero por fichero en
+`per-file-ignores`, como deuda con nombre y no como excepción permanente:
+
+- **65 firmas de `app/` sin tipo de retorno**, casi todas manejadores de router.
+  No es mecánico: el tipo correcto de un handler con `response_model` —o de un
+  `Select` de SQLAlchemy— es una decisión, no un `-> None`
+- ~465 firmas de `tests/`
+- `SIM108` en `km_distribution`: ruff pide un ternario de 90 caracteres donde hay
+  un `if/else` con su comentario propio explicando el caso especial
+- `RUF001/2/3` (63 avisos): la tipografía española (— · «») marcada como «ambigua»
+- `tools/generate_manual.py`: argumentos con tipos de reportlab, y `**kw` que solo
+  se puede anotar con el `Any` que ANN401 prohíbe
+
 ### Riesgo
 
 **Ninguno.** Solo añade. No toca código de producción.
 
-### Prompt
+### Prompt (ejecutado el 2026-08-14)
 
 ```text
 Trabajo en PeakStroke, en C:\Users\diego\OneDrive\Desktop\PeakStroke\PeakStroke\peakstroke.
