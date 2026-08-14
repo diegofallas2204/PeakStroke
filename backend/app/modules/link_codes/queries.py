@@ -39,11 +39,6 @@ async def active_for_team(db: AsyncSession, team_id: int) -> list[LinkCode]:
     return [c for c in (await db.execute(stmt)).scalars() if is_live(c, now=ahora)]
 
 
-async def active_by_swimmer(db: AsyncSession, team_id: int) -> dict[int, LinkCode]:
-    """swimmer_id → su código vivo, para pintar el estado de cada ficha."""
-    return {c.swimmer_id: c for c in await active_for_team(db, team_id)}
-
-
 async def swimmer_names(db: AsyncSession, team_id: int) -> dict[int, str]:
     """id → nombre de cada ficha del equipo, para acompañar a los códigos."""
     stmt = select(Swimmer.id, Swimmer.name).where(Swimmer.team_id == team_id)
