@@ -9,115 +9,42 @@ El canje es la parte delicada porque toca tres tablas en un orden que no es
 negociable: `team_members` primero y `swimmers.user_id` después. La FK compuesta
 `(user_id, team_id) → team_members` hace que ligar la ficha antes de existir la
 pertenencia falle a nivel de motor.
+
+Aquí están solo las decisiones. La mecánica del código (alfabeto, formato,
+caducidad) vive en `codes.py` y las lecturas en `queries.py`.
 """
 from __future__ import annotations
 
 import secrets
-from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.models import User
+
 # `normalize_email` es la única función ajena que se importa aquí, y a propósito:
 # el correo invitado se compara contra `users.email`, así que las dos formas de
 # normalizarlo tienen que ser LA MISMA. Copiar el `.strip().lower()` habría
 # funcionado hasta el día en que una de las dos cambie.
 from app.modules.auth.service import normalize_email
+
 # Lecturas explícitas de modelos de otros módulos (permitido por las reglas del
 # proyecto): el canje escribe la pertenencia y la ficha. No se importa lógica.
 from app.modules.swimmers.models import Swimmer
 from app.modules.swimmers.schemas import SwimmerCreate
 from app.modules.teams.models import ROLE_ATHLETE, ROLE_COACH, Team, TeamMember
 
+from .codes import (
+    LINK_CODE_TTL_HOURS,
+    LinkCodeError,
+    generate,
+    is_live,
+    normalize_code,
+    now_utc,
+)
 from .models import LinkCode
 from .schemas import InviteRequest
-
-LINK_CODE_TTL_HOURS = 72
-LINK_CODE_LENGTH = 8
-
-# Sin I, L, O, U, 0 ni 1: el código se dicta en voz alta y se teclea a mano, y
-# la confusión entre O y 0 cuesta más que los 4 bits que ahorra incluirlas.
-# 32 símbolos ** 8 = 1,1e12 combinaciones, con `secrets` detrás.
-_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789"
-
-
-class LinkCodeError(Exception):
-    """Regla de negocio incumplida. El router la traduce a 400/404/409."""
-
-    def __init__(self, message: str, status: int = 409) -> None:
-        super().__init__(message)
-        self.status = status
-
-
-def normalize_code(raw: str) -> str:
-    """Mayúsculas, sin guiones ni espacios. El guion es solo presentación."""
-    return "".join(c for c in raw.strip().upper() if c.isalnum())
-
-
-def format_code(code: str) -> str:
-    """`ABCD2345` → `ABCD-2345`. Se lee y se dicta mucho mejor partido."""
-    half = len(code) // 2
-    return f"{code[:half]}-{code[half:]}"
-
-
-def _generate() -> str:
-    return "".join(secrets.choice(_ALPHABET) for _ in range(LINK_CODE_LENGTH))
-
-
-def _now() -> datetime:
-    return datetime.now(UTC)
-
-
-def _aware(value: datetime) -> datetime:
-    """SQLite devuelve datetimes naive aunque la columna sea timezone=True.
-
-    Compararlos con un `datetime.now(UTC)` revienta con TypeError, y hacerlo en
-    el sitio donde se compara —y no aquí— es como se acaba con la mitad de las
-    comparaciones sin arreglar. Se asume UTC porque es lo único que se escribe.
-    """
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
-
-
-def is_live(code: LinkCode, *, now: datetime | None = None) -> bool:
-    return (
-        code.used_at is None
-        and code.revoked_at is None
-        and _aware(code.expires_at) > (now or _now())
-    )
-
-
-async def active_for_team(db: AsyncSession, team_id: int) -> list[LinkCode]:
-    """Los códigos que todavía sirven, del equipo entero."""
-    stmt = select(LinkCode).where(
-        LinkCode.team_id == team_id,
-        LinkCode.used_at.is_(None),
-        LinkCode.revoked_at.is_(None),
-    ).order_by(LinkCode.created_at.desc())
-    ahora = _now()
-    return [c for c in (await db.execute(stmt)).scalars() if is_live(c, now=ahora)]
-
-
-async def active_by_swimmer(db: AsyncSession, team_id: int) -> dict[int, LinkCode]:
-    """swimmer_id → su código vivo, para pintar el estado de cada ficha."""
-    return {c.swimmer_id: c for c in await active_for_team(db, team_id)}
-
-
-async def swimmer_names(db: AsyncSession, team_id: int) -> dict[int, str]:
-    """id → nombre de cada ficha del equipo, para acompañar a los códigos."""
-    stmt = select(Swimmer.id, Swimmer.name).where(Swimmer.team_id == team_id)
-    return dict((await db.execute(stmt)).all())  # type: ignore[arg-type]
-
-
-async def swimmer_of_team(
-    db: AsyncSession, swimmer_id: int, team_id: int,
-) -> Swimmer | None:
-    """La ficha, solo si es de ese equipo. None si no lo es — el router da 404."""
-    stmt = select(Swimmer).where(
-        Swimmer.id == swimmer_id, Swimmer.team_id == team_id,
-    )
-    return (await db.execute(stmt)).scalar_one_or_none()
 
 
 async def issue(
@@ -145,82 +72,19 @@ async def issue(
         LinkCode.used_at.is_(None),
         LinkCode.revoked_at.is_(None),
     )
-    ahora = _now()
+    ahora = now_utc()
     for previo in (await db.execute(previos)).scalars():
         previo.revoked_at = ahora
 
     code = LinkCode(
         team_id=swimmer.team_id, swimmer_id=swimmer.id, created_by=coach_id,
-        code=_generate(), expires_at=ahora + timedelta(hours=LINK_CODE_TTL_HOURS),
+        code=generate(), expires_at=ahora + timedelta(hours=LINK_CODE_TTL_HOURS),
         invited_email=normalize_email(invited_email) if invited_email else None,
     )
     db.add(code)
     await db.commit()
     await db.refresh(code)
     return code
-
-
-async def pending_for(db: AsyncSession, user: User) -> list[LinkCode]:
-    """Las invitaciones vivas dirigidas al correo de esa persona.
-
-    Se busca por **correo** y no por usuario porque el entrenador invita antes
-    de que exista la cuenta tan a menudo como después: quien se registre luego
-    con ese correo encuentra su solicitud esperando.
-
-    Solo salen las dirigidas (`invited_email`). Un código emitido sobre una
-    ficha suelta no va dirigido a nadie, y listarlo aquí sería enseñárselo a
-    quien no tiene por qué saber que existe.
-    """
-    stmt = select(LinkCode).where(
-        LinkCode.invited_email == normalize_email(user.email),
-        LinkCode.used_at.is_(None),
-        LinkCode.revoked_at.is_(None),
-    ).order_by(LinkCode.created_at.desc())
-    ahora = _now()
-    return [c for c in (await db.execute(stmt)).scalars() if is_live(c, now=ahora)]
-
-
-@dataclass(frozen=True)
-class PendingNames:
-    """Los nombres que acompañan a una solicitud, ya resueltos."""
-
-    team: str
-    swimmer: str
-    coach: str | None
-
-
-async def describe_pending(
-    db: AsyncSession, user: User,
-) -> list[tuple[LinkCode, PendingNames]]:
-    """Las solicitudes de esa persona con club, ficha y entrenador resueltos.
-
-    Va aquí y no en el router porque son tres consultas: dejarlas allí habría
-    metido lógica en la capa que solo debe recibir y delegar.
-    """
-    codes = await pending_for(db, user)
-    if not codes:
-        return []
-
-    equipos = dict((await db.execute(
-        select(Team.id, Team.name).where(Team.id.in_({c.team_id for c in codes}))
-    )).all())  # type: ignore[arg-type]
-    fichas = dict((await db.execute(
-        select(Swimmer.id, Swimmer.name).where(
-            Swimmer.id.in_({c.swimmer_id for c in codes})
-        )
-    )).all())  # type: ignore[arg-type]
-    entrenadores = dict((await db.execute(
-        select(User.id, User.name).where(User.id.in_({c.created_by for c in codes}))
-    )).all())  # type: ignore[arg-type]
-
-    return [
-        (c, PendingNames(
-            team=equipos.get(c.team_id, "—"),
-            swimmer=fichas.get(c.swimmer_id, "—"),
-            coach=entrenadores.get(c.created_by),
-        ))
-        for c in codes
-    ]
 
 
 async def check_invitable(db: AsyncSession, email: str, team_id: int) -> None:
@@ -341,7 +205,7 @@ async def invite(
 
 
 async def revoke(db: AsyncSession, code: LinkCode) -> None:
-    code.revoked_at = _now()
+    code.revoked_at = now_utc()
     await db.commit()
 
 
@@ -402,7 +266,7 @@ async def redeem(db: AsyncSession, raw_code: str, user: User) -> tuple[Swimmer, 
     # así que la pertenencia tiene que estar en la sesión antes de ligar la ficha.
     await db.flush()
     swimmer.user_id = user.id
-    code.used_at = _now()
+    code.used_at = now_utc()
     code.used_by = user.id
     await db.commit()
     await db.refresh(swimmer)

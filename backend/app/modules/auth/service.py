@@ -180,8 +180,8 @@ async def dev_identities(db: AsyncSession, dev_email: str) -> list[DevIdentity]:
     stmt = (
         select(User, TeamMember)
         .join(TeamMember, TeamMember.user_id == User.id)
-        # Solo las que se pueden suplantar de verdad: `_dev_user` rechaza las
-        # cuentas inactivas, así que ofrecerlas sería ofrecer un botón roto.
+        # Solo las que se pueden suplantar de verdad: `dev_identity.dev_user`
+        # rechaza las cuentas inactivas, así que ofrecerlas sería un botón roto.
         .where(
             TeamMember.team_id == membership.team_id,
             TeamMember.is_active.is_(True),

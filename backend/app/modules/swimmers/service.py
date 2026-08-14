@@ -11,12 +11,12 @@ todas están detrás de `require_coach` y un atleta no llega a ellas.
 """
 from __future__ import annotations
 
-from datetime import date
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.dates import age_at
 from app.core.dependencies import Principal
+
 # Lectura explícita de un modelo de otro módulo (permitido por las reglas del
 # proyecto): la ficha viaja con el email de su cuenta. No se importa lógica.
 from app.modules.auth.models import User
@@ -25,18 +25,9 @@ from .models import Swimmer
 from .schemas import SwimmerCreate, SwimmerResponse, SwimmerUpdate
 
 
-def _age(birth_date: date | None) -> int | None:
-    if birth_date is None:
-        return None
-    today = date.today()
-    return today.year - birth_date.year - (
-        (today.month, today.day) < (birth_date.month, birth_date.day)
-    )
-
-
 def to_response(swimmer: Swimmer) -> SwimmerResponse:
     resp = SwimmerResponse.model_validate(swimmer)
-    resp.age = _age(swimmer.birth_date)
+    resp.age = age_at(swimmer.birth_date)
     return resp
 
 

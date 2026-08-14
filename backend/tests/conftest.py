@@ -56,10 +56,14 @@ from app.modules.aerobic_tests.service import create_test  # noqa: E402
 from app.modules.auth.schemas import UserCreate  # noqa: E402
 from app.modules.auth.service import create_user  # noqa: E402
 from app.modules.plans.models import AthleteEvent  # noqa: E402
+from app.modules.plans.roster import add_athlete  # noqa: E402
 from app.modules.plans.schemas import (  # noqa: E402
-    AddAthleteRequest, CompetitionInput, EventInput, PlanCreate,
+    AddAthleteRequest,
+    CompetitionInput,
+    EventInput,
+    PlanCreate,
 )
-from app.modules.plans.service import add_athlete, create_plan  # noqa: E402
+from app.modules.plans.service import create_plan  # noqa: E402
 from app.modules.swimmers.schemas import SwimmerCreate  # noqa: E402
 from app.modules.swimmers.service import create_swimmer  # noqa: E402
 from app.modules.teams.service import create_team, get_membership  # noqa: E402
@@ -101,8 +105,9 @@ def _schema() -> None:
     por dentro (`env.py` llama a `asyncio.run`), así que no puede correr desde
     una fixture async.
     """
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     _TEST_DB.unlink(missing_ok=True)
     command.upgrade(Config(str(Path(__file__).resolve().parents[1] / "alembic.ini")), "head")

@@ -21,6 +21,11 @@ Prioridad: P1 = bloquea trabajo en curso · P2 = debería caer pronto · P3 = de
 > **Abierto el 2026-08-09**: TODO-16 — cuatro archivos pasan de 300 líneas; dos
 > de ellos crecieron con el código de vinculación. Ver abajo.
 >
+> **Backend de TODO-16 cerrado el 2026-08-14** (**478 tests en verde**): los
+> cuatro archivos grandes del backend partidos en submódulos y la edad duplicada
+> unificada en `core/dates.py`. Solo movimiento de código: cero cambios de
+> comportamiento y ninguna URL alterada. Queda `frontend/src/lib/types.ts`.
+>
 > **Abierto el 2026-08-10** (sesión de salida del test + alta por correo, **307
 > tests en verde**): TODO-17 y TODO-18, los dos aplazados a sabiendas por la
 > auditoría de seguridad de esa sesión. El hallazgo grave de esa auditoría —una
@@ -159,27 +164,54 @@ Ver la nota del principio del archivo.
 ---
 
 
-## TODO-16 — Cuatro archivos pasan del límite de ~300 líneas (P3)
+## TODO-16 — Archivos por encima del límite de ~300 líneas (P3)
 
-**Qué:** partir los que se han quedado grandes.
+**Backend cerrado el 2026-08-14** (478 tests en verde después de cada corte).
+Ningún archivo de `backend/app/` pasa ya de 300 salvo la excepción declarada.
+**Queda abierto el frontend**: ver el final de la entrada.
+
+### Lo que se partió
+
+| origen | líneas | queda en | sale a |
+|---|---:|---|---|
+| `core/dependencies.py` | 386 | 138 — resolución de la petición (`_principal_for`, `get_current_user`, `get_current_principal`) | `core/principal.py` 117 (el dataclass, sin FastAPI) · `core/dev_identity.py` 103 (las dos cabeceras, `dev_user`, `bypass_pedido`) · `core/guards.py` 88 (`require_role`, `require_owner`, `exigir_o_bypass` + atajos) |
+| `modules/link_codes/service.py` | 413 | 275 — las dos operaciones y sus reglas (`issue`, `invite`, `redeem`) | `codes.py` 65 (alfabeto, formato, caducidad, `LinkCodeError`) · `queries.py` 123 (lecturas) |
+| `modules/plans/service.py` | 345 | 147 — el plan como objeto (CRUD + estado + presentación) | `roster.py` 88 (inscribir, sacar, restaurar) · `weeks.py` 131 (semanas y recálculo) |
+| `modules/auth/router.py` | 320 | 120 — `/config`, `/dev-identities`, `/me`, `/me/password` + los `include_router` | `sessions.py` 152 (login/refresh/logout + `_issue_session`) · `members.py` 72 (`/members`) |
+
+Las URLs no cambian: los sub-routers de `auth` se montan sin prefijo.
+
+**La edad estaba duplicada** y se unificó en el mismo pase: `plans.service.age_at`
+(con fecha de referencia) y `swimmers.service._age` (con hoy) calculaban lo mismo
+con dos firmas. Ahora es `core/dates.py::age_at(birth_date, ref=None)` — en
+`core/` porque la usan dos módulos y las reglas prohíben que un módulo importe
+lógica de otro; no en `engine/` porque el motor *consume* la edad, pero pasar de
+fecha de nacimiento a años es calendario, no ciencia. La única diferencia de
+comportamiento es que la versión unificada acota a 0 la edad de una fecha de
+nacimiento futura, inalcanzable por la API (`_not_future` en `swimmers/schemas.py`).
+
+**Lo que cambió fuera de esos archivos** (mecánico, sin lógica): 7 routers pasan a
+importar `require_coach`/`require_team_owner` de `core.guards` — no se pueden
+reexportar desde `dependencies.py` sin ciclo, porque `guards` necesita
+`get_current_principal`—, y `main.py` + dos tests importan las cabeceras de
+`core.dev_identity`. `Principal` se sigue importando de `core.dependencies`
+(reexportado), así que sus 8 call sites no se tocaron, y `_principal_for` sigue
+donde estaba para `test_scope_helper.py`. La deuda de anotaciones de
+`scope_to_own_swimmer` viajó con el código: `pyproject.toml` ignora ahora
+`core/principal.py` en vez de `core/dependencies.py`.
+
+### Lo que sigue abierto
 
 | archivo | líneas | nota |
 |---|---:|---|
-| `backend/app/domain/engine.py` | 714 | **Excepción legítima**: port verbatim del sandbox, fuente de verdad. No tocar |
-| `backend/app/core/dependencies.py` | 386 | Ya estaba en 366; el 2026-08-09 subió al separar `get_current_user` de `get_current_principal` |
-| `backend/app/modules/plans/service.py` | 333 | Preexistente. Las reglas ya salieron a `access.py` y `enrollment.py`; queda CRUD + motor |
-| `frontend/src/lib/types.ts` | 346 | Ya estaba en 317; subió con `LinkCode` y `AssignableAthlete` |
+| `backend/app/domain/engine.py` | 721 | **Excepción legítima**: port verbatim del sandbox, fuente de verdad. Se rediseña aparte |
+| `frontend/src/lib/types.ts` | 446 | Era 346 cuando se abrió este TODO; sigue creciendo |
 
-**Por qué:** ninguno es una violación nueva, pero dos empeoraron en la misma
-sesión y el límite existe para que eso no pase inadvertido.
-
-**Por dónde empezar:** `types.ts` es el más fácil y el menos arriesgado —
+**Por dónde seguir:** `types.ts` es el corte que queda y el menos arriesgado —
 partirlo por dominio (`types/identity.ts`, `types/plans.ts`, `types/engine.ts`)
-con un barrel que reexporte, para no tocar 40 imports. `dependencies.py` podría
-separar el `Principal` de las dependencias de FastAPI, pero es el archivo del que
-cuelga todo el aislamiento: **cualquier corte ahí se propone antes de aplicarse**.
+con un barrel que reexporte, para no tocar 40 imports.
 
-**Esfuerzo:** S (`types.ts`) · M (los otros dos). **Depende de:** nada.
+**Esfuerzo:** S (`types.ts`). **Depende de:** nada.
 
 ---
 

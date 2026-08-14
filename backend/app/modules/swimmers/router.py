@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import Principal, get_current_principal, require_coach
+from app.core.dependencies import Principal, get_current_principal
+from app.core.guards import require_coach
 
 from . import service
 from .schemas import SwimmerCreate, SwimmerResponse, SwimmerUpdate

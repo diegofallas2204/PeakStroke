@@ -10,14 +10,19 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import (
-    Principal, exigir_o_bypass, get_current_principal, require_coach,
-)
+from app.core.dates import age_at
+from app.core.dependencies import Principal, get_current_principal
+from app.core.guards import exigir_o_bypass, require_coach
 
-from . import access, enrollment, service
+from . import access, enrollment, roster, service, weeks
 from .schemas import (
-    AddAthleteRequest, AssignableAthlete, PlanCreate, PlanResponse, PlanUpdate,
-    WeekResponse, WeekUpdateRequest,
+    AddAthleteRequest,
+    AssignableAthlete,
+    PlanCreate,
+    PlanResponse,
+    PlanUpdate,
+    WeekResponse,
+    WeekUpdateRequest,
 )
 
 router = APIRouter()
@@ -108,7 +113,7 @@ async def assignable_athletes(
     return [
         AssignableAthlete(
             id=s.id, name=s.name, specialty=s.specialty, main_stroke=s.main_stroke,
-            age=service.age_at(s.birth_date, plan.start_date),
+            age=age_at(s.birth_date, plan.start_date),
         )
         for s in await enrollment.assignable_swimmers(db, plan)
     ]
@@ -133,7 +138,7 @@ async def add_athlete(
             f"Ese atleta ya está en el macrociclo «{ocupado.name}». "
             "Sácalo de ahí antes de inscribirlo en otro."
         ))
-    await service.add_athlete(db, plan, data)
+    await roster.add_athlete(db, plan, data)
     return await service.to_plan_response(db, await _plan_or_404(db, plan_id, coach), coach)
 
 
@@ -150,7 +155,7 @@ async def remove_athlete(
     reales siguen en la base, y `POST .../restore` vuelve a inscribirlo con todo.
     """
     await _plan_or_404(db, plan_id, coach)
-    if not await service.remove_athlete(db, plan_id, athlete_plan_id):
+    if not await roster.remove_athlete(db, plan_id, athlete_plan_id):
         raise HTTPException(404, "Atleta no encontrado en este macrociclo")
 
 
@@ -172,7 +177,7 @@ async def restore_athlete(
             f"Ese atleta entró mientras tanto en el macrociclo «{ocupado.name}». "
             "Sácalo de ahí antes de devolverlo a este."
         ))
-    if not await service.restore_athlete(db, plan_id, athlete_plan_id):
+    if not await roster.restore_athlete(db, plan_id, athlete_plan_id):
         raise HTTPException(404, "No hay ninguna inscripción dada de baja con ese id")
 
 
@@ -185,7 +190,7 @@ async def event_weeks(
     event = await access.get_event(db, event_id, principal)
     if event is None:
         raise HTTPException(404, "Prueba no encontrada")
-    return await service.event_weeks_response(db, event)
+    return await weeks.event_weeks_response(db, event)
 
 
 @router.patch("/weeks/{week_id}", response_model=list[WeekResponse])
@@ -206,7 +211,7 @@ async def update_week(
     if data.touches_coach_only_fields() and not principal.is_coach:
         exigir_o_bypass(principal, "entrenador para marcar el parón de una semana")
 
-    event = await service.update_week(db, week_id, data, principal)
+    event = await weeks.update_week(db, week_id, data, principal)
     if event is None:
         raise HTTPException(404, "Semana no encontrada")
-    return await service.event_weeks_response(db, event)
+    return await weeks.event_weeks_response(db, event)

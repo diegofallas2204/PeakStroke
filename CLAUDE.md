@@ -83,8 +83,13 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
 - `PEAKSTROKE_AUTH_ENABLED=false` por defecto: **la app no pide login**. Toda
   petición se atribuye a `dev_user_email` (`coach@peakstroke.dev`, contraseña
   `peakstroke`). `config.py` impide que ese modo llegue a producción
-- Módulo `modules/auth/` + `core/security.py` (Argon2id + JWT) +
-  `core/dependencies.py` (`Principal`, `require_coach`, `require_team_owner`)
+- Módulo `modules/auth/` + `core/security.py` (Argon2id + JWT) + la identidad
+  repartida en cuatro archivos de `core/` (partidos el 2026-08-14):
+  `principal.py` (el dataclass `Principal`, sin FastAPI), `dependencies.py`
+  (resolver la petición: `get_current_user`, `get_current_principal`),
+  `guards.py` (`require_coach`, `require_team_owner`, `exigir_o_bypass`) y
+  `dev_identity.py` (las dos cabeceras del conmutador). `Principal` se sigue
+  importando de `core.dependencies`; los guards, de `core.guards`
 - **Los guards de rol comprueban el rol SIEMPRE**, también con el login apagado.
   Antes se saltaban, y con el conmutador de identidad eso permitía que un atleta
   se ascendiera a entrenador en una petición
@@ -177,7 +182,7 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
 - **`plan_coaches` decide visibilidad**: un entrenador que no esté en la lista no
   ve ni edita ese macrociclo. **Excepción: el dueño**, que llega a todos — sin eso
   los planes de un entrenador que se va quedarían huérfanos
-- **Toda consulta pasa por `Principal`** (`core/dependencies.py`): usuario +
+- **Toda consulta pasa por `Principal`** (`core/principal.py`): usuario +
   pertenencia + propiedad. `plans.service.visible_to()` es la única puerta a los
   macrociclos; nada la esquiva
 - `team_id` sale **siempre de la sesión**, nunca del cuerpo de la petición

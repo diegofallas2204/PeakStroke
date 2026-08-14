@@ -82,7 +82,7 @@ class JoinRequestResponse(BaseModel):
 
 class RedeemRequest(BaseModel):
     # 20 caracteres de holgura para aceptar el guion, los espacios y las
-    # minúsculas: `service.normalize_code` se encarga, y rechazar por formato lo
+    # minúsculas: `codes.normalize_code` se encarga, y rechazar por formato lo
     # que solo está mal escrito produce un 422 que no ayuda a nadie.
     code: str = Field(min_length=4, max_length=20)
 

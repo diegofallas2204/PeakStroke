@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core import model_registry  # noqa: F401
 from app.core.config import settings
 from app.core.database import init_db
-from app.core.dependencies import DEV_BYPASS_HEADER, DEV_USER_HEADER
+from app.core.dev_identity import DEV_BYPASS_HEADER, DEV_USER_HEADER
 from app.modules.aerobic_tests.router import router as aerobic_router
 from app.modules.auth.router import router as auth_router
 from app.modules.dashboard.router import router as dashboard_router

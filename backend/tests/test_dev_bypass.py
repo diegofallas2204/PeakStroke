@@ -24,7 +24,7 @@ import pytest
 from conftest import API, World, como
 
 from app.core.config import settings
-from app.core.dependencies import DEV_BYPASS_HEADER
+from app.core.dev_identity import DEV_BYPASS_HEADER
 
 
 def con_bypass(email: str) -> dict[str, str]:

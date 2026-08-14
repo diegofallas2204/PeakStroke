@@ -94,7 +94,10 @@ extend-immutable-calls = [
 "tests/**" = ["ANN", "RUF012"]
 "app/main.py" = ["ANN201"]
 "app/core/database.py" = ["ANN001"]
-"app/core/dependencies.py" = ["ANN001", "ANN201"]
+# `scope_to_own_swimmer(stmt, column)` salió de `dependencies.py` a `principal.py`
+# al partirlo (2026-08-14): sus dos argumentos son un `Select` y una `Column` de
+# SQLAlchemy, y anotarlos ata la firma a los genéricos internos de la librería.
+"app/core/principal.py" = ["ANN001", "ANN201"]
 "app/modules/*/router.py" = ["ANN001", "ANN201", "ANN202"]
 # Manejadores que salieron de `auth/router.py` al partirlo (2026-08-13): la deuda
 # viaja con el código, no con el nombre del fichero.

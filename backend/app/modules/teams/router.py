@@ -9,7 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import Principal, require_coach, require_team_owner
+from app.core.dependencies import Principal
+from app.core.guards import require_coach, require_team_owner
 
 from . import service
 from .schemas import CoachAthletes, OwnerTransfer, TeamResponse, TeamUpdate

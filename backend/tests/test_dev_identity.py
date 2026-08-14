@@ -16,7 +16,7 @@ import pytest
 from conftest import API, World, como
 
 from app.core.config import settings
-from app.core.dependencies import DEV_USER_HEADER
+from app.core.dev_identity import DEV_USER_HEADER
 from app.modules.teams.models import TeamMember
 
 

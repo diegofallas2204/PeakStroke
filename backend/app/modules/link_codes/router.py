@@ -15,14 +15,21 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import Principal, get_current_user, require_coach
+from app.core.dependencies import Principal, get_current_user
+from app.core.guards import require_coach
 from app.modules.auth.models import User
 
-from . import service
+from . import queries, service
+from .codes import LinkCodeError, format_code
 from .models import LinkCode
 from .schemas import (
-    InviteRequest, InviteResponse, JoinRequestResponse, LinkCodeCreate,
-    LinkCodeResponse, RedeemRequest, RedeemResponse,
+    InviteRequest,
+    InviteResponse,
+    JoinRequestResponse,
+    LinkCodeCreate,
+    LinkCodeResponse,
+    RedeemRequest,
+    RedeemResponse,
 )
 
 router = APIRouter()
@@ -32,7 +39,7 @@ def _to_response(code: LinkCode, swimmer_name: str) -> LinkCodeResponse:
     return LinkCodeResponse(
         id=code.id, swimmer_id=code.swimmer_id, swimmer_name=swimmer_name,
         invited_email=code.invited_email,
-        code=service.format_code(code.code), expires_at=code.expires_at,
+        code=format_code(code.code), expires_at=code.expires_at,
         created_at=code.created_at,
     )
 
@@ -43,8 +50,8 @@ async def list_codes(
     db: AsyncSession = Depends(get_db),
 ):
     """Los códigos vivos del equipo, para reenviar el que se perdió."""
-    codes = await service.active_for_team(db, principal.team_id)
-    nombres = await service.swimmer_names(db, principal.team_id)
+    codes = await queries.active_for_team(db, principal.team_id)
+    nombres = await queries.swimmer_names(db, principal.team_id)
     return [_to_response(c, nombres.get(c.swimmer_id, "—")) for c in codes]
 
 
@@ -54,13 +61,13 @@ async def create_code(
     principal: Principal = Depends(require_coach),
     db: AsyncSession = Depends(get_db),
 ):
-    swimmer = await service.swimmer_of_team(db, data.swimmer_id, principal.team_id)
+    swimmer = await queries.swimmer_of_team(db, data.swimmer_id, principal.team_id)
     # 404 y no 403 para una ficha de otro equipo: un 403 confirmaría que existe.
     if swimmer is None:
         raise HTTPException(404, "Atleta no encontrado")
     try:
         code = await service.issue(db, swimmer, principal.id)
-    except service.LinkCodeError as e:
+    except LinkCodeError as e:
         raise HTTPException(e.status, str(e)) from None
     return _to_response(code, swimmer.name)
 
@@ -88,7 +95,7 @@ async def invite(
         swimmer, code, temporal = await service.invite(
             db, data, principal.team_id, principal.id,
         )
-    except service.LinkCodeError as e:
+    except LinkCodeError as e:
         raise HTTPException(e.status, str(e)) from None
     return InviteResponse(
         link_code=_to_response(code, swimmer.name),
@@ -126,7 +133,7 @@ async def my_join_requests(
             invited_by=nombres.coach,
             expires_at=code.expires_at, created_at=code.created_at,
         )
-        for code, nombres in await service.describe_pending(db, user)
+        for code, nombres in await queries.describe_pending(db, user)
     ]
 
 
@@ -142,7 +149,7 @@ async def redeem(
     """
     try:
         swimmer, team = await service.redeem(db, data.code, user)
-    except service.LinkCodeError as e:
+    except LinkCodeError as e:
         raise HTTPException(e.status, str(e)) from None
     return RedeemResponse(
         swimmer_id=swimmer.id, swimmer_name=swimmer.name,
