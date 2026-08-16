@@ -1,20 +1,32 @@
 # PeakStroke — Modelo del rediseño
 
-> **Estado: BORRADOR PARA REVISIÓN.** Nada de esto está construido. La beta
-> actual sigue intacta y funcionando. Este documento es el modelo objetivo para
-> la versión limpia; se revisa, se anota y se conversa antes de escribir código.
+> **Estado: MODELO CERRADO, sin construir.** La beta actual sigue intacta y
+> funcionando. Este documento es el modelo objetivo para la versión limpia.
 >
 > Fecha: 2026-08-12 · Línea base medida: 307 tests en verde, `tsc` limpio,
 > `eslint` limpio.
 >
 > **Actualización 2026-08-13:** el bloque A1 del plan de trabajo (cerrar las dos
 > divergencias concretas) sí se ejecutó — no toca el rediseño, borra reglas
-> duplicadas y añade `tests/test_reglas_unicas.py`. Línea base ahora: **442 tests
-> en verde**. El modelo de este documento sigue sin construirse.
+> duplicadas y añade `tests/test_reglas_unicas.py`. Línea base entonces: **442
+> tests en verde**. El modelo de este documento sigue sin construirse.
 >
-> **Cómo revisarlo:** las decisiones abiertas están marcadas `❓R1`…`❓R8` al
-> final. Responde esas ocho y el modelo queda cerrado. Todo lo demás lleva
-> recomendación y razón: si no estás de acuerdo, anótalo donde esté.
+> **Línea base vigente: 478 tests en verde** (suite completa ejecutada el
+> 2026-08-16: `478 passed in 130.54s`, sin fallos ni omitidos, con `PEAKSTROKE_`
+> por defecto). La progresión es 307 → 442 → 478; las dos primeras
+> cifras se conservan arriba porque fechan lo que se midió entonces. **Donde este
+> documento diga "los N tests" sin fecha, se refiere a los 478 de hoy.**
+>
+> **Actualización 2026-08-16 — las ocho decisiones (R1–R8) están cerradas.**
+> Ver **§10**, que guarda cada una con su fecha y su razón. Cerrarlas cambió
+> cinco cosas del cuerpo del documento (§10.2) y abrió cinco preguntas nuevas
+> (§10.3), ninguna de las cuales bloquea la construcción. Los sitios afectados
+> llevan una nota `> **Rn — CERRADA**` al lado del texto original: se conserva
+> lo que se pensaba antes, porque la razón del cambio se lee mejor con las dos
+> versiones delante.
+>
+> **Lo que sigue sin decidirse** no son decisiones de modelo sino de producto, y
+> viven en §10.3.
 
 ---
 
@@ -90,8 +102,8 @@ backend/app/
 │   │   ├── inscripcion.py       Inscripcion · PruebaObjetivo · Semana
 │   │   ├── test_aerobico.py     TestAerobico · Parcial
 │   │   ├── resultado.py         Resultado                          ← nuevo
-│   │   ├── sesion.py            Sesion · Serie                     ← nuevo ❓R1
-│   │   └── carga.py             CargaDiaria                        ← nuevo ❓R1
+│   │   ├── sesion.py            Sesion (R1: tras 1-6) · Serie (R1: fuera)
+│   │   └── carga.py             CargaDiaria                  ← nuevo (R1: tras 1-6)
 │   ├── roles/
 │   │   └── rol.py               Rol · Administrador · EntrenadorEnJefe ·
 │   │                            Entrenador · Atleta(rol)
@@ -100,7 +112,7 @@ backend/app/
 │       ├── tablas.py            todas las constantes + su fuente §
 │       ├── curvas.py            Curva (Strategy) + 5 implementaciones
 │       ├── intervalos.py        cálculo de salida y descanso
-│       └── banister.py          CargaAcumulada (CTL/ATL/TSB)       ← nuevo ❓R1
+│       └── banister.py          CargaAcumulada (CTL/ATL/TSB) ← nuevo (R1: tras 1-6)
 │
 ├── core/                        config · database · security · principal
 │
@@ -238,11 +250,19 @@ queda como texto libre solo para la interfaz.
 `Usuario` es identidad y nada más: correo, hash, nombre, versiones de sesión.
 **No hereda a `Entrenador` ni a `Nadador`.**
 
-El caso concreto que lo descarta: un entrenador que además nada máster en su
-propio club, o alguien que es atleta en un club y entrenador en otro. Con
-herencia, cambiar de rol significa cambiar de clase — y una fila de `users` no
-cambia de clase. Habría que borrar la cuenta y recrearla, perdiendo el histórico
-y la identidad.
+El caso concreto que lo descarta: **un atleta que asciende a entrenador en su
+club.** Ocurre, y hoy es un `UPDATE team_members.role`. Con herencia sería
+cambiar de clase una fila de `users`, que no cambia de clase: habría que borrar
+la cuenta y recrearla, perdiendo el histórico y la identidad.
+
+> **R5 — CERRADA el 2026-08-16.** Este párrafo argumentaba antes desde
+> *"un entrenador que además nada máster en su propio club, o alguien que es
+> atleta en un club y entrenador en otro"*. Las dos mitades son hoy imposibles y
+> el diseño las mantiene imposibles: la segunda por `UNIQUE(user_id)` en
+> `team_members`, la primera por `link_codes/service.py:260` (*"Una cuenta de
+> entrenador no puede ligarse a una ficha"*) y porque una pertenencia lleva **un**
+> `role`. Argumentar desde un caso que el propio modelo prohíbe debilitaba una
+> decisión que es correcta por otra razón.
 
 **El rol cuelga de la pertenencia**, que es donde ya vive hoy:
 
@@ -262,7 +282,7 @@ Rol (abstracto)
   · secciones_visibles() -> set[Seccion]
   · puede_escribir(recurso) -> bool
   │
-  ├── Administrador       plataforma; cruza equipos      ❓R3
+  ├── Administrador       plataforma; cruza equipos   (R3: solo el hueco)
   ├── EntrenadorEnJefe    = dueño del equipo; ve TODOS los macrociclos del club
   │     └── hereda de Entrenador y solo amplía el alcance
   ├── Entrenador          ve los macrociclos en los que está (`entrenadores_del_macro`)
@@ -315,7 +335,14 @@ rompen las fronteras.
 
 Va como bandera en `usuarios` (`es_staff`) o tabla `roles_de_plataforma` aparte,
 y `Principal` lo resuelve como **eje ortogonal** — igual que hoy resuelve
-`es_desarrollador`, que ya es ese mismo patrón funcionando. ❓R3
+`es_desarrollador`, que ya es ese mismo patrón funcionando.
+
+> **R3 — CERRADA el 2026-08-16: solo el hueco, y más estrecho.** Que la
+> jerarquía de `Rol` no cierre la puerta (que `alcance_de_atletas()` pueda
+> devolver `todos`) y nada más. **Ni `es_staff` en `usuarios`, ni campo en
+> `Principal`, ni tabla `roles_de_plataforma`.** Un hueco en una jerarquía de
+> clases es gratis y reversible; un campo en el objeto del que cuelga el
+> aislamiento, no.
 
 ### 4.5 Entrenador asistente
 
@@ -325,7 +352,16 @@ jefe/asistente, y ya está impuesta en la capa de acceso.
 
 Haría falta un rol nuevo solo si el asistente debe tener **menos** permisos
 dentro de un macrociclo que sí lleva (ejemplo: registrar tiempos sí, cambiar la
-meta no). ❓R4
+meta no).
+
+> **R4 — CERRADA el 2026-08-16: no hay rol nuevo, pero dos guards se mueven.**
+> El argumento de arriba vale para **ver**, no para **escribir**: dentro de un
+> macro que lleva, el asistente puede hoy borrarlo y cambiar la meta, porque
+> `plans/router.py` los protege con `require_coach` y no con `require_owner`.
+> **Esas dos operaciones pasan a `require_owner`.** No es un rol nuevo: es
+> reconocer que ya eran de dueño y estaban mal guardadas. Un rol más añadiría
+> una tercera pregunta a cada escritura, que es como se abrió el agujero del
+> scoping del atleta.
 
 ---
 
@@ -435,13 +471,26 @@ esperado: Tiempo          curva ideal original — NUNCA se modifica
 recalculado: Tiempo?      curva recalculada tras un tiempo real
 fase: Fase                ← clave de dominio, no etiqueta
 deshabilitada + razon
-resultado_id?             ← FK a Resultado. YA NO guarda el tiempo
+                          ← NINGUNA columna de tiempo real. Ver abajo.
 
 zonas() -> JuegoDeZonas   derivado, no persistido
+resultados() -> [Resultado]   los que caen en esta semana (derivado)
+real() -> Tiempo?         promedio de resultados(); None si no hay ninguno
 desviacion() -> Mejora?
 ```
 
 **Cambio de fondo:** `real_time` sale de aquí. Ver §5.10.
+
+**La semana no tiene FK al resultado** (decisión R2 enmendada, §10.2). El
+entrenador quiere que **varios tiempos de la misma semana se promedien**, y una
+FK única no admite varios. `Resultado` ya lleva `(atleta, prueba, fecha)`, así
+que la semana deriva su conjunto por rango de fechas. Uno, varios y ninguno son
+el mismo caso.
+
+**Solo reancla la curva lo que `real()` devuelve.** Un resultado del histórico
+del atleta que no cae en ninguna semana del plan —una competencia en fecha
+suelta, una prueba que no es objetivo de este macro— entra en su histórico y
+**no toca la predicción**.
 
 ### 5.9 `TestAerobico` (AerobicTest) y `Parcial` (AerobicSplit)
 
@@ -478,21 +527,37 @@ viven en `Semana.real_time`, colgando de
 `Macrociclo → Inscripcion → PruebaObjetivo → Semana`. Consecuencia ya observada:
 `remove_athlete` **tuvo que** convertirse en baja lógica porque borrar la
 inscripción cascadeaba y se llevaba los tiempos reales del atleta — está
-documentado en su propio docstring (`plans/service.py:196`). El bug se parcheó;
-la causa —un hecho del atleta modelado como propiedad de un plan— sigue ahí.
+documentado en su propio docstring (`plans/roster.py:57`; el archivo se partió en
+cinco después de que se escribiera esta nota). El bug se parcheó; la causa —un
+hecho del atleta modelado como propiedad de un plan— sigue ahí.
+
+**Y hay un segundo agujero por la misma causa, este sin parchear:**
+`delete_plan` (`plans/service.py:139`) solo bloquea el borrado si el macrociclo
+tiene tests aeróbicos asociados. Un macro sin tests se borra limpio, y la cascada
+`Plan → AthletePlan → AthleteEvent → WeeklyPlan` se lleva **todos los tiempos
+registrados de todos sus atletas**. Lo único que hoy protege el activo más
+valioso de la aplicación es que haya un test de por medio.
 
 Con `Resultado` colgando del atleta:
 - sacar a alguien de un macrociclo no puede tocar su histórico (la baja lógica
   pasa a ser una elección, no un parche);
+- borrar un macrociclo tampoco;
 - el mismo tiempo se puede comparar contra dos macrociclos;
 - el histórico de un atleta se lee sin recorrer planes;
-- `Semana.resultado_id` es una referencia opcional: la semana *apunta* al tiempo,
-  no lo posee.
+- el tiempo lleva **su propia piscina**. Hoy `real_time` es un `float` sin unidad
+  de piscina y la piscina es del *plan*, así que un tiempo nadado en corta dentro
+  de un macro de larga se compara contra una curva de larga sin que nada avise.
 
 `AerobicTest` ya está modelado así (cuelga del atleta, con macrociclo opcional).
-Es el patrón correcto que el resto del esquema no siguió. ❓R2
+Es el patrón correcto que el resto del esquema no siguió.
 
-### 5.11 `Sesion` y `Serie` — nuevo ❓R1
+> **R2 — CERRADA el 2026-08-16: reemplaza.** `real_time` se conserva durante una
+> versión de transición, y se retira cuando ningún lector la use directamente
+> (`dashboard/service.py`, `plans/weeks.py`, `plans/roster.py`) y el conteo
+> `resultados == real_time no nulos` cuadre en dos despliegues seguidos.
+> **Enmendada el mismo día:** la semana no lleva FK. Ver §5.8 y §10.2.
+
+### 5.11 `Sesion` y `Serie` — nuevo (R1: `Sesion` tras 1-6; `Serie` fuera)
 
 ```
 Sesion:  atleta · fecha · macrociclo? · semana? · km_totales · notas · rpe?
@@ -514,7 +579,7 @@ semana.
 De este hueco cuelga todo lo que hoy no se puede construir. Sin `Sesion` no hay
 de dónde sacar el sTSS diario, y sin sTSS no hay Banister.
 
-### 5.12 `CargaDiaria` — nuevo ❓R1
+### 5.12 `CargaDiaria` — nuevo (R1: tras 1-6)
 
 ```
 atleta · fecha · stss · ctl · atl · tsb
@@ -571,7 +636,17 @@ y la fusión no es "quedarse con uno":
 El motor fusionado necesita las dos mitades. `ScienceEngine` asume macro fijo de
 15 semanas; `progression` respeta las semanas y los km que puso el entrenador.
 La fusión es: **la ciencia de `ScienceEngine`, la parametrización de
-`progression`.** ❓R6
+`progression`.**
+
+> **R6 — CERRADA el 2026-08-16: el kilometraje lo manda el entrenador.**
+> Fases y forma de la ciencia; **total normalizado al que puso el entrenador**;
+> las bandas de `WEEKLY_VOLUME_KM` como **aviso**, nunca como valor por defecto
+> ni como límite, y visible **solo en la tabla del plan**. Medido con un caso
+> real, `ScienceEngine` prescribe 777,7 km donde el entrenador puso 450 —
+> `generate_plan` ni siquiera recibe `total_km`. Los números y los tres
+> defectos que destaparon (el acantilado de `classify_level`, el taper
+> invertido y la onda 3:1 desfasada) están en §10.4, y los tres entran en el
+> alcance del paso 4.
 
 `tablas.py` guarda todas las constantes con su § de referencia:
 `ZONE_OVER_RACE`, `I_MAX_TABLE`, `F_FASE`, `WEEKLY_VOLUME_KM`,
@@ -593,9 +668,17 @@ Curva (abstracta)
 Hoy `curve_progress(x, curve)` es una cadena de `if` por string, con `CURVES`,
 `CURVE_LABELS` y los parámetros de forma (`EXP_K`, `LOG_SCALE`,
 `SIGMOID_STEEPNESS`) en constantes paralelas: añadir una curva son cuatro
-ediciones en tres archivos. Con Strategy es un archivo. ❓R7
+ediciones en tres archivos. Con Strategy es un archivo.
 
-### 6.3 `CargaAcumulada` — Banister ❓R1
+> **R7 — CERRADA el 2026-08-16: elegible en el simulador, fija en el plan.**
+> Y `progression_curve` **deja de ser columna de `plans`**; el parámetro se
+> queda en la firma del motor, que es de donde lo usa el simulador. La razón
+> no es que las otras curvas "solo comparen escenarios": **cambian el veredicto
+> que ve el atleta**. Mismo tiempo nadado, la semana 8 sale `AHEAD` con la
+> científica y `BEHIND` con la exponencial (§10.4). Dejar la columna y esconder
+> el desplegable sería teatro, que CLAUDE.md ya prohíbe.
+
+### 6.3 `CargaAcumulada` — Banister (R1: tras 1-6)
 
 ```
 CargaAcumulada
@@ -616,8 +699,8 @@ usuarios ──< pertenencias >── equipos
                     │
                     ├──< tests_aerobicos ──< parciales
                     ├──< resultados                    ← NUEVO
-                    ├──< sesiones ──< series           ← NUEVO ❓R1
-                    ├──< carga_diaria                  ← NUEVO ❓R1
+                    ├──< sesiones (R1: tras 1-6) ──< series (R1: fuera)
+                    ├──< carga_diaria                  ← NUEVO (R1: tras 1-6)
                     ├──< entrenadores_de_atleta >── pertenencias
                     └──< inscripciones
 
@@ -625,7 +708,7 @@ macrociclos ──< fases_del_macro
             ──< competencias ──< resultados            (agrupa, no posee)
             ──< entrenadores_del_macro >── pertenencias
             ──< inscripciones ──< pruebas_objetivo ──< semanas
-                                                          └─ resultado_id? (FK)
+        (la semana NO tiene FK: deriva sus resultados por fecha — R2, §10.2)
 
 codigos_de_vinculacion ── atletas · pertenencias · usuarios
 ```
@@ -634,13 +717,13 @@ codigos_de_vinculacion ── atletas · pertenencias · usuarios
 
 | # | Cambio | Motivo |
 |---|---|---|
-| 1 | `semanas.real_time` → `semanas.resultado_id` (FK a `resultados`) | §5.10 — el tiempo es del atleta |
+| 1 | `semanas.real_time` **se retira**; la semana no gana ninguna columna — deriva sus resultados por `(atleta, prueba, rango de fechas)` y **promedia** | §5.10 y §10.2 — el tiempo es del atleta, y el entrenador quiere varios por semana |
 | 2 | `resultados` (tabla nueva) | idem |
-| 3 | `sesiones` + `series` (nuevas) ❓R1 | la unidad mínima deja de ser la semana |
-| 4 | `carga_diaria` (nueva) ❓R1 | CTL/ATL/TSB |
+| 3 | `sesiones` (tras 1-6); `series` **fuera del rediseño** — R1 | la unidad mínima deja de ser la semana |
+| 4 | `carga_diaria` (nueva, tras 1-6) — R1 | CTL/ATL/TSB |
 | 5 | `semanas.fase` y `fases_del_macro.tipo` guardan la **clave** de `Fase`, no la etiqueta | cierra P3 |
 | 6 | `CheckConstraint` en zona, nivel, perfil, estilo, especialidad, tipo_de_test, piscina, estado, modo_de_ingreso, rol | hoy solo `rol` lo tiene; el resto acepta cualquier string |
-| 7 | `usuarios.es_staff` (o `roles_de_plataforma`) ❓R3 | admin no cabe en `pertenencias` |
+| 7 | ~~`usuarios.es_staff`~~ — **R3: no se añade nada.** Solo el hueco en la jerarquía de `Rol` | admin no cabe en `pertenencias`, pero tampoco se construye |
 | 8 | Un solo registro de modelos | hoy hay que acordarse en `model_registry.py`, `alembic/env.py` y `seed.py`; olvidarlo revienta al primer INSERT |
 | 9 | Nombres de tabla en español, coherentes con el dominio | hoy mezcla `swimmers`/`plans` con conceptos en español |
 
@@ -666,8 +749,11 @@ Es lo mejor que tiene la beta y se conserva entero:
 Todo el esquema actual es migrable sin pérdida. El único paso con trabajo real:
 
 ```
-semanas.real_time  ──►  resultados(atleta, prueba, tiempo, fecha, contexto='control')
-                        + semanas.resultado_id = nuevo.id
+semanas.real_time  ──►  resultados(atleta, prueba, tiempo, fecha, piscina,
+                                   contexto='control')
+
+(NO hay UPDATE de vuelta: la semana no guarda referencia. El vínculo se deriva
+ de la fecha, que es lo que permite varios resultados por semana — R2, §10.2.)
 ```
 
 La prueba y el atleta se derivan de `pruebas_objetivo` e `inscripciones`; la
@@ -689,7 +775,7 @@ El resto son renombres de columna y `CheckConstraint` añadidos.
 | `Competition` | `Competencia` | — |
 | `AthletePlan` | `Inscripcion` | — |
 | `AthleteEvent` | `PruebaObjetivo` | `(distance, stroke)` → `Prueba` |
-| `WeeklyPlan` | `Semana` | `real_time` → `resultado_id` |
+| `WeeklyPlan` | `Semana` | `real_time` sale; `resultados()` y `real()` se derivan |
 | `AerobicTest` / `AerobicSplit` | `TestAerobico` / `Parcial` | análisis dentro del objeto; conversión clock→rep como invariante |
 | `LinkCode` | `CodigoDeVinculacion` | + ciclo de vida como métodos |
 | `CoachAthlete` / `PlanCoach` | `EntrenadorDeAtleta` / `EntrenadorDelMacro` | — |
@@ -703,7 +789,7 @@ El resto son renombres de columna y `CheckConstraint` añadidos.
 | `modules/dashboard` | `api/v1/vistas/` | deja de ser módulo de dominio; es una vista |
 | `modules/simulator` | `api/v1/simulador/` | llama al motor, no persiste |
 | — | `Resultado` | **nuevo** |
-| — | `Sesion` / `Serie` / `CargaDiaria` | **nuevo** ❓R1 |
+| — | `Sesion` / `CargaDiaria` | **nuevo**, tras los pasos 1-6 (R1). `Serie` queda fuera |
 | — | `persistencia/repositorios/` | **nuevo** (cierra P5) |
 
 ---
@@ -718,10 +804,10 @@ El resto son renombres de columna y `CheckConstraint` añadidos.
 | 4 | **Fusión de los dos motores** | **medio-alto** | P1, P3 | rama propia |
 | 5 | `persistencia/repositorios/` + recorte de imports cruzados | medio | P5 | sí |
 | 6 | `Resultado` + migración de `real_time` | medio | §5.10 | sí |
-| 7 | `Sesion` / `Serie` ❓R1 | medio | el hueco de fondo | sí |
-| 8 | `CargaDiaria` + Banister ❓R1 | bajo | nota 05 | — |
+| 7 | `Sesion` (R1: **`Serie` fuera**) | medio | el hueco de fondo | sí |
+| 8 | `CargaDiaria` + Banister (R1) | bajo | nota 05 | — |
 
-El paso 4 es el único con riesgo real. Se hace en rama propia y con los 442 tests
+El paso 4 es el único con riesgo real. Se hace en rama propia y con los 478 tests
 delante (2026-08-13): `test_domain_engine.py` y `test_engine.py` ya fijan el
 comportamiento esperado de los dos motores por separado, así que la fusión tiene
 contrato explícito de entrada. `test_reglas_unicas.py` añade la comprobación de
@@ -739,18 +825,124 @@ Los pasos 1–3 no rompen nada: son adición. Se puede parar después de cualqui
 
 ---
 
-## 10. Decisiones abiertas — para tu revisión
+## 10. Decisiones — CERRADAS el 2026-08-16
 
-| # | Decisión | Recomendación | Impacto si cambia |
+Las ocho se cerraron en una sesión de decisión, en orden de impacto (R2, R6, R1,
+R5 y luego el resto), con el código delante y —en R6 y R7— corriendo los motores
+sobre casos reales. **El modelo queda cerrado.** Lo que sigue abierto es la lista
+del §10.3, que son preguntas nuevas que salieron de estas respuestas, no restos
+de las viejas.
+
+> **R9 se cerró el mismo día y no está aquí a propósito.** Es el color de la
+> sección fusionada de B1 — una decisión de frontend, y este documento es el
+> modelo del backend. Vive en el bloque B1 de `docs/PLAN-DE-TRABAJO.md`, con su
+> razón. Se cerró como **rosa `#f472b6`** —la sección superviviente conserva su
+> color— y **ya está aplicada** en `frontend/src/lib/constants.ts`.
+
+### 10.1 Las ocho
+
+| # | Decisión | Cerrada como | Razón |
 |---|---|---|---|
-| **❓R1** | ¿`Sesion`/`Serie`/`CargaDiaria` entran en este rediseño o quedan para v2? | **Entran.** Es el hueco de fondo: sin ellas no hay Banister, y las prescripciones que el motor calcula siguen sin tener dónde guardarse | si quedan fuera, el modelo es válido igual; solo se pospone el paso 7–8 |
-| **❓R2** | ¿`Resultado` reemplaza a `Semana.real_time` o conviven? | **Reemplaza.** Convivir significa dos sitios donde vive el mismo hecho, que es P1 otra vez | alto: es el cambio estructural del esquema |
-| **❓R3** | ¿`Administrador` se construye ahora o se deja el hueco? | **Solo el hueco** (`Rol` lo contempla, no se implementa). La revisión de CEO del 2026-08-06 lo dejó fuera hasta tener spec propia | bajo: es aditivo |
-| **❓R4** | ¿El entrenador asistente necesita menos permisos dentro de un macrociclo que sí lleva? | **No.** `entrenadores_del_macro` ya da la distinción. Solo si quieres "registra tiempos pero no cambia la meta" | medio: un rol más en la jerarquía |
-| **❓R5** | ¿Una persona puede pertenecer a más de un equipo? | **No por ahora.** Hoy `UNIQUE(usuario_id)` lo impide y el diseño lo respeta. Quitar esa restricción es un cambio de una línea, pero `Principal` pasaría a tener que elegir equipo activo | alto: toca toda la frontera de aislamiento |
-| **❓R6** | Al fusionar los motores, ¿mando la ciencia de `ScienceEngine` o la parametrización de `progression`? | **Las dos** (§6.1): ciencia de uno, parametrización del otro. Pero hay un conflicto real: `ScienceEngine` reparte km por nivel/fase, `progression` los normaliza al total que puso el entrenador | alto: define qué ve el entrenador |
-| **❓R7** | ¿Se mantiene la curva elegible por el entrenador o se fija `Cientifica`? | **Se mantiene**, pero como herramienta del simulador. En el plan real, `Cientifica` por defecto (ya lo es) | bajo |
-| **❓R8** | ¿PostgreSQL desde el rediseño o seguimos con SQLite? | **SQLite.** El `docker-compose.yml` ya trae PostgreSQL 17 listo; el salto es `pip install asyncpg` + una variable. No lo mezcles con el rediseño del dominio | medio si se hacen a la vez |
+| **R1** | ¿`Sesion`/`Serie`/`CargaDiaria` entran o quedan para v2? | **Partida en tres.** El modelo las contempla. `Sesion`+`CargaDiaria` se construyen **después** de que los pasos 1–6 estén verdes y desplegados. `Serie` **sale** del rediseño | Los pasos 1–6 mueven comportamiento de sitio; el 7 y el 8 construyen algo nuevo. Mezclarlos hace que, si el paso 4 sale mal, no se sepa si fue el refactor o la funcionalidad. Y **Banister depende de `Sesion`, no de `Serie`**: para el sTSS diario basta fecha + carga. `Serie` es la única pieza que obliga al entrenador a cambiar su rutina, y eso todavía no está decidido. Alcance futuro completo en la nota 22 del vault |
+| **R2** | ¿`Resultado` reemplaza a `Semana.real_time` o conviven? | **Reemplaza**, con `real_time` viva durante **una** versión de transición y criterio de retirada escrito. **Enmendada el mismo día: la semana NO lleva FK** (ver §10.2) | Hoy `DELETE /plans/{id}` cascadea hasta `weekly_plans` y lo único que lo frena es que haya un test aeróbico asociado (`plans/service.py:139`). Un macro sin tests se borra con el histórico dentro. Es el tercer parche sobre la misma causa: un hecho de una persona modelado como propiedad de un plan. `AerobicTest` ya cuelga del atleta y no ha necesitado ninguno |
+| **R3** | ¿`Administrador` se construye o se deja el hueco? | **Solo el hueco, y más estrecho de lo propuesto**: que la jerarquía de `Rol` no cierre la puerta (que `alcance_de_atletas()` pueda devolver `todos`). **Cero campos en `Principal`, cero columnas en `usuarios`** | Un hueco en una jerarquía de clases es gratis y reversible. Un campo en el objeto del que cuelga todo el aislamiento no lo es: existe, se serializa, y alguien acaba resolviéndolo desde la base sin la spec que la revisión de CEO del 2026-08-06 pidió |
+| **R4** | ¿El asistente necesita menos permisos dentro de un macro que sí lleva? | **No hay rol nuevo.** Pero **dos operaciones pasan de `require_coach` a `require_owner`**: borrar el macrociclo y cambiar la meta de una prueba objetivo | El argumento del documento (`entrenadores_del_macro` ya distingue) vale para **ver**, no para **escribir**: hoy el asistente puede borrar el macro que lleva. Un rol nuevo mete una tercera pregunta en cada escritura, que es como se abrió el agujero del scoping del atleta. Mover dos guards reconoce que esas acciones ya eran de dueño y estaban mal guardadas |
+| **R5** | ¿Una persona en más de un equipo? | **No** — más dos arreglos que entran en el rediseño (§10.2) | `Principal` vale porque `team_id` **no es una elección**. Con dos clubes pasa a ser estado de sesión: algo que se elige, se guarda, caduca y se desincroniza. Eso convierte la frontera de aislamiento de invariante en convención, justo lo que este rediseño está deshaciendo en todas partes. No se paga por un caso que todavía no existe |
+| **R6** | Al fusionar, ¿quién manda el kilometraje? | **Fases y forma de la ciencia, total del entrenador.** Las bandas de `WEEKLY_VOLUME_KM` quedan como **aviso**, nunca como valor por defecto ni como límite — y el aviso se enseña **solo en la tabla del plan**, no en el formulario de creación | Medido (§10.4). `ScienceEngine` no es más científico en volumen: es **peor**. Sube la carga la semana de la competencia y hace depender 15 km/semana de una décima de segundo. La normalización de `progression` no es una concesión al entrenador, es lo único que hoy protege el plan de esa inestabilidad. Lo valioso de `ScienceEngine` son **las cinco fases**, que son las que `F_FASE` sabe indexar y las que cierran P3 |
+| **R7** | ¿Curva elegible o fija en `Cientifica`? | **Elegible en el simulador; en el plan real, fija.** Y `progression_curve` **deja de ser columna de `plans`** — el parámetro se queda en la firma del motor | No es que las otras "solo comparen escenarios": **cambian el veredicto que ve el atleta** (§10.4). Dejar la columna y esconder el desplegable sería teatro, que CLAUDE.md ya prohíbe explícitamente |
+| **R8** | ¿PostgreSQL desde el rediseño? | **SQLite.** Se cambia cuando haya una razón de **despliegue**, no de rediseño, y **después** del paso 6 | Los pasos 4 y 6 van a producir números y filas distintas. Cambiar de motor a la vez le da dos sospechosos a cada diferencia, y la red de 153 casos solo sirve con una variable en juego. La migración de `real_time` es la única cirugía sobre datos reales: hacerla una vez y luego mover la base entera duele menos que hacerla dos veces sobre dos motores |
+
+### 10.2 Lo que estas decisiones cambian en el resto del documento
+
+Cinco correcciones al modelo que salieron de cerrarlas. Están aplicadas en el
+cuerpo; se listan aquí para que se vean juntas.
+
+1. **La semana no lleva FK al resultado** (enmienda a R2, misma fecha). El
+   entrenador quiere que **varios tiempos de la misma semana se promedien**, y
+   una FK única no admite varios. `Resultado` ya lleva `(atleta, prueba, fecha)`,
+   así que la semana **deriva** su conjunto por rango de fechas y promedia. Uno,
+   varios y ninguno pasan a ser el mismo caso en vez de tres ramas. Afecta a
+   §5.8, §7.1, §7.2, §7.4 y §8.
+2. **Solo reancla la curva el resultado que cae dentro de una semana del plan.**
+   Sin esta regla, sacar el tiempo del plan haría que cualquier dato del
+   histórico del atleta perturbara la predicción — peor que el problema que R2
+   arregla. Con promedio semanal, reancla el promedio.
+3. **`redeem` tiene que mirar `is_active` antes que `team_id`** (de R5). Hoy
+   `link_codes/service.py:258` responde *"Tu cuenta ya pertenece a otro equipo"*
+   a alguien cuya pertenencia está **revocada**, así que un atleta que deja un
+   club no puede entrar en otro sin tocar la base de datos. Invertir esos dos
+   `elif` es el arreglo entero.
+4. **`_principal_for` debe fallar con más de una pertenencia activa** (de R5).
+   Hoy hace `.first()` sin `ORDER BY` (`core/dependencies.py:78`). La `UNIQUE` lo
+   hace inofensivo *ahora*; el día que se quite —"un cambio de una línea"— esa
+   consulta atiende al club equivocado **sin fallar**. `one_or_none()` cuesta lo
+   mismo y convierte una fuga silenciosa en un error inmediato. `plans/access.py:73`
+   ya tuvo que codificarse a la defensiva anticipando ese cambio.
+5. **El ejemplo de §4.1 se cambió** por el del atleta que asciende a entrenador.
+   El anterior argumentaba desde dos casos que el propio modelo prohíbe.
+
+### 10.3 Preguntas nuevas, abiertas
+
+Salieron de cerrar las ocho. Ninguna bloquea el rediseño; todas bloquean el
+módulo de entrenamiento diario (nota 22 del vault).
+
+| # | Pregunta | Por qué importa |
+|---|---|---|
+| **N1** | ¿El promedio semanal es de **todos** los tiempos de la prueba esa semana, o el entrenador marca cuál cuenta? | Un control mal nadado arrastra el promedio, y con él la curva reanclada de las semanas siguientes |
+| **N2** | ¿Un tiempo de competencia entra en el promedio o manda sobre él? | `Resultado.contexto` ya distingue competencia · control · serie; falta decidir qué hace con esa distinción |
+| **N3** | ¿`sesiones_por_semana` del equipo admite excepción por atleta o por macro? | Hoy `teams` no tiene dónde guardarlo siquiera |
+| **N4** | El PDF de las tablas: ¿backend (fiel, pesado) o cliente (barato, se desincroniza)? | — |
+| **N5** | ¿La sesión que sube el entrenador es texto libre o series estructuradas? | Es la misma pregunta que dejó `Serie` fuera: el coste no es técnico, es de captura |
+
+### 10.4 Los números que cerraron R6 y R7
+
+Se corrieron los dos motores sobre casos reales. Las tablas completas están en la
+nota 20 del vault; aquí, lo que decidió cada una.
+
+**R6 — Emiliano, 200 libre 1:56.48 → 1:53.00, 15 semanas, 450 km:**
+
+- `distribute_km` reparte **450.1 km**, el total que puso el entrenador.
+- `ScienceEngine` prescribe **777.7 km** en esas mismas 15 semanas (2422.7 con su
+  extensión de 30). **`generate_plan` ni siquiera recibe `total_km`**: no
+  discrepa, nunca preguntó.
+- Normalizadas al mismo total, las dos formas se parecen mucho más de lo que
+  sugieren las columnas crudas. La diferencia real es dónde cae el pico (S11 vs S7).
+
+> **Tres defectos que la comparación destapó, y que entran en el alcance del paso 4:**
+>
+> 1. **El nivel es un acantilado.** `classify_level` está calibrada para CSS (un
+>    umbral de test de 400/1500) y se la alimenta con el ritmo de un 200. Medido:
+>    `2:10.40 → elite → 50.1 km` en la semana 1; `2:10.50 → competitive → 34.6 km`.
+>    Una décima de segundo cambia el volumen prescrito un **45 %**. Mientras siga
+>    así, todo lo que depende del nivel —volumen, I_max, factibilidad— hereda el
+>    salto. **El nivel debe salir del test aeróbico cuando exista** (un CSS medido)
+>    y caer al ritmo derivado solo si no hay test.
+> 2. **`ScienceEngine` sube el volumen la semana de la competencia**: S14 = 26.2 →
+>    S15 = 29.2 km. `distribute_km` tiene una línea explícita para evitarlo
+>    (última semana siempre descarga: 10.6 km). En taper, el motor "científico" es
+>    el que se equivoca. **Se conserva la línea de `distribute_km`.**
+> 3. **La onda 3:1 y las fases están desfasadas.** `MESO_LOAD_PATTERN[week % 4]`
+>    usa la semana **absoluta**, así que la descarga cae en la *primera* semana de
+>    cada bloque nuevo (S4 abre `base_especifica` descargando; S8, `umbral_css`).
+>    **La onda debe contarse dentro del microciclo.**
+
+**R7 — atleta de club, 200 libre 2:40 → 2:37, meta factible (sin recorte del techo):**
+
+Las cinco curvas cierran **exactamente** en la meta — `clamp_weekly_rate` ya se
+encarga. Pero el camino no es cosmético: en la semana 8 el rango entre curvas es
+de **1.30 s**, contra una tolerancia de estado de ±0.4 %. Con el mismo tiempo
+nadado (158.00):
+
+```
+S8, curva science      esperado 158.66   dif −0.416 %  →  AHEAD
+S8, curva sigmoid      esperado 158.55   dif −0.347 %  →  ON_TRACK
+S8, curva linear       esperado 158.40   dif −0.253 %  →  ON_TRACK
+S8, curva logarithmic  esperado 157.71   dif +0.184 %  →  ON_TRACK
+S8, curva exponential  esperado 157.36   dif +0.407 %  →  BEHIND
+```
+
+El mismo nado es *"va adelantado"* o *"va atrasado"* según una casilla que el
+entrenador rellenó quince semanas antes. Por eso la curva sale de `plans`.
 
 ---
 
@@ -769,4 +961,4 @@ correctas y el rediseño las conserva sin tocar:
   saltas los guards) y la imposibilidad de persistir `es_desarrollador`.
 - Las tablas científicas y su trazabilidad a la fuente (§ del documento de
   referencia).
-- 307 tests. Son el contrato que hace este rediseño posible.
+- 478 tests. Son el contrato que hace este rediseño posible.

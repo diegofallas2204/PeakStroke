@@ -444,7 +444,7 @@ tests/test_athlete_scoping.py y tests/test_scope_helper.py delante.
 
 RESTRICCIONES
 - Cero cambios de comportamiento. Esto es mover código, no reescribirlo.
-- Los 307 tests en verde después de cada corte, no solo al final.
+- Los 478 tests en verde después de cada corte, no solo al final.
 - No toques app/domain/engine.py.
 
 AL TERMINAR
@@ -552,12 +552,51 @@ sitios donde puede fallar la promesa clave del rediseño ("el contrato del API n
 cambia"). Y consolidar la UI con el backend en movimiento es bastante más
 incómodo.
 
+### R9 · El color de la sección fusionada — ✅ CERRADA (2026-08-16)
+
+**Rosa `#f472b6`.** Plan semanal conserva el suyo y se libera el violeta
+`#a78bfa`, que era de Comparación.
+
+Son en realidad dos decisiones y solo la segunda estaba en duda:
+
+1. **Un color por RUTA, no por vista** — las tres pestañas comparten acento.
+   El riel, la barra de móvil y la cabecera lo leen del mismo `pathname`
+   (`App.tsx:36`), así que un color por pestaña haría que el riel y la página
+   dijeran sitios distintos a la vez. **Correcta y ya aplicada.**
+2. **Qué color se queda.** Se construyó al revés: la sección se quedó con el
+   violeta de Comparación y liberó su propio rosa.
+
+**Por qué rosa.** Desde el lado del entrenador, `/plan-semanal` no se convirtió
+en otra cosa: **absorbió** algo. Misma ruta, mismo nombre, y la pestaña "Plan" es
+la página de siempre sin tocar. Si la identidad persiste, el color debe
+persistir. El efecto de segundo orden es el que decide: **liberar rosa crea una
+trampa futura** —rosa reaparece en otra sección y contradice la memoria muscular
+de quien lo tenía fichado como Plan semanal—, mientras que liberar violeta no
+crea ninguna, porque violeta ya no señala nada que se pueda volver a encontrar.
+
+No hay colisión técnica en ninguna dirección: `#a78bfa` solo existe como token
+`--color-violet` y ya no lo usa ninguna zona (MVO2 pasó a `#60a5fa`), y
+`#f472b6` solo lo consume la curva sigmoide del simulador (`constants.ts:88`),
+que no se dibuja en Plan semanal.
+
+> **✅ APLICADA el 2026-08-16.** `frontend/src/lib/constants.ts` ya lleva
+> `'/plan-semanal': '#f472b6'` y el comentario corregido. Verificado con el
+> servidor levantado: `--page-accent` resuelve a `#f472b6` en `/plan-semanal` y
+> **se mantiene igual en las tres vistas** (`?vista=progresion`, `?vista=zonas`),
+> que es la mitad 1 de la decisión funcionando. El riel pinta el enlace activo en
+> `rgb(244, 114, 182)` y ningún otro. `tsc --noEmit` limpio, consola sin errores.
+>
+> **Lo que NO se puede deshacer:** el intercambio de colores Tabla del equipo ↔
+> Simulador. El coral `#fb7185` y este rosa son casi indistinguibles en tema
+> oscuro, y ese intercambio es lo que mantiene el coral lejos de Plan semanal en
+> el riel. Está avisado en el propio `constants.ts`.
+
 ### Decisión pendiente
 
 **¿Base aeróbica entra como cuarta pestaña o se queda como sección propia?** Es
 el mismo eje (un atleta a lo largo del tiempo), pero arrastra un flujo de alta
 pesado (`TestForm`, 289 líneas) que como pestaña podría quedar apretado. Sin
-resolver.
+resolver. **No es R9** — R9 era solo el color.
 
 ### Prompt
 
@@ -623,25 +662,40 @@ hay.** Puedes parar después de cualquiera y el programa queda mejor que antes.
 
 ---
 
-## C0 · Cerrar las decisiones abiertas
+## C0 · Cerrar las decisiones abiertas — ✅ HECHO (2026-08-16)
 
-**Antes de escribir una línea.** Hay 9 decisiones sin responder y cuatro de ellas
-cambian el trabajo de raíz.
+**R1–R8 están cerradas.** La sesión de decisión se ejecutó con el prompt de abajo,
+con el código delante y corriendo los dos motores sobre casos reales para R6 y R7.
+**La fuente de verdad de cada cierre, con su razón, es la §10 de `docs/REDISENO.md`.**
+Aquí solo va el resumen operativo: qué cambia en los bloques de este plan.
 
-| # | Decisión | Recomendación |
+| # | Cerrada como | Afecta a |
 |---|---|---|
-| R1 | ¿`Sesion`/`Serie`/`CargaDiaria` ahora o en v2? | **Ahora** — sin ellas no hay Banister |
-| R2 | ¿`Resultado` reemplaza a `Semana.real_time` o conviven? | **Reemplaza** — convivir es el problema de los dos motores otra vez |
-| R3 | ¿`Administrador` se construye o solo el hueco? | **Solo el hueco** |
-| R4 | ¿El asistente necesita menos permisos? | **No** — `plan_coaches` ya da la distinción |
-| R5 | ¿Una persona en más de un equipo? | **No por ahora** |
-| R6 | Al fusionar, ¿qué reparto de kilómetros manda? | **La ciencia de uno, la parametrización del otro** |
-| R7 | ¿Curva elegible o fija en científica? | **Elegible en el simulador, científica en el plan** |
-| R8 | ¿PostgreSQL desde el rediseño? | **No** — es otra cosa, no lo mezcles |
-| R9 | Color de la sección fusionada (de B1) | pendiente |
+| R1 | **Partida en tres**: el modelo las contempla; `Sesion`+`CargaDiaria` **después** de C1–C6; **`Serie` sale del rediseño** | C7, C8 |
+| R2 | **Reemplaza**, con `real_time` viva una versión. **Enmendada: la semana NO lleva FK** — deriva sus resultados por fecha y **promedia** | C6 |
+| R3 | **Solo el hueco, y más estrecho**: nada en `Principal`, nada en `usuarios` | C3 |
+| R4 | **No hay rol nuevo**, pero borrar el macro y cambiar la meta pasan a `require_owner` | C3 |
+| R5 | **No** — más dos arreglos (`redeem` mira `is_active` antes que `team_id`; `_principal_for` falla con >1 pertenencia) | C3 |
+| R6 | **Fases y forma de la ciencia, total del entrenador**; bandas solo como aviso en la tabla del plan | C4 |
+| R7 | **Elegible en el simulador, fija en el plan**; `progression_curve` **sale de la tabla `plans`** | C4 |
+| R8 | **SQLite**; se cambia por razón de despliegue y **después** de C6 | D2, D3 |
+| R9 | **Rosa `#f472b6`.** La sección superviviente conserva su color; se libera el violeta de la que desapareció. **Un color por RUTA, no por vista** | B1 — ✅ aplicada y verificada en el navegador |
 
-**R2 es la de más impacto. R6 es la más difícil.** Las dos hay que resolverlas
-antes de C4 y C6 respectivamente.
+> **R6 destapó tres defectos que entran en el alcance de C4** y que no estaban en
+> ningún documento:
+> 1. **`classify_level` es un acantilado.** Está calibrada para CSS y se la
+>    alimenta con el ritmo de un 200: `2:10.40 → elite → 50,1 km` en la semana 1;
+>    `2:10.50 → competitive → 34,6 km`. Una décima cambia el volumen un **45 %**.
+>    El nivel debe salir del **test aeróbico** cuando exista.
+> 2. **`ScienceEngine` sube el volumen la semana de la competencia** (S14 26,2 →
+>    S15 29,2). `distribute_km` tiene una línea explícita que lo evita: se conserva.
+> 3. **La onda 3:1 se indexa por `week % 4` absoluta**, así que la descarga cae en
+>    la primera semana de cada bloque nuevo, no en la última del microciclo.
+
+**Cinco preguntas NUEVAS quedaron abiertas** (N1–N5 en la §10.3 de `REDISENO.md`):
+el promedio semanal, el tiempo de competencia, `sesiones_por_semana`, el PDF y si
+la sesión es texto libre. **Ninguna bloquea C1–C8**; todas bloquean el módulo de
+entrenamiento diario, cuyo alcance está en la nota 22 del vault.
 
 ### Prompt (sesión de decisión, no de código)
 
@@ -747,7 +801,7 @@ RESTRICCIONES
   app/modules/, ni de app/core/.
 - No cambies todavía el código que existe para que los use. Este paso solo crea
   los tipos y sus tests.
-- Los 307 tests existentes en verde.
+- Los 478 tests existentes en verde.
 
 TESTS
 Un test por invariante, y en particular uno que fije que Prueba(50, combinado)
@@ -838,7 +892,7 @@ visto bueno: es la decisión que condiciona el paso C5 (repositorios).
 
 RESTRICCIONES
 - app/dominio/ no importa NADA de infraestructura.
-- Los 307 tests en verde.
+- Los 478 tests en verde.
 - No toques todavía los motores. Eso es C4.
 
 AL TERMINAR
@@ -934,7 +988,7 @@ CUIDADO — esto es la capa de seguridad
 
 RESTRICCIONES
 - Ningún cambio de esquema en este paso.
-- Los 307 tests en verde, y con atención especial a: test_role_guards.py,
+- Los 478 tests en verde, y con atención especial a: test_role_guards.py,
   test_athlete_scoping.py, test_scope_helper.py, test_dev_bypass.py,
   test_dev_identity.py, test_cuenta_sin_equipo.py.
 - Si algún test de guards necesita cambiar, PARA y explícame por qué antes de
@@ -981,7 +1035,23 @@ Los dos aciertan en cosas distintas y el motor bueno necesita las dos mitades:
 
 **La ciencia de uno, la parametrización del otro.** `ScienceEngine` asume macro
 fijo de 15 semanas; `progression` respeta las semanas y los km que puso el
-entrenador. Eso es `R6` y hay que cerrarlo antes.
+entrenador.
+
+> **R6 — CERRADA el 2026-08-16.** El kilometraje lo manda el entrenador: **fases y
+> forma de la ciencia, total normalizado al que él puso**, y las bandas de
+> `WEEKLY_VOLUME_KM` como **aviso** —nunca valor por defecto ni límite— visible
+> **solo en la tabla del plan**. Medido: para un 200 libre de 15 semanas y 450 km,
+> `distribute_km` reparte 450,1 y `ScienceEngine` prescribe **777,7**; su
+> `generate_plan` ni siquiera recibe `total_km`.
+>
+> **Tres arreglos entran en este bloque** (ver C0): el acantilado de
+> `classify_level`, el taper invertido y la onda 3:1 desfasada.
+>
+> **R7 — CERRADA:** `progression_curve` **deja de ser columna de `plans`**. Las
+> cinco curvas cierran en el mismo punto, pero difieren hasta 1,30 s a mitad de
+> plan contra una tolerancia de ±0,4 %: el mismo nado sale `AHEAD` con la
+> científica y `BEHIND` con la exponencial. El parámetro se queda en la firma del
+> motor, que es de donde lo usa el simulador.
 
 ### El riesgo real
 
@@ -1043,7 +1113,7 @@ No regeneres el snapshot por tu cuenta. Nunca.
 RESTRICCIONES
 - El contrato del API NO cambia: mismos endpoints, mismos campos, mismas formas
   de respuesta. El frontend no se debe enterar de nada.
-- Los 307 tests en verde.
+- Los 478 tests en verde.
 - Si un test del motor hay que cambiarlo, explícame por qué antes.
 
 AL TERMINAR
@@ -1120,7 +1190,7 @@ seguir con los demás. No quiero ver siete repositorios de golpe.
 
 RESTRICCIONES
 - El contrato del API no cambia.
-- Los 307 tests en verde después de cada agregado migrado, no solo al final.
+- Los 478 tests en verde después de cada agregado migrado, no solo al final.
 - Ojo con las consultas: hoy hay tests que convierten el aviso de producto
   cartesiano de SQLAlchemy en un fallo (está en pyproject.toml y es a propósito,
   ver test_scope_helper.py). No lo desactives.
@@ -1141,12 +1211,19 @@ Los tiempos reales viven en `WeeklyPlan.real_time`, colgando de
 
 **Consecuencia ya observada:** `remove_athlete` **tuvo que** convertirse en baja
 lógica porque borrar la inscripción cascadeaba y se llevaba todos los tiempos
-reales del atleta. Está documentado en su propio docstring
-(`plans/service.py:196`): reproducido con el harness, `weekly_plans` pasaba de 36
-filas a 24, incluido un tiempo puesto un segundo antes.
+reales del atleta. Está documentado en su propio docstring (**`plans/roster.py:57`**
+— el archivo se partió en cinco después de escribirse esta nota): reproducido con
+el harness, `weekly_plans` pasaba de 36 filas a 24, incluido un tiempo puesto un
+segundo antes.
 
 Se parcheó el síntoma. **La causa —un hecho del atleta modelado como propiedad de
 un plan— sigue ahí.**
+
+**Y hay un segundo agujero por la misma causa, este SIN parchear.** `delete_plan`
+(`plans/service.py:139`) solo bloquea el borrado si el macrociclo tiene tests
+aeróbicos asociados. Un macro sin tests se borra limpio y la cascada se lleva
+**todos los tiempos registrados de todos sus atletas**. Lo único que hoy protege
+el activo más valioso de la aplicación es que haya un test de por medio.
 
 `AerobicTest` ya cuelga del atleta con macrociclo opcional. Es el patrón correcto
 que el resto del esquema no siguió.
@@ -1160,17 +1237,39 @@ que el resto del esquema no siguió.
 
 ### Riesgo
 
-**Medio: toca datos reales.** Mitigación: `INSERT ... SELECT` + `UPDATE` de
-vuelta, conservando `real_time` durante una versión de transición. Mientras las
-dos convivan, es reversible.
+**Medio: toca datos reales.** Mitigación: `INSERT ... SELECT`, conservando
+`real_time` durante una versión de transición. Mientras las dos convivan, es
+reversible.
+
+> **R2 — CERRADA el 2026-08-16, y ENMENDADA el mismo día.** Reemplaza. Pero la
+> semana **no lleva FK al resultado**: el entrenador quiere que **varios tiempos
+> de la misma semana se promedien**, y una FK única no admite varios. `Resultado`
+> ya lleva `(atleta, prueba, fecha)`, así que la semana **deriva** su conjunto por
+> rango de fechas y promedia. Uno, varios y ninguno pasan a ser el mismo caso en
+> vez de tres ramas. **No hay `UPDATE` de vuelta en la migración.**
+>
+> **Regla que hay que implementar con ella:** solo reancla la curva el resultado
+> que cae dentro de una semana del plan. Un tiempo del histórico que no cae en
+> ninguna —una competencia en fecha suelta, una prueba que no es objetivo de este
+> macro— entra en el histórico y **no toca la predicción**. Sin esa regla, sacar
+> el tiempo del plan haría que cualquier dato perturbara la curva, que es peor que
+> el problema que R2 arregla.
+>
+> **Criterio de retirada de `real_time`:** cuando ningún lector la use directamente
+> (`dashboard/service.py`, `plans/weeks.py`, `plans/roster.py`) y el conteo
+> `resultados == real_time no nulos` cuadre en dos despliegues seguidos.
+>
+> **N1 y N2 siguen abiertas** (§10.3 de `REDISENO.md`): si el promedio es de todos
+> los tiempos o el entrenador marca cuál cuenta, y qué hace un tiempo de
+> competencia. No bloquean este bloque: bloquean la UI que lo explota.
 
 ### Prompt
 
 ```text
 Trabajo en PeakStroke, en C:\Users\diego\OneDrive\Desktop\PeakStroke\PeakStroke\peakstroke.
-Lee docs/REDISENO.md (secciones 5.10, 7.2 y 7.4) y CLAUDE.md (secciones
+Lee docs/REDISENO.md (secciones 5.10, 7.2, 7.4 y 10) y CLAUDE.md (secciones
 "Integridad y borrado" y "Esquema de base de datos").
-Requiere que la decisión R2 esté cerrada.
+R2 esta CERRADA (2026-08-16) y ENMENDADA: lee la seccion 10.2 antes de nada.
 
 CONTEXTO
 Hoy los tiempos reales viven en WeeklyPlan.real_time, colgando de
@@ -1186,10 +1285,16 @@ patrón que el resto del esquema no siguió.
 TAREA
 1. Entidad y tabla Resultado según la sección 5.10 de REDISENO.md:
    atleta · prueba · tiempo · fecha · piscina · contexto · competencia_id?
-2. semanas.resultado_id como FK opcional: la semana APUNTA al tiempo, no lo posee.
-3. Migración Alembic que mueva los real_time existentes a resultados y deje las
-   semanas apuntando. La prueba y el atleta se derivan de athlete_events e
-   athlete_plans; la fecha, de weekly_plans.week_date.
+2. La semana NO gana ninguna columna. NO pongas semanas.resultado_id ni ninguna
+   otra FK: deriva sus resultados por (atleta, prueba, rango de fechas de esa
+   semana) y PROMEDIA cuando hay mas de uno. Uno, varios y ninguno tienen que ser
+   el mismo caso, no tres ramas. Esto es la enmienda de R2 y es deliberado: el
+   entrenador quiere varios tiempos por semana promediados.
+3. Migración Alembic que mueva los real_time existentes a resultados. La prueba y
+   el atleta se derivan de athlete_events e athlete_plans; la fecha, de
+   weekly_plans.week_date; la piscina, de plans.pool. NO hay UPDATE de vuelta.
+4. Solo reancla la curva el resultado que cae dentro de una semana del plan. Un
+   resultado del historico que no cae en ninguna NO debe tocar la prediccion.
 
 SEGURIDAD DE LA MIGRACIÓN — esto es lo que más me importa
 - Conserva la columna real_time durante esta versión. No la borres. Mientras las
@@ -1205,7 +1310,7 @@ SEGURIDAD DE LA MIGRACIÓN — esto es lo que más me importa
 
 RESTRICCIONES
 - El contrato del API no cambia: el frontend sigue leyendo real_time donde lo lee.
-- Los 307 tests en verde, con atención a test_borrado_y_baja.py.
+- Los 478 tests en verde, con atención a test_borrado_y_baja.py.
 - Añade un test que fije lo que este cambio hace posible: sacar a un atleta de un
   macrociclo y comprobar que sus tiempos siguen existiendo.
 
@@ -1215,9 +1320,18 @@ Dime qué queda por hacer para poder retirar real_time en la siguiente versión.
 
 ---
 
-## C7 · `Sesion` y `Serie`
+## C7 · `Sesion` (y `Serie`, **fuera del rediseño**)
 
-> Solo si `R1` sale que sí.
+> **R1 — CERRADA el 2026-08-16.** `Sesion` entra, pero **después de que C1–C6
+> estén verdes y desplegados**: C1–C6 mueven comportamiento de sitio y este bloque
+> construye algo nuevo; mezclarlos hace que, si C4 sale mal, no se sepa si fue el
+> refactor o la funcionalidad.
+>
+> **`Serie` sale del rediseño.** No por complejidad técnica sino por **coste de
+> captura**: es la única pieza que obliga al entrenador a cambiar su rutina diaria
+> (del orden de 150–200 filas por atleta y macro), y eso no está decidido. Banister
+> **no la necesita**: para el sTSS diario basta fecha + carga. Su alcance futuro
+> vive en la nota 22 del vault, junto con el módulo de entrenamiento diario.
 
 ### Qué pasa
 
@@ -1241,8 +1355,12 @@ rediseño y arrastra UI.
 
 ```text
 Trabajo en PeakStroke, en C:\Users\diego\OneDrive\Desktop\PeakStroke\PeakStroke\peakstroke.
-Lee docs/REDISENO.md (sección 5.11) y CLAUDE.md.
-Requiere R1 = sí, y C6 (Resultado) hecho.
+Lee docs/REDISENO.md (secciones 5.11 y 10) y CLAUDE.md.
+Requiere C1-C6 hechos, verdes y desplegados.
+
+ALCANCE: SOLO `Sesion`. `Serie` quedó FUERA del rediseño (decision R1, 2026-08-16).
+No la construyas ni dejes su tabla preparada. Lo que Sesion necesita para que
+Banister funcione es: atleta, fecha, km, duracion y RPE. Nada mas.
 
 CONTEXTO
 Hoy la unidad mínima de planificación es la SEMANA. No existe la sesión ni la
@@ -1270,7 +1388,7 @@ Espera mi respuesta.
 
 RESTRICCIONES
 - Todo modelo nuevo va en app/core/model_registry.py y en alembic/env.py.
-- Los 307 tests en verde.
+- Los 478 tests en verde.
 - Frontera de equipo: sesiones y series llevan equipo_id y FK compuesta contra
   (id, equipo_id), como todo lo demás.
 
@@ -1282,7 +1400,8 @@ Dime qué hace falta en el frontend para que esto sea usable, sin construirlo.
 
 ## C8 · Carga de entrenamiento (Banister)
 
-> Solo si `R1` sale que sí y `C7` está hecho.
+> **R1 — CERRADA: entra, después de C7.** Y C7 después de C1–C6. Banister depende
+> de `Sesion`, **no de `Serie`**: el sTSS diario sale de fecha + carga.
 
 ### Qué pasa
 
@@ -1328,7 +1447,7 @@ sale? ¿volumen × intensidad de zona? ¿RPE? Enséñame las opciones con su res
 en la literatura y espera mi decisión.
 
 RESTRICCIONES
-- Los 307 tests en verde.
+- Los 478 tests en verde.
 - Que el recálculo sea idempotente y reproducible: correrlo dos veces da lo mismo.
 
 AL TERMINAR
@@ -1476,7 +1595,7 @@ RESTRICCIONES CRÍTICAS
 - El coste por petición tiene que ser despreciable. Mídelo y dímelo.
 - Alembic es la única fuente del esquema; el modelo nuevo va en
   app/core/model_registry.py Y en alembic/env.py.
-- Los 307 tests en verde.
+- Los 478 tests en verde.
 
 PRIVACIDAD — habla conmigo antes de decidir
 La auditoría guarda IPs, y en este sistema hay cuentas de MENORES de edad (el
@@ -1704,7 +1823,14 @@ cuáles siguen sin respuesta.
 |---|---|---|
 | **R10** | ¿Túnel SSH o red privada (Tailscale/WireGuard)? | **Tailscale** para dos personas: casi tan fuerte y mucho más cómodo. SSH si el segundo perfil es esporádico |
 | **R11** | Política de retención de la auditoría | **Pendiente.** Hay IPs y hay cuentas de menores. Hay que decidirlo, no heredarlo |
-| **R12** | ¿PSAdmin espera a PostgreSQL? | La barrera 4 (usuario de solo lectura) **solo es real en PostgreSQL**. D0 y D1 no dependen de eso; D2 y D3 sí. Es un argumento de peso para revisar `R8` |
+| **R12** | ¿PSAdmin espera a PostgreSQL? | La barrera 4 (usuario de solo lectura) **solo es real en PostgreSQL**. D0 y D1 no dependen de eso; D2 y D3 sí. **R8 se cerró el 2026-08-16 como "SQLite, y el cambio va después de C6"**, así que D2 y D3 esperan a esa migración — que ahora tiene un disparador de despliegue, no de rediseño |
+
+> **Nota (2026-08-16).** R1–R8 están cerradas; ver C0 y la §10 de `docs/REDISENO.md`.
+> **R9** también se cerró ese día (rosa `#f472b6`; ver B1) y **ya está aplicada**
+> en `frontend/src/lib/constants.ts`. Siguen abiertas **R10**,
+> **R11** y **R12** de aquí arriba, la cuarta pestaña de B1 (Base aeróbica), y las
+> **cinco preguntas nuevas N1–N5** de la §10.3 de `REDISENO.md`, que bloquean el
+> módulo de entrenamiento diario y no este plan.
 
 ---
 
@@ -1718,13 +1844,16 @@ A2  duplicados y archivos largos │
                                  │
 B1  fusión de la UI ─────────────┤ (mejor antes de C, no obligatorio)
                                  │
-C0  cerrar R1-R12 ───────────────┤
+C0  cerrar decisiones ✅ R1-R9 (2026-08-16) · abiertas: R10, R11, R12
      │                           │
      ├─ C1 valores ──┬─ C2 entidades ──┬─ C5 repositorios
      │               │                 │
-     │               └─ C3 roles       └─ C6 Resultado ── C7 Sesion ── C8 Banister
-     │                                        (R2)          (R1)
-     └────────────────────────── C4 motores ◄──────────── A0 + R6
+     │               └─ C3 roles       └─ C6 Resultado ─┐
+     │                                                  │ (verde + desplegado)
+     │                                                  ▼
+     │                                        C7 Sesion ── C8 Banister
+     │                                    (`Serie` FUERA — R1)
+     └────────────────────────── C4 motores ◄──────────── A0
 
 D0  auditoría ──┬── D1 CLI            (independientes de A/B/C: se pueden
                 │                      hacer en cualquier momento)
@@ -1756,7 +1885,7 @@ Para releer rápido de qué iba todo esto.
 | # | Hallazgo | Evidencia | Se cierra en |
 |---|---|---|---|
 | P1 | Hay dos motores y el "oficial" solo corre en tests | `ScienceEngine` solo se llama en tests; los planes salen de `progression.py` | **C4** |
-| P2 | Ya divergieron en tres reglas | ~~50 m combinado~~ · ~~`MAX_EXTENSION_WEEKS` 30/26~~ · fases 5/4/4 — y 4 más que encontró el cierre de A1 (nivel, techo I_max, factibilidad, ritmo /100 del sprint) | **A1** ✅ las dos primeras (2026-08-13) · **C1 + C4** el resto |
+| P2 | Ya divergieron, y son **más de tres**: quedan **6 abiertas** | ✅ cerradas en A1 (2026-08-13): ~~50 m combinado~~ · ~~`MAX_EXTENSION_WEEKS` 30/26~~. **Abiertas:** fases (5/4/4) · clasificación de nivel · techo I_max · factibilidad · ritmo /100 del sprint · `ZONE_LABELS`. De las seis, **dos están medidas** (ver C0): el nivel salta de banda por una décima (`2:10.40` → elite, `2:10.50` → competitive: **45 % más volumen**), y `ScienceEngine` sube el volumen la semana de competencia mientras `distribute_km` lo baja | **A1** ✅ las dos primeras · **C1 + C4** las seis restantes |
 | P3 | `WeeklyPlan.phase` guarda etiqueta, no clave de dominio | la DB tiene `"Construcción"`; `F_FASE` indexa `base_especifica` | **C1 + C2** |
 | P4 | Modelo anémico: 14 modelos, 1 con comportamiento | `age_at`, `current_week_of`, `effective_status` huérfanas | **C2** |
 | P5 | El corte es por endpoint, no por concepto | `dashboard`, `aerobic_tests`, `link_codes` importan lógica ajena | **C5** |
@@ -1785,4 +1914,4 @@ cambiarlas, di que no.
 - **Revocada ≠ sin equipo.** Confundirlos deja entrar a quien acabas de echar.
 - **Alembic como única fuente del esquema.**
 - **Las tablas científicas y su trazabilidad al § de la fuente.**
-- **Los 307 tests.** Son el contrato que hace posible todo lo demás.
+- **Los 478 tests.** Son el contrato que hace posible todo lo demás.
