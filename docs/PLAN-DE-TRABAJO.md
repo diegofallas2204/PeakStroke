@@ -53,6 +53,13 @@ Esto es lo que hay hoy, comprobado, no estimado:
 > movió desde entonces: A1 (**442 tests** al 2026-08-13), y A0 más el backend de
 > TODO-16 (**478 tests en verde** al 2026-08-14, y el lint del backend ya no es
 > «no existe»: `ruff check .` limpio).
+>
+> **Medido de nuevo el 2026-08-16, cerrada la parte A y B1** — es la línea de
+> salida real de la parte C: **478 tests en verde** (62 s) · `ruff check .`
+> limpio · `tsc --noEmit`, `eslint .` y `vite build` limpios · backend **7.753
+> líneas / 15 modelos / 1 archivo >300** (`domain/engine.py`, la excepción
+> declarada) · frontend **8.583 líneas / 0 archivos >300 / 7 secciones** +
+> Perfil y Ajustes. Las dos filas de abajo que ya no valen son las dos últimas.
 
 | | |
 |---|---|
@@ -1876,12 +1883,12 @@ cuáles siguen sin respuesta.
 # Orden y dependencias
 
 ```
-A0  red de seguridad ────────────┐
+A0  red de seguridad ✅ ─────────┐
                                  │ (obligatorio antes de C4)
-A1  reglas divergidas            │
-A2  duplicados y archivos largos │
+A1  reglas divergidas ✅         │
+A2  duplicados y archivos ✅     │
                                  │
-B1  fusión de la UI ─────────────┤ (mejor antes de C, no obligatorio)
+B1  fusión de la UI ✅ ──────────┤ (mejor antes de C, no obligatorio)
                                  │
 C0  cerrar decisiones ✅ R1-R9 (2026-08-16) · abiertas: R10, R11, R12
      │                           │
@@ -1908,6 +1915,15 @@ puedes responder *"¿quién revocó a este atleta?"*.
 **Ruta mínima si quieres el mayor retorno con el menor riesgo:**
 `A0 → A1 → B1 → C0 → C1 → C2`. Todo aditivo, nada irreversible, y cierra cuatro
 de los seis hallazgos.
+
+> **Al 2026-08-16 esa ruta va por `C1`.** `A0`, `A1`, `A2`, `B1` y `C0` están
+> hechos; de la parte C **no hay nada construido todavía** —medido, no supuesto:
+> `app/domain/` sigue siendo solo `engine.py`, los dos motores siguen en pie, no
+> hay objetos de valor ni repositorios, y la última migración es la del
+> 2026-08-10—, así que `C1` … `C8` quedan enteros. `D0`–`D3` tampoco están
+> empezados: no hay módulo de auditoría ni CLI de operaciones (`tools/` solo
+> tiene `create_user.py` y `sim_cli.py`). Siguen abiertas **R10**, **R11** y
+> **R12**, pero ninguna bloquea `C1`.
 
 **Ruta de seguridad, si PSAdmin es lo que más te urge:** `D0 → D1`. Te da el
 registro de accesos y las operaciones peligrosas fuera de la web, sin construir
