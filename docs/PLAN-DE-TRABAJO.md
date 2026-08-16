@@ -375,7 +375,25 @@ No las toques, solo repórtalas.
 
 ---
 
-## A2 · Duplicados y archivos que crecieron de más
+## A2 · Duplicados y archivos que crecieron de más — ✅ HECHO (backend 2026-08-14, frontend 2026-08-16)
+
+> **Ojo al leer esta sección.** El backend ya estaba partido cuando se escribió
+> este plan: el commit `24e3a3f` es *anterior* al commit que creó este archivo,
+> así que las cifras de aquí abajo son las de antes del corte y el prompt se
+> lanzó una segunda vez en vacío el 2026-08-16. Se conservan como estaban, para
+> que el plan siga siendo el registro de qué se encontró y por qué.
+>
+> **Lo que hay hoy:** la edad vive en `core/dates.py::age_at(birth_date, ref=None)`
+> — `plans.service.age_at` y `swimmers.service._age` ya no existen. Los cuatro
+> archivos del backend están partidos (`dependencies.py` 386→138 + `principal.py`
+> / `dev_identity.py` / `guards.py`; `link_codes/service.py` 411→275 + `codes.py`
+> / `queries.py`; `plans/service.py` 333→147 + `roster.py` / `weeks.py`;
+> `auth/router.py` 305→120 + `sessions.py` / `members.py`), con los 478 tests en
+> verde. El 2026-08-16 se cerró la parte que faltaba, que este plan no listaba:
+> `frontend/src/lib/types.ts` (446) → directorio `lib/types/` de siete archivos
+> más barril, sin tocar ninguno de los 32 importadores. Ningún archivo del
+> proyecto pasa de 300 líneas salvo `domain/engine.py`, que sale en C4.
+> El detalle de los dos cortes está en TODO-16 de `TODOS.md`.
 
 ### Qué pasa
 
@@ -487,7 +505,28 @@ No tiene versión corta.
 
 ---
 
-## B1 · Fusionar Plan semanal + Comparación
+## B1 · Fusionar Plan semanal + Comparación — ✅ HECHO (2026-08-16)
+
+> Commit `2082015`. `/plan-semanal` es un módulo con tres vistas —Plan
+> (la tabla editable de siempre), Progresión (lo que era `/comparacion`) y Zonas
+> (el `ZonePanel` fuera del cajón de 290 px)—, con el selector y la query
+> `['weeks', event.id]` en el shell, por encima del conmutador: dentro de una
+> vista, cambiar de pestaña las desmontaría y perdería la selección.
+>
+> **La vista va en query param (`?vista=progresion`), nunca en subruta.**
+> `navConfig` compara la ruta exacta en tres sitios y `SECTION_ACCENT` indexa por
+> `pathname`, así que el pathname es la identidad de la sección y no se mueve.
+> `/comparacion` queda como redirect. El menú pasa de 8 secciones a 7; el atleta,
+> de 4 a 3. Catálogo de vistas en `features/weekly/vistas.ts`, aparte del de
+> secciones (`navConfig.ts`), porque no son la misma lista: una es lo que el menú
+> enseña y la guarda protege, la otra lo que hay dentro de una sección.
+>
+> Cero cambios en el backend, como se preveía. **R9 aplicada**: la sección
+> conserva su rosa `#f472b6` y el violeta queda libre.
+>
+> Un matiz sobre la tabla de coste de aquí abajo: `DeviationTable` (103) **no
+> desapareció** — se mudó a `features/weekly/` y la dibuja la vista Progresión.
+> Lo que se fue es la cáscara de `ComparisonPage`.
 
 ### Qué pasa
 
@@ -547,7 +586,7 @@ Ganancia colateral: `ZonePanel` sale del cajón de 290 px donde hoy vive apretad
 | Ya compartido | `EventPicker`, `ProgressionChart`, `primitives`, `StatusBadge` |
 | Tráfico de red | **cero cambio** |
 
-**Hazlo antes de la parte C.** Menos páginas consumiendo `lib/types.ts` son menos
+**Hazlo antes de la parte C.** Menos páginas consumiendo `lib/types/` son menos
 sitios donde puede fallar la promesa clave del rediseño ("el contrato del API no
 cambia"). Y consolidar la UI con el backend en movimiento es bastante más
 incómodo.
