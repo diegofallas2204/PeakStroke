@@ -80,7 +80,7 @@ reaparece, pero la solución de forma sigue siendo `Prueba` (§C1).
 | Persistir zonas y prescripciones | dato derivado que queda mintiendo en cuanto el entrenador ajusta la meta |
 | Event sourcing / CQRS | no hay volumen ni requisito de auditoría que lo justifique |
 | Microservicios | un backend, un despliegue. El motor ya es empaquetable como librería |
-| Reescribir el frontend | el rediseño es del backend; el frontend solo cambia sus tipos (`lib/types.ts`) |
+| Reescribir el frontend | el rediseño es del backend; el frontend solo cambia sus tipos (`lib/types/`) |
 
 ---
 

@@ -24,7 +24,11 @@ Prioridad: P1 = bloquea trabajo en curso · P2 = debería caer pronto · P3 = de
 > **Backend de TODO-16 cerrado el 2026-08-14** (**478 tests en verde**): los
 > cuatro archivos grandes del backend partidos en submódulos y la edad duplicada
 > unificada en `core/dates.py`. Solo movimiento de código: cero cambios de
-> comportamiento y ninguna URL alterada. Queda `frontend/src/lib/types.ts`.
+> comportamiento y ninguna URL alterada.
+>
+> **TODO-16 cerrado del todo el 2026-08-16**: `frontend/src/lib/types.ts` (446)
+> partido en `lib/types/` por módulo, con barril. Ningún archivo del proyecto
+> pasa ya de 300 líneas salvo `domain/engine.py`, que es excepción declarada.
 >
 > **Abierto el 2026-08-10** (sesión de salida del test + alta por correo, **307
 > tests en verde**): TODO-17 y TODO-18, los dos aplazados a sabiendas por la
@@ -164,11 +168,13 @@ Ver la nota del principio del archivo.
 ---
 
 
-## TODO-16 — Archivos por encima del límite de ~300 líneas (P3)
+## ~~TODO-16 — Archivos por encima del límite de ~300 líneas~~ — CERRADO 2026-08-16
 
-**Backend cerrado el 2026-08-14** (478 tests en verde después de cada corte).
-Ningún archivo de `backend/app/` pasa ya de 300 salvo la excepción declarada.
-**Queda abierto el frontend**: ver el final de la entrada.
+**Backend cerrado el 2026-08-14** (478 tests en verde después de cada corte) y
+**frontend el 2026-08-16** (`tsc --noEmit`, `eslint` y `vite build` en verde).
+Ningún archivo del proyecto pasa ya de 300 líneas salvo la excepción declarada
+(`domain/engine.py`). El archivo más largo que queda es
+`features/aerobic/TestForm.tsx`, con 289.
 
 ### Lo que se partió
 
@@ -200,18 +206,46 @@ donde estaba para `test_scope_helper.py`. La deuda de anotaciones de
 `scope_to_own_swimmer` viajó con el código: `pyproject.toml` ignora ahora
 `core/principal.py` en vez de `core/dependencies.py`.
 
-### Lo que sigue abierto
+### El frontend (2026-08-16)
+
+`frontend/src/lib/types.ts` (446) pasa a ser el directorio `lib/types/`, partido
+por módulo del backend, con un barril que reexporta los siete:
+
+| archivo | líneas | qué se lleva |
+|---|---:|---|
+| `index.ts` | 12 | solo `export * from` |
+| `swimmers.ts` | 62 | `Swimmer`, `LinkCode`, `InviteResult`, `JoinRequest` |
+| `identity.ts` | 65 | `Role`, `Member`, `Team`, `MemberCreated`, `AuthConfig`, `DevIdentity` |
+| `plans.ts` | 93 | `AssignableAthlete`, `PhaseInput`, `Phase`, `Competition`, `AthleteEvent`, `AthletePlan`, `Plan`, `Week` |
+| `zones.ts` | 22 | `ZoneRange`, `Zones` |
+| `aerobic.ts` | 78 | `InputMode`, `AerobicTest`, `TrainingInterval`, `TrainingIntervals`, `AerobicPreview` |
+| `simulator.ts` | 60 | `Feasibility`, `SimWeek`, `SimulationResult`, `MacroProjection`, `SeasonResult` |
+| `dashboard.ts` | 81 | `TeamWeekPoint`, `AthleteStatusRow`, `DashboardSummary`, `TeamWeekRow`, `TeamWeek` |
+
+**Los 32 archivos que importan no se tocaron**: `from '../../lib/types'` resuelve
+a `types/index.ts` tal cual. Mismo criterio que dejó `Principal` importable desde
+`core.dependencies` en el corte del backend — el corte se ve en el árbol de
+archivos, no en los call sites. Los 35 tipos exportados siguen siendo los mismos
+35, verificado nombre a nombre contra la versión de git.
+
+Tres decisiones del corte, por si hay que rehacerlo:
+
+- **`zones.ts` aparte pese a tener dos tipos.** `Zones` la usan `Week` (plan),
+  `SimWeek` (simulador) y `TeamWeekRow` (equipo). Dejarla en `plans.ts` haría que
+  los otros dos importaran de planes, y no dependen del plan: dependen de la
+  prescripción
+- **Los códigos de vinculación viajan con `swimmers.ts`**, aunque en el backend
+  `link_codes/` sea un módulo propio. Son 39 líneas que lee siempre la misma
+  carpeta que a `Swimmer`; el espejo exacto daría dos archivos de 30 líneas
+- **`AssignableAthlete` va en `plans.ts`**, no en `swimmers.ts`: sigue al endpoint
+  que la sirve (`GET /plans/{id}/assignable-athletes`) y lo que expresa es "un
+  atleta, un macrociclo vivo", que es regla de planes
+
+### La excepción que queda
 
 | archivo | líneas | nota |
 |---|---:|---|
-| `backend/app/domain/engine.py` | 721 | **Excepción legítima**: port verbatim del sandbox, fuente de verdad. Se rediseña aparte |
-| `frontend/src/lib/types.ts` | 446 | Era 346 cuando se abrió este TODO; sigue creciendo |
-
-**Por dónde seguir:** `types.ts` es el corte que queda y el menos arriesgado —
-partirlo por dominio (`types/identity.ts`, `types/plans.ts`, `types/engine.ts`)
-con un barrel que reexporte, para no tocar 40 imports.
-
-**Esfuerzo:** S (`types.ts`). **Depende de:** nada.
+| `backend/app/domain/engine.py` | 721 | **Excepción legítima**: port verbatim del sandbox, fuente de verdad. Se disuelve en C4 del rediseño, no aquí |
 
 ---
 
