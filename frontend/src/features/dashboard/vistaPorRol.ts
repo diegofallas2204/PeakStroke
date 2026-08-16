@@ -10,6 +10,11 @@
 // Los DATOS ya vienen acotados por el backend (el atleta solo recibe sus filas).
 // Esto es únicamente el lenguaje y a dónde llevan las cosas.
 
+// Comparación dejó de ser una sección: es la vista Progresión dentro de Plan
+// semanal. El enlace apunta a la vista final y no a `/comparacion`, que solo
+// existe ya como redirect para marcadores viejos.
+const PROGRESION = '/plan-semanal?vista=progresion'
+
 export type Vista = {
   /** Primera tarjeta: para el entrenador es cuánta gente lleva; para el atleta, cuántas pruebas tiene. */
   primeraTarjeta: { etiqueta: string; sub: (eventos: number, atletas: number) => string; a: string }
@@ -31,8 +36,8 @@ const ENTRENADOR: Vista = {
     sub: (eventos) => `${eventos} pruebas objetivo activas`,
     a: '/equipo',
   },
-  estado: { etiqueta: 'Estado del equipo', a: '/comparacion' },
-  desviacion: { a: '/comparacion' },
+  estado: { etiqueta: 'Estado del equipo', a: PROGRESION },
+  desviacion: { a: PROGRESION },
   semana: { a: '/plan-semanal' },
   tituloProgresion: 'Progresión del equipo · % de mejora acumulada',
   tituloTabla: (semana) => `Estado por atleta · Semana ${semana}`,
@@ -51,8 +56,8 @@ const ATLETA: Vista = {
     sub: (eventos) => (eventos === 1 ? 'prueba objetivo activa' : 'pruebas objetivo activas'),
     a: '/plan-semanal',
   },
-  estado: { etiqueta: 'Mi estado', a: '/comparacion' },
-  desviacion: { a: '/comparacion' },
+  estado: { etiqueta: 'Mi estado', a: PROGRESION },
+  desviacion: { a: PROGRESION },
   semana: { a: '/plan-semanal' },
   tituloProgresion: 'Mi progresión · % de mejora acumulada',
   tituloTabla: (semana) => `Mis pruebas · Semana ${semana}`,

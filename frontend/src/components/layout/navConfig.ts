@@ -8,7 +8,7 @@
 // temprano dirían cosas distintas.
 import {
   LayoutDashboard, CalendarRange, Users, Timer, Table2,
-  ListChecks, GitCompareArrows, FlaskConical, UserRound, type LucideIcon,
+  ListChecks, FlaskConical, UserRound, type LucideIcon,
 } from 'lucide-react'
 import { SECTION_ACCENT } from '../../lib/constants'
 
@@ -31,11 +31,16 @@ export const NAV_ITEMS: NavItem[] = [
   nav('/macrociclos', 'Macrociclos', CalendarRange, ['coach']),
   nav('/atletas', 'Atletas', Users, ['coach']),
   nav('/pruebas', 'Base aeróbica', Timer),
+  // Una sola entrada con tres vistas dentro (`?vista=`): Plan, Progresión y
+  // Zonas. Comparación era una sección aparte que pedía los mismos datos con el
+  // mismo selector; su contenido es hoy la vista Progresión, y `/comparacion`
+  // redirige allí. Las vistas NO viven en esta lista: aquí solo hay secciones
+  // —lo que el menú enseña y la guarda protege— y su catálogo es
+  // `features/weekly/vistas.ts`.
   nav('/plan-semanal', 'Plan semanal', ListChecks),
   // La tabla del equipo enseña nombres, ritmos y marcas de todos: el backend la
   // deja fuera del alcance del atleta con `require_coach`, y esto es su reflejo.
   nav('/equipo', 'Tabla del equipo', Table2, ['coach']),
-  nav('/comparacion', 'Comparación', GitCompareArrows),
   nav('/simulador', 'Simulador', FlaskConical, ['coach']),
 ]
 

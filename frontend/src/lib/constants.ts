@@ -92,8 +92,25 @@ export const CURVE_COLORS: Record<string, string> = {
 }
 
 // Color distintivo por sección (ruta). Fuente única que comparten el sidebar
-// (indicador activo) y cada página (barra de acento del encabezado). Tabla del
-// equipo y Simulador se intercambiaron para separarlos de Plan semanal (rosa).
+// (indicador activo) y cada página (barra de acento del encabezado).
+//
+// UN color por RUTA, no por vista: el riel, la barra superior de móvil y la
+// cabecera lo leen del mismo pathname, así que el color contesta "dónde estoy".
+// Las tres vistas de Plan semanal comparten el suyo — si cambiara con la
+// pestaña, el riel y la página dirían sitios distintos a la vez.
+//
+// El violeta #a78bfa quedó LIBRE al fusionar Comparación dentro de Plan semanal
+// (decisión R9, 2026-08-16): la sección superviviente CONSERVA su rosa. Absorbió
+// algo, no se convirtió en otra cosa —misma ruta, mismo nombre, y la pestaña
+// "Plan" es la página de siempre—, así que su color persiste. Liberar el rosa
+// habría creado una trampa: reaparecería en otra sección contradiciendo a quien
+// ya lo tenía asociado a Plan semanal. El violeta no la crea, porque ya no
+// señala nada que se pueda volver a encontrar.
+//
+// OJO al reasignar: el coral de Simulador y este rosa son casi indistinguibles
+// en tema oscuro. Por eso Tabla del equipo y Simulador tienen los colores
+// intercambiados —el coral está lejos de Plan semanal en el riel, no pegado a
+// él—. Ese intercambio NO se puede deshacer mientras esta sección sea rosa.
 export const SECTION_ACCENT: Record<string, string> = {
   '/': '#3b82f6',              // Dashboard — azul
   '/macrociclos': '#22d3ee',   // Macrociclos — cian
@@ -101,7 +118,6 @@ export const SECTION_ACCENT: Record<string, string> = {
   '/pruebas': '#fbbf24',       // Base aeróbica — ámbar
   '/plan-semanal': '#f472b6',  // Plan semanal — rosa
   '/equipo': '#fb923c',        // Tabla del equipo — naranja
-  '/comparacion': '#a78bfa',   // Comparación — violeta
   '/simulador': '#fb7185',     // Simulador — coral
   '/perfil': '#818cf8',        // Perfil — índigo
 }

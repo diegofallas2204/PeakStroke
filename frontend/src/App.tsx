@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Sidebar } from './components/layout/Sidebar'
 import { RutaPorRol } from './components/layout/RutaPorRol'
 import { SECTION_ACCENT } from './lib/constants'
@@ -19,12 +19,10 @@ const SwimmersPage = lazy(() =>
   import('./features/swimmers/SwimmersPage').then((m) => ({ default: m.SwimmersPage })))
 const AerobicPage = lazy(() =>
   import('./features/aerobic/AerobicPage').then((m) => ({ default: m.AerobicPage })))
-const WeeklyPlanPage = lazy(() =>
-  import('./features/weekly/WeeklyPlanPage').then((m) => ({ default: m.WeeklyPlanPage })))
+const WeeklyPage = lazy(() =>
+  import('./features/weekly/WeeklyPage').then((m) => ({ default: m.WeeklyPage })))
 const TeamPage = lazy(() =>
   import('./features/team/TeamPage').then((m) => ({ default: m.TeamPage })))
-const ComparisonPage = lazy(() =>
-  import('./features/comparison/ComparisonPage').then((m) => ({ default: m.ComparisonPage })))
 const SimulatorPage = lazy(() =>
   import('./features/simulator/SimulatorPage').then((m) => ({ default: m.SimulatorPage })))
 const ProfilePage = lazy(() =>
@@ -61,9 +59,15 @@ export default function App() {
                 <Route path="/macrociclos" element={<PlansPage />} />
                 <Route path="/atletas" element={<SwimmersPage />} />
                 <Route path="/pruebas" element={<AerobicPage />} />
-                <Route path="/plan-semanal" element={<WeeklyPlanPage />} />
+                <Route path="/plan-semanal" element={<WeeklyPage />} />
                 <Route path="/equipo" element={<TeamPage />} />
-                <Route path="/comparacion" element={<ComparisonPage />} />
+                {/* Comparación se fusionó dentro de Plan semanal como la vista
+                    Progresión. La ruta sobrevive solo para no romper los
+                    marcadores de quien la tuviera guardada. */}
+                <Route
+                  path="/comparacion"
+                  element={<Navigate to="/plan-semanal?vista=progresion" replace />}
+                />
                 <Route path="/simulador" element={<SimulatorPage />} />
                 <Route path="/perfil" element={<ProfilePage />} />
               </Routes>
