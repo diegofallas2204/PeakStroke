@@ -149,8 +149,14 @@ class Prueba:
         # construcción y no tres capas más abajo.
         if not isinstance(self.estilo, Estilo):
             object.__setattr__(self, "estilo", Estilo.desde_texto(self.estilo))
+        # TypeError y no ValueError: esta clase se construye dentro de validadores
+        # de Pydantic, que convierte cualquier ValueError en un 422. Que la
+        # distancia no sea entera es un bug de programación —Pydantic ya la
+        # garantiza `int`— y tiene que romper con un 500 visible, no aparecerle al
+        # entrenador como un error de su formulario. El estilo desconocido y la
+        # prueba imposible sí son ValueError: esos sí los escribe una persona.
         if isinstance(self.distancia, bool) or not isinstance(self.distancia, int):
-            raise ValueError(f"La distancia son metros enteros: {self.distancia!r}")
+            raise TypeError(f"La distancia son metros enteros: {self.distancia!r}")
         if self.distancia <= 0:
             raise ValueError(f"La distancia tiene que ser positiva: {self.distancia}")
         validos = self.estilos_validos(self.distancia)

@@ -20,7 +20,7 @@ la tupla en el orden de siempre, que es el mismo.
 """
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from enum import Enum
 from typing import Self
@@ -91,7 +91,7 @@ class Zona(Enum):
     def descanso_para(self, trabajo: Tiempo) -> Tiempo:
         """Segundos de descanso para una repetición que se nada en `trabajo`."""
         if not isinstance(trabajo, Tiempo):
-            raise ValueError("El descanso se calcula sobre un Tiempo de trabajo")
+            raise TypeError("El descanso se calcula sobre un Tiempo de trabajo")
         suelo, techo = self.limites_descanso_s
         return Tiempo(min(max(trabajo.segundos * self.ratio_descanso, suelo), techo))
 
@@ -158,15 +158,12 @@ class Prescripcion:
     salida: Tiempo
     descanso: Tiempo
     distancia_rep: int
-    repeticiones: int | None = None
 
     def __post_init__(self) -> None:
         if isinstance(self.distancia_rep, bool) or not isinstance(self.distancia_rep, int):
-            raise ValueError("La distancia de repetición son metros enteros")
+            raise TypeError("La distancia de repetición son metros enteros")
         if self.distancia_rep <= 0:
             raise ValueError("La distancia de repetición tiene que ser positiva")
-        if self.repeticiones is not None and self.repeticiones <= 0:
-            raise ValueError("Las repeticiones tienen que ser un número positivo")
         esperada = self.trabajo.segundos + self.descanso.segundos
         if abs(self.salida.segundos - esperada) > 1e-6:
             raise ValueError(
@@ -180,7 +177,6 @@ class Prescripcion:
         zona: Zona,
         ritmo: Ritmo,
         distancia_rep: int = 100,
-        repeticiones: int | None = None,
         *,
         paso_de_reloj: float = PASO_DE_RELOJ_S,
     ) -> Prescripcion:
@@ -198,7 +194,6 @@ class Prescripcion:
             salida=salida,
             descanso=Tiempo(salida.segundos - trabajo.segundos),
             distancia_rep=distancia_rep,
-            repeticiones=repeticiones,
         )
 
     @property
@@ -211,8 +206,17 @@ class Prescripcion:
         """Descanso : trabajo ya aplicados los topes y el cuadre al reloj."""
         return self.descanso.segundos / self.trabajo.segundos
 
-    def texto(self) -> str:
-        cabeza = f"{self.repeticiones} × " if self.repeticiones else ""
+    def texto(self, repeticiones: int | None = None) -> str:
+        """`10 × 100 a 1:18 salida 1:30`. Las repeticiones son de presentación.
+
+        Cuántas veces se repite **no** es parte de la prescripción: la misma zona
+        al mismo ritmo son 10×400 en R1 y 8×25 en V. El número pertenece a la
+        serie que se manda nadar (`Serie`, §5.11), y tenerlo aquí además de allí
+        sería otra vez dos mitades de lo mismo separándose.
+        """
+        if repeticiones is not None and repeticiones <= 0:
+            raise ValueError("Las repeticiones tienen que ser un número positivo")
+        cabeza = f"{repeticiones} × " if repeticiones else ""
         return (
             f"{cabeza}{self.distancia_rep} a {self.trabajo.texto(0)} "
             f"salida {self.salida.texto(0)}"
@@ -227,11 +231,17 @@ def _texto(segundos: float) -> str:
 
 
 @dataclass(frozen=True, slots=True)
-class JuegoDeZonas:
+class JuegoDeZonas(Mapping[Zona, "Prescripcion"]):
     """Las cinco prescripciones de una prueba. **No se persiste**: es derivado.
 
     Guardarlo crearía dato que queda mintiendo en cuanto el entrenador ajusta la
     meta. Lo que sí es un hecho —lo que se mandó nadar un día— es otra cosa.
+
+    Es un `Mapping[Zona, Prescripcion]` de verdad, como pide el §3.3: hereda de
+    `collections.abc` (stdlib, no infraestructura) y con eso gana `items()`,
+    `keys()`, `values()`, `get()` y `dict(juego)`. Implementarlo a mano dejaba a
+    cada consumidor iterando la lista de zonas **por fuera** del juego, que es la
+    lista suelta que `Zona` existe para eliminar.
     """
 
     prueba: Prueba
@@ -254,14 +264,13 @@ class JuegoDeZonas:
         piscina: Piscina = Piscina.LARGA,
         *,
         distancia_rep: int = 100,
-        repeticiones: int | None = None,
     ) -> JuegoDeZonas:
         """Zonas ancladas al ritmo de carrera de la prueba.
 
             zona = (ritmo_carrera × factor[perfil][distancia] + estilo) × piscina
         """
         if not isinstance(ritmo_carrera, Ritmo):
-            raise ValueError("Las zonas se anclan a un Ritmo de carrera")
+            raise TypeError("Las zonas se anclan a un Ritmo de carrera")
         perfil = prueba.perfil_sugerido()
         factores = factores_de_zona(perfil, prueba.distancia)
         correccion = prueba.estilo.correccion_tpace_s
@@ -274,12 +283,16 @@ class JuegoDeZonas:
             prueba=prueba,
             piscina=piscina,
             prescripciones=tuple(
-                Prescripcion.para(zona, objetivo, distancia_rep, repeticiones)
+                Prescripcion.para(zona, objetivo, distancia_rep)
                 for zona, objetivo in zip(Zona.ordenadas(), objetivos, strict=True)
             ),
         )
 
     def __getitem__(self, zona: Zona) -> Prescripcion:
+        # KeyError y no AttributeError: es el contrato de Mapping, y de él
+        # dependen `get()` y el `__contains__` heredado.
+        if not isinstance(zona, Zona):
+            raise KeyError(zona)
         return self.prescripciones[zona.orden]
 
     def __iter__(self) -> Iterator[Zona]:
@@ -287,9 +300,6 @@ class JuegoDeZonas:
 
     def __len__(self) -> int:
         return len(self.prescripciones)
-
-    def __contains__(self, zona: object) -> bool:
-        return isinstance(zona, Zona)
 
     def ritmo_de(self, zona: Zona) -> Ritmo:
         return self[zona].ritmo

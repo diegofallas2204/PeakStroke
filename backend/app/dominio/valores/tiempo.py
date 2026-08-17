@@ -52,8 +52,13 @@ def _parsear(texto: str) -> float:
 
 
 def _positivo_finito(valor: float, que: str) -> float:
+    # TypeError cuando lo que llega no es de la clase correcta, ValueError cuando
+    # sí lo es pero el valor no vale. La distinción no es de estilo: estos objetos
+    # se construyen dentro de validadores de Pydantic, que convierte **cualquier**
+    # ValueError en un 422. Un bug de programación tiene que romper con un 500 que
+    # se vea en el log, no aparecerle al entrenador como «su formulario está mal».
     if isinstance(valor, bool) or not isinstance(valor, (int, float)):
-        raise ValueError(f"{que} tiene que ser un número, no {type(valor).__name__}")
+        raise TypeError(f"{que} tiene que ser un número, no {type(valor).__name__}")
     numero = float(valor)
     if not math.isfinite(numero):
         raise ValueError(f"{que} tiene que ser finito, no {valor!r}")
@@ -124,7 +129,7 @@ class Ritmo:
         sostiene al doble de distancia) es otra cosa y vive en el motor.
         """
         if not isinstance(tiempo, Tiempo):
-            raise ValueError("Un ritmo se deriva de un Tiempo, no de un número suelto")
+            raise TypeError("Un ritmo se deriva de un Tiempo, no de un número suelto")
         if distancia <= 0:
             raise ValueError(f"La distancia tiene que ser positiva: {distancia}")
         return cls(tiempo.segundos / (distancia / 100.0))
@@ -166,7 +171,7 @@ class Mejora:
     def __post_init__(self) -> None:
         base = _positivo_finito(self.base, "La base de una mejora")
         if isinstance(self.segundos, bool) or not isinstance(self.segundos, (int, float)):
-            raise ValueError("Los segundos de una mejora tienen que ser un número")
+            raise TypeError("Los segundos de una mejora tienen que ser un número")
         segundos = float(self.segundos)
         if not math.isfinite(segundos):
             raise ValueError(f"Los segundos de una mejora tienen que ser finitos: {segundos!r}")

@@ -23,6 +23,7 @@ import pytest
 from app.domain.engine import (
     F_FASE,
     I_MAX_TABLE,
+    MACRO_15_PHASES,
     PHASE_LABELS,
     PHASE_VOLUME_KEY,
     POOL_FACTOR_25,
@@ -30,6 +31,7 @@ from app.domain.engine import (
     TIER_BY_AEROBIC,
     WEEKLY_VOLUME_KM,
     ZONE_OVER_RACE,
+    ScienceEngine,
     classify_level,
     pool_factor,
     profile_for_event,
@@ -53,11 +55,13 @@ from app.dominio.valores import (
     Tendencia,
     Tiempo,
     TipoDeTest,
+    Veredicto,
     Zona,
     factores_de_zona,
 )
 from app.engine.aerobic import analyze_splits
 from app.engine.envelope import nearest_event
+from app.engine.feasibility import analyze_feasibility
 from app.engine.send_off import (
     REST_BOUNDS_S,
     REST_RATIO,
@@ -216,6 +220,13 @@ class TestEscalasVsSuFuente:
         for fase in Fase:
             assert fase.f_fase == F_FASE[fase.value]
 
+    def test_el_orden_cronologico_es_el_de_la_estructura_del_macro(self):
+        # `MACRO_15_PHASES` es la fuente viva del orden. Si `Fase.secuencia()` se
+        # separa de ella, el reparto de fases sobre semanas cambia sin que nadie
+        # lo note — exactamente lo que pasa con dos listas de zonas.
+        del_motor = tuple(fase for _, _, fase in MACRO_15_PHASES)
+        assert tuple(f.value for f in Fase.secuencia()) == del_motor
+
     def test_la_banda_de_volumen_es_la_del_motor(self):
         for fase in Fase:
             assert fase.clave_de_volumen == PHASE_VOLUME_KEY[fase.value]
@@ -239,6 +250,46 @@ class TestEscalasVsSuFuente:
             "cambió de forma y este pin dejó de leer lo que dice comprobar."
         )
         assert {t.value for t in Tendencia} == anotadas
+
+    def test_el_veredicto_es_el_de_la_factibilidad(self):
+        fuente = inspect.getsource(analyze_feasibility)
+        emitidos = set(re.findall(r'status = "(\w+)"', fuente))
+        assert emitidos, "cambió la forma de anotar el veredicto en analyze_feasibility"
+        assert {v.value for v in Veredicto} == emitidos
+
+    def test_la_proyeccion_anual_habla_OTRO_vocabulario_y_este_tipo_no_lo_cubre(self):
+        """`Veredicto` es el de la factibilidad, y solo ese. Queda apuntado.
+
+        `ScienceEngine.project_season` emite `ok | optimistic | unrealistic`, que
+        es una escala distinta: no dice si la meta es alcanzable sino si la
+        temporada proyectada es realista. El §3.4 del rediseño solo nombra la
+        primera, así que meter los dos vocabularios en un enum sería inventar
+        modelo — pero que falte **sin que nada avise** es cómo empezó P2.
+
+        Y lo peor no es que sean dos: es que **se solapan a medias**. Los dos
+        emiten `ok`, así que `Veredicto.desde_texto` traga el veredicto anual
+        cuando dice `ok` y revienta cuando dice `optimistic`. Un tipo que acepta
+        la mitad de lo que le llega es más difícil de detectar que uno que
+        rechaza todo, y es exactamente la trampa que dejaría creer que este enum
+        ya cubre las dos escalas.
+
+        Este test es el aviso: si alguien decide unificarlas o crear la segunda,
+        falla y hay que actualizar el modelo a la vez que el código.
+
+        (De paso: los dos comentarios que documentan esa escala —`engine.py:437` y
+        `simulator/schemas.py:102`— dicen `below`, un veredicto que el código no
+        emite.)
+        """
+        anual = set(re.findall(r'verdict = "(\w+)"', inspect.getsource(ScienceEngine)))
+        de_factibilidad = {v.value for v in Veredicto}
+        assert anual == {"ok", "optimistic", "unrealistic"}, (
+            f"cambiaron los veredictos de la proyección anual: {anual}"
+        )
+        assert anual - de_factibilidad == {"optimistic", "unrealistic"}, (
+            "Cambió la relación entre las dos escalas de veredicto. Decide en el "
+            "modelo (§3.4) si son una o dos antes de tocar el enum."
+        )
+        assert anual & de_factibilidad == {"ok"}, "el solape a medias dejó de serlo"
 
 
 def _literales(anotacion: object) -> set[str]:

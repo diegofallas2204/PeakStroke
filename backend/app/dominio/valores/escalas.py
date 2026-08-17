@@ -30,9 +30,14 @@ class _EscalaTextual(Enum):
 
     @classmethod
     def desde_texto(cls, valor: str) -> Self:
+        # Solo el `value`. Aceptar además el `name` abría doce grafías en español
+        # (`principiante`, `mejorando`, `agresivo`…) que ningún productor emite:
+        # un segundo vocabulario creado sin querer, justo en el módulo cuyo
+        # propósito es que no haya dos. Lo que sí tiene dos grafías vivas —el
+        # perfil— lo declara su propio `desde_texto`.
         crudo = str(valor).strip().lower()
         for miembro in cls:
-            if miembro.value.lower() == crudo or miembro.name.lower() == crudo:
+            if miembro.value.lower() == crudo:
                 return miembro
         validos = ", ".join(m.value for m in cls)
         raise ValueError(f"{cls.__name__} no reconocido: {valor!r}. Válidos: {validos}")
@@ -70,7 +75,7 @@ class Nivel(_EscalaTextual):
     @classmethod
     def desde_umbral(cls, umbral: Ritmo) -> Nivel:
         if not isinstance(umbral, Ritmo):
-            raise ValueError("El nivel se deriva de un Ritmo de umbral, no de un número suelto")
+            raise TypeError("El nivel se deriva de un Ritmo de umbral, no de un número suelto")
         for tope, clave in _UMBRALES_DE_NIVEL:
             if umbral.segundos_por_100 > tope:
                 return cls(clave)
@@ -89,6 +94,18 @@ class Perfil(_EscalaTextual):
     VELOCIDAD = "velocidad"
     MEDIO_FONDO = "medio_fondo"
     FONDO = "fondo"
+
+    @classmethod
+    def desde_texto(cls, valor: str) -> Perfil:
+        """Traga **las dos** grafías, que es la razón de existir de este tipo.
+
+        `profile_for_event()` devuelve «medio fondo» con espacio y es la clave de
+        `ZONE_OVER_RACE`; la base de datos y el frontend escriben `medio_fondo`.
+        Si la ida tiene `clave_cientifica` y la vuelta no la acepta, el texto que
+        viene del lado científico no se puede convertir en `Perfil` — que es el
+        `KeyError` de producción que el docstring dice evitar.
+        """
+        return super().desde_texto(str(valor).strip().replace(" ", "_"))
 
     @property
     def clave_cientifica(self) -> str:
@@ -165,6 +182,31 @@ class Fase(_EscalaTextual):
     def es_extension(self) -> bool:
         return self is Fase.EXTENSION
 
+    @classmethod
+    def secuencia(cls) -> tuple[Fase, ...]:
+        """Las **cinco** fases del macrociclo, en orden cronológico.
+
+        `EXTENSION` queda fuera a propósito: no es una fase del macro sino lo que
+        viene después cuando la meta supera el techo.
+
+        Existe por la misma razón que `Zona.ordenadas()`: este orden ya vive en
+        `MACRO_15_PHASES` del motor, y sin exponerlo aquí el primero que reparta
+        fases sobre semanas escribirá una `FASE_ORDER` suelta al lado. Esto **no**
+        es el reparto de los cuatro tramos de la interfaz sobre estas cinco, que
+        sigue sin decidirse (ver `desde_texto`): el orden cronológico de las cinco
+        no está en disputa en ninguno de los tres vocabularios.
+        """
+        return (
+            cls.BASE_GENERAL, cls.BASE_ESPECIFICA, cls.UMBRAL_CSS,
+            cls.PRE_COMPETITIVO, cls.TAPER,
+        )
+
+    @property
+    def orden(self) -> int:
+        """Posición cronológica, 0 = la primera. La extensión va detrás de todas."""
+        secuencia = type(self).secuencia()
+        return secuencia.index(self) if self in secuencia else len(secuencia)
+
     def banda_de_volumen(self, nivel: Nivel) -> tuple[float, float]:
         """Km semanales {min, max} para este nivel en esta fase.
 
@@ -172,7 +214,7 @@ class Fase(_EscalaTextual):
         el entrenador y la ciencia pone la forma (decisión R6, REDISENO §10.1).
         """
         if not isinstance(nivel, Nivel):
-            raise ValueError("La banda de volumen se pide con un Nivel")
+            raise TypeError("La banda de volumen se pide con un Nivel")
         return _VOLUMEN_SEMANAL_KM[nivel][self.clave_de_volumen]
 
 

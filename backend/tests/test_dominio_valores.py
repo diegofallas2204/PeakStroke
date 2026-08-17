@@ -11,6 +11,7 @@ las de `app/domain` y `app/engine`) se comprueba en `test_valores_vs_motor.py`.
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Mapping
 
 import pytest
 
@@ -77,7 +78,10 @@ class TestTiempoYRitmoNoSeMezclan:
         assert Ritmo(58.24).a_tiempo(200) == Tiempo(116.48)
 
     def test_un_ritmo_no_se_deriva_de_un_numero_suelto(self):
-        with pytest.raises(ValueError):
+        # TypeError, no ValueError: pasar un float donde va un Tiempo es un bug
+        # de programación. Pydantic convierte los ValueError en 422, así que un
+        # bug se le reportaría al entrenador como error de su formulario.
+        with pytest.raises(TypeError):
             Ritmo.desde(116.48, 200)
 
 
@@ -185,9 +189,18 @@ class TestPruebaRechazaLoImposible:
         assert Prueba.estilos_validos(100) == frozenset(Estilo)
         assert Prueba(200, Estilo.COMBINADO).estilo is Estilo.COMBINADO
 
-    @pytest.mark.parametrize("distancia", [0, -100, 1.5, True])
-    def test_la_distancia_son_metros_enteros_positivos(self, distancia):
+    @pytest.mark.parametrize("distancia", [0, -100])
+    def test_la_distancia_tiene_que_ser_positiva(self, distancia):
+        # Valor malo del tipo correcto: lo puede escribir una persona -> 422.
         with pytest.raises(ValueError):
+            Prueba(distancia, Estilo.LIBRE)
+
+    @pytest.mark.parametrize("distancia", [1.5, True, "200"])
+    def test_una_distancia_que_no_es_entera_es_un_bug_no_un_422(self, distancia):
+        # Pydantic ya garantiza `int` en los tres endpoints, así que llegar aquí
+        # con otra cosa es un fallo del programa: tiene que romper con un 500 que
+        # se vea en el log, no salir como error del formulario del entrenador.
+        with pytest.raises(TypeError):
             Prueba(distancia, Estilo.LIBRE)
 
     def test_un_estilo_desconocido_no_pasa(self):
@@ -300,7 +313,7 @@ class TestZonaEsUnEnumOrdenado:
         assert largo.segundos == Zona.R1.limites_descanso_s[1]
 
     def test_el_descanso_se_pide_sobre_un_tiempo(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             Zona.R1.descanso_para(70.0)
 
 
@@ -328,16 +341,48 @@ class TestPrescripcion:
                 assert p.descanso.segundos >= zona.descanso_para(p.trabajo).segundos
 
     def test_el_texto_es_lo_que_se_escribe_en_la_pizarra(self):
-        p = Prescripcion.para(Zona.R2, Ritmo(78.0), 100, repeticiones=10)
-        assert p.texto() == "10 × 100 a 1:18 salida 1:30"
+        p = Prescripcion.para(Zona.R2, Ritmo(78.0), 100)
+        assert p.texto(10) == "10 × 100 a 1:18 salida 1:30"
+
+    def test_cuantas_veces_se_repite_no_es_parte_de_la_prescripcion(self):
+        """La misma zona al mismo ritmo son 10×400 en R1 y 8×25 en V.
+
+        Por eso las repeticiones son un argumento de `texto()` y no un campo: el
+        número pertenece a la serie que se manda nadar, y tenerlo también aquí
+        serían otra vez dos mitades de lo mismo pudiendo separarse.
+        """
+        assert not hasattr(Prescripcion.para(Zona.R1, Ritmo(67.0)), "repeticiones")
+        with pytest.raises(ValueError):
+            Prescripcion.para(Zona.R1, Ritmo(67.0)).texto(0)
 
     def test_una_serie_sin_repeticiones_tambien_se_lee(self):
         assert Prescripcion.para(Zona.R2, Ritmo(78.0)).texto() == "100 a 1:18 salida 1:30"
 
     @pytest.mark.parametrize("rep", [0, -100])
     def test_la_distancia_de_repeticion_es_positiva(self, rep):
-        with pytest.raises(ValueError):
+        # Por esta vía el error sale de `Ritmo.a_tiempo`, que corre antes: las
+        # guardas de `__post_init__` no llegan a ejecutarse. Se comprueban abajo
+        # construyendo la prescripción directamente — si no, borrarlas dejaría
+        # este test en verde.
+        with pytest.raises(ValueError, match="distancia tiene que ser positiva"):
             Prescripcion.para(Zona.R1, Ritmo(67.0), rep)
+
+    @pytest.mark.parametrize(
+        ("rep", "error", "texto"),
+        [
+            (0, ValueError, "repetición tiene que ser positiva"),
+            (-100, ValueError, "repetición tiene que ser positiva"),
+            (100.0, TypeError, "metros enteros"),
+            (True, TypeError, "metros enteros"),
+        ],
+    )
+    def test_las_guardas_del_constructor_se_ejecutan_de_verdad(self, rep, error, texto):
+        buena = Prescripcion.para(Zona.R1, Ritmo(67.0))
+        with pytest.raises(error, match=texto):
+            Prescripcion(
+                zona=buena.zona, ritmo=buena.ritmo, salida=buena.salida,
+                descanso=buena.descanso, distancia_rep=rep,
+            )
 
 
 class TestJuegoDeZonas:
@@ -359,6 +404,21 @@ class TestJuegoDeZonas:
         assert juego[Zona.R1].zona is Zona.R1
         assert juego.ritmo_de(Zona.V) == juego[Zona.V].ritmo
 
+    def test_es_un_mapping_de_verdad(self):
+        """El §3.3 lo especifica como `Mapping[Zona, Prescripcion]`, no parecido.
+
+        Sin heredar de `Mapping`, cada consumidor que quiera serializar las cinco
+        zonas vuelve a iterar la lista de zonas **por fuera** del juego — que es
+        la lista suelta que `Zona` existe para eliminar.
+        """
+        juego = JuegoDeZonas.de(self.RITMO, self.PRUEBA)
+        assert isinstance(juego, Mapping)
+        assert list(juego.keys()) == list(Zona.ordenadas())
+        assert len(dict(juego)) == 5
+        assert juego.get(Zona.V) is juego[Zona.V]
+        assert juego.get("R1") is None          # una clave que no es Zona no está
+        assert Zona.R1 in juego and "R1" not in juego
+
     def test_la_zona_mas_intensa_es_la_mas_rapida(self):
         juego = JuegoDeZonas.de(self.RITMO, self.PRUEBA)
         ritmos = [juego[z].ritmo for z in Zona.ordenadas()]
@@ -375,7 +435,7 @@ class TestJuegoDeZonas:
         assert all(pecho[z].ritmo > libre[z].ritmo for z in Zona.ordenadas())
 
     def test_se_ancla_a_un_ritmo_no_a_un_numero(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             JuegoDeZonas.de(58.24, self.PRUEBA)
 
 
@@ -406,9 +466,9 @@ class TestNivelSiempreDerivado:
 
     def test_no_se_deriva_de_un_float_suelto(self):
         # Un float podría ser un tiempo absoluto, y el nivel saldría disparatado.
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             Nivel.desde_umbral(95.0)
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             Nivel.desde_umbral(Tiempo(95.0))
 
 
@@ -433,8 +493,27 @@ class TestFaseEsElUnicoVocabulario:
                 Nivel.AVANZADO
             )
 
-    def test_la_banda_se_pide_con_un_nivel(self):
+    def test_lleva_su_orden_cronologico_dentro(self):
+        """Por lo mismo que `Zona.ordenadas()`: si no está en el tipo, aparece
+        una `FASE_ORDER` suelta al lado el día que alguien reparta fases sobre
+        semanas. La extensión no es una fase del macro y va detrás de todas."""
+        assert Fase.secuencia() == (
+            Fase.BASE_GENERAL, Fase.BASE_ESPECIFICA, Fase.UMBRAL_CSS,
+            Fase.PRE_COMPETITIVO, Fase.TAPER,
+        )
+        assert Fase.EXTENSION not in Fase.secuencia()
+        ordenes = [f.orden for f in Fase.secuencia()]
+        assert ordenes == sorted(ordenes) == [0, 1, 2, 3, 4]
+        assert Fase.EXTENSION.orden == len(Fase.secuencia())
+
+    def test_el_orden_no_es_el_reparto_que_C4_tiene_que_decidir(self):
+        # Exponer el orden de las cinco no adelanta nada sobre cómo se reparten
+        # los cuatro tramos de la interfaz sobre ellas: eso sigue rechazándose.
         with pytest.raises(ValueError):
+            Fase.desde_texto("build")
+
+    def test_la_banda_se_pide_con_un_nivel(self):
+        with pytest.raises(TypeError):
             Fase.TAPER.banda_de_volumen("elite")
 
     @pytest.mark.parametrize("ajeno", ["Construcción", "build", "peak", "Descenso", "Base"])

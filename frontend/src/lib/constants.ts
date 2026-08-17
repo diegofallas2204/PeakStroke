@@ -34,9 +34,12 @@ export function specialtyForDistance(distance: number): string {
 
 export const DISTANCES = [50, 100, 200, 400, 800, 1500]
 
-// Pruebas de natación válidas — misma regla que el backend (app/engine/events.py).
+// Pruebas de natación válidas — misma regla que el backend, donde es una
+// invariante del constructor de `Prueba` (app/dominio/valores/prueba.py).
 //   ≥600m → solo libre · 300–599m → libre/combinado · 100–299m → todos ·
 //   <100m → libre/espalda/pecho/mariposa (no hay 50 combinado).
+// Esto solo filtra los desplegables: quien RECHAZA es el backend, con un 422.
+// Si cambia la regla, hay que tocar los dos sitios.
 export function strokesForDistance(distance: number): string[] {
   if (distance >= 600) return ['libre']
   if (distance >= 300) return ['libre', 'combinado']
