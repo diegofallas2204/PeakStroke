@@ -39,7 +39,9 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
 - Toda feature backend nueva: `backend/app/modules/<feature>/` con models.py / schemas.py / service.py / router.py
 - `router.py` nunca tiene lógica de negocio — recibe, delega al service, retorna
 - El motor científico vive en `backend/app/domain/` (port verbatim del sandbox, FUENTE DE VERDAD). `backend/app/engine/` lo adapta a los consumidores (zones, feasibility, progression). Ambos son funciones puras: jamás importan DB ni modelos
-- **`backend/app/dominio/` es el rediseño POO y no importa NADA** — ni infraestructura, ni `modules/`, ni `core/`, **ni `app/domain/`**. Hoy tiene `valores/` (paso 1 del rediseño, 2026-08-16): `Tiempo`·`Duracion`·`Ritmo`·`Mejora`, `Prueba`·`Estilo`·`Piscina`, `Zona`·`Prescripcion`·`JuegoDeZonas` y las diez escalas. Todos `frozen=True, slots=True`
+- **`backend/app/dominio/` es el rediseño POO y no importa NADA** — ni infraestructura, ni `modules/`, ni `core/`, **ni `app/domain/`**. Lo comprueba `tests/test_entidades.py` al revés: todo import absoluto tiene que ser de la biblioteca estándar. Hoy tiene `valores/` (paso 1, 2026-08-16): `Tiempo`·`Duracion`·`Ritmo`·`Mejora`, `Prueba`·`Estilo`·`Piscina`, `Zona`·`Prescripcion`·`JuegoDeZonas` y las diez escalas, todos `frozen=True, slots=True`; y `entidades/` (paso 2, 2026-08-16): `Atleta`, `Macrociclo`·`FaseDelMacro`·`Competencia`, `TestAerobico`·`Parcial`. Las entidades son mutables y **se comparan por `id`, no por valor** (`base.PorIdentidad`): dos atletas homónimos son dos personas
+- **La entidad se construye desde la fila; no la envuelve.** La traducción vive en `backend/app/persistencia/mapeo/`, del lado de fuera (`api → persistencia → dominio`, y el dominio no apunta a nada). Un envoltorio con la instancia del ORM dentro escribiría en la sesión al mutarse —dejando sin trabajo a los repositorios del paso 5— y se podría construir alrededor de cualquier fila, que es justo lo que rompe la invariante del `TestAerobico`
+- **Las funciones que las entidades sustituyen se quedan como envoltorio y se vacían después**: `core/dates.age_at` → `Atleta.edad_en()`, `engine/progression.monday_of` → `macrociclo.lunes_de()`, `plans/service.current_week_of` y `effective_status` → `Macrociclo`. Ninguna conserva ya su copia de la regla
 - **`Tiempo` es siempre positivo; lo que puede valer 0 o menos es una `Duracion`** — un nado frente a un instante, un hueco o un descanso. La salida de la primera repetición es 0 y el descanso perdido es negativo, así que mezclarlos hacía inconstruible el primer parcial de cualquier serie. Restar dos `Tiempo` da una `Mejora` (rendimiento); restar dos instantes es `Tiempo.diferencia()` (reloj). Y `Mejora.base` lleva su unidad (`Tiempo | Ritmo`): con un `float`, una mejora de ritmo salía convertida en un tiempo absoluto
 - **La validez de una prueba es del constructor de `Prueba`, no de una función.** `Prueba(50, "combinado")` levanta `ValueError` y ese es el mensaje del 422; `app/engine/events.py` ya no existe. Mientras la regla convivía con las tablas del motor viejo, `tests/test_valores_vs_motor.py` compara cada tabla nueva **contra la fuente viva** — no contra números tecleados. Al retirar una copia vieja, su pin se borra con ella
 - Módulos no se importan entre sí salvo lecturas explícitas de modelos; nunca lógica cruzada
@@ -64,9 +66,13 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
   `aerobic_test_splits.send_off_time` lo guardan; `input_mode` dice si los
   números que apuntó el entrenador son tiempos nadados (`rep`) o llegadas
   acumuladas del reloj (`clock`). **En la base de datos siempre se guarda el
-  tiempo NADADO**: la conversión la hace `create_test` una vez, al escribir. Sin
-  esto, un entrenador que apuntara lo que el reloj marcaba —lo normal— producía
-  una base aeróbica acumulada, y con ella zonas y predicción
+  tiempo NADADO**. Sin esto, un entrenador que apuntara lo que el reloj marcaba
+  —lo normal— producía una base aeróbica acumulada, y con ella zonas y predicción.
+  Desde el paso 2 del rediseño (2026-08-16) **ya no es una regla que `create_test`
+  tenga que acordarse de aplicar**: la conversión ocurre en el constructor de
+  `dominio.entidades.TestAerobico`, que recibe lo que apuntó el entrenador y el
+  modo, y no admite `Parcial` ya hechos. No queda puerta por la que unas llegadas
+  sin convertir vuelvan a entrar
 - Jerarquía de zonas (lento -> rápido): R1 > R2 > MVO2 > RL > V
 - Pruebas >= 400m = Tier 1 (regla aeróbica); < 400m = Tier 2 (ventanas de velocidad)
 - Eje X de los gráficos: fecha real DD/MM **y** número de semana `S#` (tick de dos

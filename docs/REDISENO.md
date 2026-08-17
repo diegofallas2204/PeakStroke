@@ -459,6 +459,13 @@ dar_de_baja() / restaurar()
 Ficha y cuenta siguen siendo la misma persona vista desde dos sitios, unidas solo
 por un `CodigoDeVinculacion` canjeado.
 
+> **Enmienda del 2026-08-16 (paso 2), aplica a todas las entidades.** Los
+> mutadores —`dar_de_baja()`, `restaurar()`, `inscribir()`— **no se construyeron
+> todavía**: hasta que exista el repositorio del paso 5 no hay nada que persista
+> lo que cambian, y un `atleta.dar_de_baja()` que no escribe es peor que no
+> tenerlo, porque parece que funciona. Entran con su repositorio. El paso 2
+> construyó solo el comportamiento de consulta.
+
 ### 5.4 `Macrociclo` (Plan)
 
 ```
@@ -474,6 +481,14 @@ duracion_en_semanas()
 
 Raíz del agregado de planificación. Absorbe las funciones sueltas de
 `plans/service.py`, que son puras y no tocan la base de datos.
+
+> **Enmienda del 2026-08-16 (paso 2): `fase_de(semana) -> FaseDelMacro`, no
+> `Fase`.** La base guarda cuatro tramos (`base|build|peak|taper`) y `Fase` tiene
+> cinco claves científicas; ese reparto lo decide el paso 4 y `escalas.Fase`
+> se niega expresamente a adivinarlo (§5.5). Devolver la `Fase` aquí habría
+> exigido inventar la traducción — la sexta versión de la regla que este tipo
+> existe para cerrar. `FaseDelMacro.fase` viaja en `None` hasta el paso 4; el
+> desdoble nombre (UI) / clave de dominio ya está construido y esperándola.
 
 ### 5.5 `FaseDelMacro` (PlanPhase) y `Competencia` (Competition)
 
@@ -843,7 +858,7 @@ El resto son renombres de columna y `CheckConstraint` añadidos.
 | # | Paso | Riesgo | Cierra | Se puede parar aquí |
 |---|---|---|---|---|
 | 1 | `dominio/valores/` completo — **✅ HECHO 2026-08-16** | bajo | P6, P2 | sí |
-| 2 | Entidades ricas (`Atleta`, `Macrociclo`, `TestAerobico`) | bajo | P4 | sí |
+| 2 | Entidades ricas (`Atleta`, `Macrociclo`, `TestAerobico`) — **✅ HECHO 2026-08-16** | bajo | P4 | sí |
 | 3 | `Rol` + subclases; `Principal` compone | bajo | — | sí |
 | 4 | **Fusión de los dos motores** | **medio-alto** | P1, P3 | rama propia |
 | 5 | `persistencia/repositorios/` + recorte de imports cruzados | medio | P5 | sí |

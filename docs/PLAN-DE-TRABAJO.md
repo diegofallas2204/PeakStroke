@@ -845,7 +845,9 @@ distintos. Antes los dos caían en el mismo texto genérico.
 
 **Tests: 729 en verde** (478 de base + 251 nuevos), `ruff check .` limpio. El
 estilo se **sigue guardando crudo** (`"crol"` no se canoniza a `"libre"`): es el
-comportamiento de siempre y cambiarlo toca filas existentes. Queda para C2.
+comportamiento de siempre y cambiarlo toca filas existentes. ~~Queda para C2.~~
+**C2 no lo hizo** (era aditivo y esto es una migración de datos); reasignado a
+**C5**, donde la escritura pasa por el repositorio — ver el cierre de C2.
 
 ### La revisión, y los dos hallazgos que NO se arreglaron
 
@@ -977,7 +979,7 @@ cuál sería el más doloroso, para planificar el siguiente paso.
 
 ---
 
-## C2 · Entidades ricas
+## C2 · Entidades ricas — ✅ HECHO (2026-08-16)
 
 ### Qué pasa
 
@@ -1062,6 +1064,76 @@ AL TERMINAR
 Dime qué queda en plans/service.py después de vaciarlo y si sigue pasando de
 300 líneas.
 ```
+
+### Qué se construyó
+
+`app/dominio/entidades/`: `Atleta`, `Macrociclo` + `FaseDelMacro` + `Competencia`,
+`TestAerobico` + `Parcial`, y `PorIdentidad` — **las entidades se comparan por
+`id`, no por valor**, y dos sin guardar no son iguales aunque lleven los mismos
+datos (dos hermanos homónimos no son un solo atleta).
+
+**La decisión que el prompt pedía antes de escribir: la entidad se construye
+desde la fila, no la envuelve.** La traducción vive en `app/persistencia/mapeo/`,
+creado un paso antes de tiempo con un solo archivo, que es donde C5 la encuentra
+ya escrita. Un envoltorio con la instancia del ORM dentro escribiría en la sesión
+al mutarse —dejando sin trabajo al repositorio de C5— y se podría construir
+alrededor de *cualquier* fila, que es justo lo que rompe la invariante del test
+aeróbico. Además obligaría al dominio a hablar `birth_date` y `total_weeks`.
+
+**La invariante quedó cerrada por los dos lados.** `create_test` ya no convierte:
+construye un `TestAerobico` y lee lo que salga; `to_response` tampoco reanaliza.
+Y el constructor **no admite `Parcial` ya hechos**, con un test que lo comprueba
+sobre la firma: si alguien abre esa puerta, la conversión vuelve a ser opcional y
+la invariante pasa a ser decorativa.
+
+Las funciones viejas delegan, ninguna conserva su copia de la regla:
+`core/dates.age_at` → `Atleta.edad_en()`, `engine/progression.monday_of` →
+`macrociclo.lunes_de()`, `current_week_of` y `effective_status` → `Macrociclo`.
+`engine/aerobic.analyze_splits` **sigue en pie**: la usa el endpoint de
+previsualización, que analiza sin guardar. Convive pinada contra la entidad.
+
+**Dos cosas se construyeron a medias a propósito**, y las dos están enmendadas en
+`REDISENO.md` con su razón:
+
+1. **`fase_de(semana)` devuelve `FaseDelMacro`, no `Fase`** (§5.4). Cuatro tramos
+   contra cinco fases, otra vez: es el mismo reparto que `Fase.desde_texto`
+   rechazó en C1 y que decide C4. El desdoble nombre (UI) / clave de dominio ya
+   está construido y esperándola en `None`.
+2. **Sin mutadores** (§5.3). `dar_de_baja()`, `restaurar()` e `inscribir()` no
+   entran hasta que haya repositorio que persista lo que cambian: un
+   `atleta.dar_de_baja()` que no escribe es peor que no tenerlo, porque parece
+   que funciona.
+
+**Tests: 866 en verde** (729 de base + 137 nuevos), `ruff check .` limpio. De los
+nuevos, 96 son pines contra la **fuente viva** —no contra cifras tecleadas—, que
+es lo único que avisa mientras `analyze_splits` y la entidad convivan.
+
+**Un test que el prompt no pedía:** `app/dominio/` no importa nada era una regla
+"no negociable" de `CLAUDE.md` **sin comprobar**. Ahora se verifica al revés —todo
+import absoluto tiene que estar en `sys.stdlib_module_names`— porque una lista de
+prohibidos solo caza lo que ya se nos ocurrió prohibir. Importa más desde este
+paso: el traductor está justo al lado y apunta hacia dentro; el día que alguien
+invierta esa flecha para salir de un apuro, C5 se queda sin sitio donde vivir.
+
+**Lo que el prompt daba por hecho y no lo estaba:** `age_at` ya no estaba
+duplicada (C0 la unificó en `core/dates.py`), `swimmers/service._age` ya no
+existía, las líneas citadas estaban corridas y la suite eran 729 tests, no 478.
+
+**Lo que C1 dejó apuntado para C2 y NO se hizo:** canonizar el estilo al
+guardarlo (`"crol"` sigue entrando crudo en `swimmers.main_stroke` en vez de
+normalizarse a `"libre"`). No entró porque no estaba en el prompt y porque **toca
+filas existentes**: es una migración de datos, no un refactor aditivo, y este
+paso entero era aditivo. La entidad ya lo lee bien —`Estilo.desde_texto` traga
+las dos grafías al hidratar—, así que el sistema no se equivoca hoy; lo que queda
+pendiente es que la columna deje de guardar dos grafías de lo mismo. **Va a C5**,
+que es donde la escritura pasa por el repositorio y hay un solo sitio que tocar.
+
+**`plans/service.py` queda en 149 líneas** — sube 2, no baja, y nunca estuvo cerca
+de 300: eran 147. Se fueron las dos reglas (22 líneas de aritmética de
+calendario) y entraron dos envoltorios de una línea con el porqué escrito. Lo que
+queda es I/O y orquestación de sesión, que no es de la entidad: ese archivo
+adelgaza en **C5**, cuando `delete_plan` y `_swimmer_map` se vayan al repositorio
+y `to_plan_response` a una vista.
 
 ---
 
@@ -2033,7 +2105,17 @@ puedes responder *"¿quién revocó a este atleta?"*.
 `A0 → A1 → B1 → C0 → C1 → C2`. Todo aditivo, nada irreversible, y cierra cuatro
 de los seis hallazgos.
 
-> **Al 2026-08-16 esa ruta va por `C1`.** `A0`, `A1`, `A2`, `B1` y `C0` están
+> **Al 2026-08-16 la ruta mínima está terminada: `C1` y `C2` hechos.** Quedan
+> `app/dominio/valores/` y `app/dominio/entidades/` construidos y con llamadores
+> reales, más `app/persistencia/mapeo/` (la traducción fila → entidad, adelantada
+> de C5). Lo que **sigue en pie** son los dos motores —eso es `C4`— y todo lo
+> demás de la parte C: `C3` (roles), `C5` (repositorios), `C6` (`Resultado`).
+> Siguen abiertas **R10**, **R11** y **R12**, y ninguna bloquea `C3`.
+>
+> El párrafo de abajo es el estado **anterior a C1**, del 2026-08-16 por la
+> mañana; se conserva porque documenta lo que se midió antes de empezar.
+
+> **Al 2026-08-16, antes de arrancar C1.** `A0`, `A1`, `A2`, `B1` y `C0` están
 > hechos; de la parte C **no hay nada construido todavía** —medido, no supuesto:
 > `app/domain/` sigue siendo solo `engine.py`, los dos motores siguen en pie, no
 > hay objetos de valor ni repositorios, y la última migración es la del
