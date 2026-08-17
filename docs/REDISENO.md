@@ -25,6 +25,18 @@
 > lo que se pensaba antes, porque la razón del cambio se lee mejor con las dos
 > versiones delante.
 >
+> **Actualización 2026-08-16 — el paso 1 está construido.** `app/dominio/valores/`
+> existe con los objetos del §3 y sus tests; `app/engine/events.py` se borró al
+> migrar su regla a `Prueba`. **Línea base ahora: 699 tests en verde** (478 + 221).
+> Es el primer trozo de este documento que deja de ser modelo y pasa a ser código.
+> Detalle y decisiones en el bloque C1 de `docs/PLAN-DE-TRABAJO.md`.
+>
+> Una decisión de construcción que este documento no fijaba: *«el dominio no
+> importa nada»* se tomó **literal**, así que `app/dominio/` tampoco importa
+> `app/domain/`. Por eso las tablas científicas que un valor necesita viven dentro
+> del tipo, con una red (`tests/test_valores_vs_motor.py`) que las compara contra
+> la fuente viva hasta que el paso 4 retire la copia vieja.
+>
 > **Lo que sigue sin decidirse** no son decisiones de modelo sino de producto, y
 > viven en §10.3.
 
@@ -784,7 +796,7 @@ El resto son renombres de columna y `CheckConstraint` añadidos.
 | `curve_progress()` + `CURVES` + `CURVE_LABELS` | `Curva` (Strategy) | 3 constantes paralelas → 5 clases |
 | `engine/zones.py` + `send_off.py` | `Zona` · `Prescripcion` · `JuegoDeZonas` | dicts de strings → tipos |
 | `engine/time_utils.py` | `Tiempo` · `Ritmo` | funciones sueltas → tipos con unidad |
-| `engine/events.py` (`domain.allowed_strokes` ya borrada en A1) | `Prueba` | **función suelta → invariante del objeto** |
+| ~~`engine/events.py`~~ — **HECHO 2026-08-16**, módulo borrado | `Prueba` | **función suelta → invariante del objeto** |
 | `engine/aerobic.py` | `TestAerobico` (métodos) | — |
 | `modules/dashboard` | `api/v1/vistas/` | deja de ser módulo de dominio; es una vista |
 | `modules/simulator` | `api/v1/simulador/` | llama al motor, no persiste |
@@ -798,7 +810,7 @@ El resto son renombres de columna y `CheckConstraint` añadidos.
 
 | # | Paso | Riesgo | Cierra | Se puede parar aquí |
 |---|---|---|---|---|
-| 1 | `dominio/valores/` completo | bajo | P6, P2 | sí |
+| 1 | `dominio/valores/` completo — **✅ HECHO 2026-08-16** | bajo | P6, P2 | sí |
 | 2 | Entidades ricas (`Atleta`, `Macrociclo`, `TestAerobico`) | bajo | P4 | sí |
 | 3 | `Rol` + subclases; `Principal` compone | bajo | — | sí |
 | 4 | **Fusión de los dos motores** | **medio-alto** | P1, P3 | rama propia |

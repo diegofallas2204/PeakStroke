@@ -772,7 +772,7 @@ y la razón de cada una. Las que queden abiertas, que queden marcadas como tales
 
 ---
 
-## C1 · Objetos de valor
+## C1 · Objetos de valor — ✅ HECHO (2026-08-16)
 
 ### Qué pasa
 
@@ -802,7 +802,57 @@ Y es barato: son unas 300 líneas de tipos, sin tocar nada existente.
 **Ninguno.** Es puramente aditivo: se crean los tipos y se empiezan a usar donde
 convenga, sin quitar nada.
 
-### Prompt
+### Cómo quedó
+
+**Los cuatro archivos, 975 líneas con tests.** `app/dominio/valores/`: `tiempo.py`
+(218) · `prueba.py` (202) · `zona.py` (298) · `escalas.py` (257). Ninguno pasa de
+300. `app/dominio/` no importa nada — y se tomó literal: **tampoco `app/domain/`**,
+el motor viejo. Esa es la única decisión de peso que el prompt no fijaba.
+
+**Consecuencia de tomarlo literal.** Las tablas científicas que un valor necesita
+para cumplir su contrato del §3 (`Piscina.factor`, `Zona.ratio_descanso`,
+`Fase.f_fase` y su banda, los factores de zona sobre el ritmo de carrera) viven
+**dentro del tipo al que pertenecen**, no importadas. Eso crea una copia temporal
+de cada tabla, que es exactamente lo que abrió P2. La defensa es
+`tests/test_valores_vs_motor.py`: compara cada tabla y cada regla **contra la
+fuente viva**, nunca contra números tecleados a mano. Cuando C4 fusione los
+motores, esos pines se borran con la copia vieja.
+
+**`JuegoDeZonas.de()` da ritmo, salida y descanso idénticos a `calc_zones`** en las
+36 combinaciones de ritmo × piscina × distancia de repetición, zona a zona. No es
+una reimplementación parecida: es la misma aritmética.
+
+**Dos cosas que se decidieron no inventar:**
+
+1. `Fase.desde_texto` **rechaza** `"Construcción"` y `"build"`. Son cuatro tramos
+   contra cinco fases y el reparto no está decidido — lo decide C4. Adivinarlo
+   habría sido crear el sexto vocabulario en vez de cerrar los tres.
+2. `Nivel.desde_umbral` exige un `Ritmo`, no un float. No arregla el acantilado
+   del §10.4 del rediseño (eso es de C4); solo garantiza que la clasificación
+   viva en un sitio.
+
+**Migración incluida, que el prompt dejaba fuera a propósito.** Al terminar se
+pidió el primer candidato y se ejecutó en la misma sesión: **`app/engine/events.py`
+borrado**. Sus tres llamadores (`plans/schemas.py`, `simulator/schemas.py` ×2)
+construyen una `Prueba` y el `ValueError` del constructor es el mensaje del 422 —
+seis líneas por validador pasaron a una. Los asserts de la divergencia 1 se
+**movieron** a `test_reglas_unicas.py` sobre `Prueba`, más un guardián nuevo:
+`find_spec("app.engine.events") is None`. Con eso hay dos comprobaciones
+estructurales, una por cada sitio donde la copia ya apareció una vez.
+
+**Efecto visible:** un estilo inexistente y un combo imposible dan ahora mensajes
+distintos. Antes los dos caían en el mismo texto genérico.
+
+**Tests: 699 en verde** (478 de base + 221 nuevos), `ruff check .` limpio. El
+estilo se **sigue guardando crudo** (`"crol"` no se canoniza a `"libre"`): es el
+comportamiento de siempre y cambiarlo toca filas existentes. Queda para C2.
+
+**Copia que sigue viva y fuera de este proceso:** `frontend/src/lib/constants.ts`,
+que filtra los combos en la interfaz. El rediseño es del backend y el backend es
+quien rechaza, pero si alguien añade una distancia hay que tocar los dos sitios.
+Anotado en el docstring de `Prueba`.
+
+### Prompt (ejecutado el 2026-08-16)
 
 ```text
 Trabajo en PeakStroke, en C:\Users\diego\OneDrive\Desktop\PeakStroke\PeakStroke\peakstroke.
