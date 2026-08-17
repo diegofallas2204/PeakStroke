@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.core.dates import age_at
 from app.core.dependencies import Principal, get_current_principal
 from app.core.guards import exigir_o_bypass, require_coach
+from app.dominio.roles import Recurso
 
 from . import access, enrollment, roster, service, weeks
 from .schemas import (
@@ -208,7 +209,9 @@ async def update_week(
     # `disabled` pasaría a ser legítimo — y eso es el parón del entrenador, que
     # redistribuye la mejora restante de todo el macrociclo. 403 y no 404: el
     # recurso sí es suyo, lo que no alcanza es el rol.
-    if data.touches_coach_only_fields() and not principal.is_coach:
+    if data.touches_coach_only_fields() and not principal.rol.puede_escribir(
+        Recurso.PARON_DE_SEMANA,
+    ):
         exigir_o_bypass(principal, "entrenador para marcar el parón de una semana")
 
     event = await weeks.update_week(db, week_id, data, principal)

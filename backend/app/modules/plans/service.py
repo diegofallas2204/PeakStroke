@@ -77,8 +77,7 @@ async def to_plan_response(
     resp.effective_status = effective_status(plan)
     inscripciones = [
         ap for ap in plan.athlete_plans
-        if ap.is_active
-        and (not principal.is_athlete or ap.swimmer_id == principal.swimmer_id)
+        if ap.is_active and principal.owns_swimmer(ap.swimmer_id)
     ]
     swimmers = await _swimmer_map(db, [ap.swimmer_id for ap in inscripciones])
     athletes = []

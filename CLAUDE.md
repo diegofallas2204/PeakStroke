@@ -39,7 +39,7 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
 - Toda feature backend nueva: `backend/app/modules/<feature>/` con models.py / schemas.py / service.py / router.py
 - `router.py` nunca tiene lógica de negocio — recibe, delega al service, retorna
 - El motor científico vive en `backend/app/domain/` (port verbatim del sandbox, FUENTE DE VERDAD). `backend/app/engine/` lo adapta a los consumidores (zones, feasibility, progression). Ambos son funciones puras: jamás importan DB ni modelos
-- **`backend/app/dominio/` es el rediseño POO y no importa NADA** — ni infraestructura, ni `modules/`, ni `core/`, **ni `app/domain/`**. Lo comprueba `tests/test_entidades.py` al revés: todo import absoluto tiene que ser de la biblioteca estándar. Hoy tiene `valores/` (paso 1, 2026-08-16): `Tiempo`·`Duracion`·`Ritmo`·`Mejora`, `Prueba`·`Estilo`·`Piscina`, `Zona`·`Prescripcion`·`JuegoDeZonas` y las diez escalas, todos `frozen=True, slots=True`; y `entidades/` (paso 2, 2026-08-16): `Atleta`, `Macrociclo`·`FaseDelMacro`·`Competencia`, `TestAerobico`·`Parcial`. Las entidades son mutables y **se comparan por `id`, no por valor** (`base.PorIdentidad`): dos atletas homónimos son dos personas
+- **`backend/app/dominio/` es el rediseño POO y no importa NADA** — ni infraestructura, ni `modules/`, ni `core/`, **ni `app/domain/`**. Lo comprueba `tests/test_entidades.py` al revés: todo import absoluto tiene que ser de la biblioteca estándar. Hoy tiene `valores/` (paso 1, 2026-08-16): `Tiempo`·`Duracion`·`Ritmo`·`Mejora`, `Prueba`·`Estilo`·`Piscina`, `Zona`·`Prescripcion`·`JuegoDeZonas` y las diez escalas, todos `frozen=True, slots=True`; y `entidades/` (paso 2, 2026-08-16): `Atleta`, `Macrociclo`·`FaseDelMacro`·`Competencia`, `TestAerobico`·`Parcial`. Las entidades son mutables y **se comparan por `id`, no por valor** (`base.PorIdentidad`): dos atletas homónimos son dos personas; y `roles/` (paso 3, 2026-08-17): `Rol` abstracto con `Administrador`·`EntrenadorEnJefe`·`Entrenador`·`AtletaRol`, objetos **sin estado** que contestan `puede_ver`/`puede_escribir`/`alcance_de_atletas`/`alcance_de_macrociclos`/`secciones_visibles`
 - **La entidad se construye desde la fila; no la envuelve.** La traducción vive en `backend/app/persistencia/mapeo/`, del lado de fuera (`api → persistencia → dominio`, y el dominio no apunta a nada). Un envoltorio con la instancia del ORM dentro escribiría en la sesión al mutarse —dejando sin trabajo a los repositorios del paso 5— y se podría construir alrededor de cualquier fila, que es justo lo que rompe la invariante del `TestAerobico`
 - **Las funciones que las entidades sustituyen se quedan como envoltorio y se vacían después**: `core/dates.age_at` → `Atleta.edad_en()`, `engine/progression.monday_of` → `macrociclo.lunes_de()`, `plans/service.current_week_of` y `effective_status` → `Macrociclo`. Ninguna conserva ya su copia de la regla
 - **`Tiempo` es siempre positivo; lo que puede valer 0 o menos es una `Duracion`** — un nado frente a un instante, un hueco o un descanso. La salida de la primera repetición es 0 y el descanso perdido es negativo, así que mezclarlos hacía inconstruible el primer parcial de cualquier serie. Restar dos `Tiempo` da una `Mejora` (rendimiento); restar dos instantes es `Tiempo.diferencia()` (reloj). Y `Mejora.base` lleva su unidad (`Tiempo | Ritmo`): con un `float`, una mejora de ritmo salía convertida en un tiempo absoluto
@@ -99,6 +99,16 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
   `guards.py` (`require_coach`, `require_team_owner`, `exigir_o_bypass`) y
   `dev_identity.py` (las dos cabeceras del conmutador). `Principal` se sigue
   importando de `core.dependencies`; los guards, de `core.guards`
+- **El rol es un objeto, no una cadena** (paso 3 del rediseño, 2026-08-17).
+  `Principal` **compone** un `Rol` de `app/dominio/roles/` —`principal.rol`, que
+  `core/principal.rol_de` construye desde `team_members.role` + si es
+  `teams.owner_id`— y los servicios preguntan al rol en vez de encadenar `if`:
+  `visible_to` mira `alcance_de_macrociclos()`, el parón de la semana mira
+  `puede_escribir(Recurso.PARON_DE_SEMANA)`. Quedan dos ejes FUERA de la
+  jerarquía y a propósito: ser dueño es una columna (`require_owner` sigue
+  preguntando `is_owner`) y `is_developer` no es un rol. `Administrador` existe
+  solo como hueco: ninguna clave lo construye, y una clave desconocida levanta
+  `ValueError` en vez de adivinar
 - **Los guards de rol comprueban el rol SIEMPRE**, también con el login apagado.
   Antes se saltaban, y con el conmutador de identidad eso permitía que un atleta
   se ascendiera a entrenador en una petición

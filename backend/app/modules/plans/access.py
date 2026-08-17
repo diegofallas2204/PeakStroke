@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.dependencies import Principal
+from app.dominio.roles import Alcance
 
 from .models import AthleteEvent, AthletePlan, Plan, PlanCoach, WeeklyPlan
 
@@ -45,28 +46,30 @@ _EVENT_LOAD = (
 def visible_to(stmt, principal: Principal):
     """Acota una consulta de macrociclos a los que el solicitante puede ver.
 
-    Tres casos, en este orden:
-      · **Dueño del equipo** — todos los de su equipo. Sin esta excepción, los
-        macrociclos de un entrenador que se va no los podría rescatar nadie.
-      · **Entrenador** — solo aquellos en los que figura en `plan_coaches`.
-      · **Atleta** — solo aquellos en los que está inscrito.
+    No pregunta por el rol: pregunta por su **alcance**, que es lo único que
+    esta función necesita saber. Los tres casos siguen siendo los mismos, y
+    ahora quién cae en cuál lo decide la jerarquía de `Rol` y no un `if` de aquí:
+
+      · `TODOS` — el dueño del equipo. Sin esta excepción, los macrociclos de un
+        entrenador que se va no los podría rescatar nadie.
+      · `LOS_MIOS` — el entrenador: aquellos en los que figura en `plan_coaches`.
+      · `SOLO_YO` — el atleta: aquellos en los que está inscrito.
 
     Es la única puerta: `list_plans` y `get_plan` pasan por aquí, así que un
-    macrociclo ajeno no se cuela ni listándolo ni pidiéndolo por id.
+    macrociclo ajeno no se cuela ni listándolo ni pidiéndolo por id. Por eso el
+    último caso no es una caída permisiva sino la contraria: un alcance que esta
+    función no sepa traducir a una consulta no ve NADA.
     """
     stmt = stmt.where(Plan.team_id == principal.team_id)
-    if principal.sees_every_plan:
+    alcance = principal.rol.alcance_de_macrociclos()
+    if alcance is Alcance.TODOS:
         return stmt
 
-    if principal.is_coach:
+    if alcance is Alcance.LOS_MIOS:
         suyos = select(PlanCoach.plan_id).where(PlanCoach.coach_id == principal.id)
-    elif principal.swimmer_id is None:
-        # Atleta sin ficha de nadador: no está inscrito en ningún macrociclo, y
-        # decirlo explícitamente evita una consulta que no puede devolver nada.
-        return stmt.where(false())
-    else:
-        # Del `Principal`, que ya resolvió el nadador llevando el equipo en la
-        # condición del join. Antes se derivaba aquí otra vez con
+    elif alcance is Alcance.SOLO_YO and principal.swimmer_id is not None:
+        # El nadador sale del `Principal`, que ya lo resolvió llevando el equipo
+        # en la condición del join. Antes se derivaba aquí otra vez con
         # `Swimmer.user_id == principal.id` a secas: dos funciones respondiendo
         # la misma pregunta con semánticas distintas, que es el patrón que
         # produjo el agujero del scoping. Coincidían solo porque
@@ -78,6 +81,11 @@ def visible_to(stmt, principal: Principal):
             # histórico siga en la tabla.
             AthletePlan.is_active.is_(True),
         )
+    else:
+        # Atleta sin ficha de nadador (no está inscrito en ningún macrociclo, y
+        # decirlo explícitamente evita una consulta que no puede devolver nada)
+        # y, con él, `NINGUNO` y cualquier alcance futuro. Fallar cerrado.
+        return stmt.where(false())
     return stmt.where(Plan.id.in_(suyos))
 
 

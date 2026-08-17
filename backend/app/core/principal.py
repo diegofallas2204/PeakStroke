@@ -11,8 +11,37 @@ from dataclasses import dataclass
 
 from sqlalchemy import false
 
+from app.dominio.roles import AtletaRol, Entrenador, EntrenadorEnJefe, Rol
 from app.modules.auth.models import User
 from app.modules.teams.models import ROLE_ATHLETE, ROLE_COACH, TeamMember
+
+# Las tres instancias que existen. Un rol no tiene estado —solo contesta—, así
+# que construir uno nuevo por petición no aportaría nada.
+_ENTRENADOR = Entrenador()
+_JEFE = EntrenadorEnJefe()
+_ATLETA = AtletaRol()
+
+
+def rol_de(clave: str, *, es_dueno: bool) -> Rol:
+    """De la pertenencia (una fila plana) al rol (un objeto de la jerarquía).
+
+    Vive aquí, y no en `persistencia/mapeo/`, porque no traduce una fila a una
+    entidad: junta dos datos de dos tablas —`team_members.role` y si esa persona
+    es `teams.owner_id`— y `Principal` es el sitio donde esos dos ya están
+    juntos. El dominio no puede hacerlo: no conoce las claves que la base guarda.
+
+    **Una clave desconocida revienta.** Es una fila corrupta —`role` solo se
+    escribe a través de un `Literal["coach","athlete"]` de Pydantic— y romper
+    aquí es fallar CERRADO: el modo de fallo silencioso sería devolver algo
+    parecido a un atleta y dejar que el filtro por nadador no lo reconociera,
+    que es un rol sin acotar. No hay clave que produzca `Administrador` (R3: ese
+    rol es solo el hueco en la jerarquía, y cuando exista no vendrá de aquí).
+    """
+    if clave == ROLE_COACH:
+        return _JEFE if es_dueno else _ENTRENADOR
+    if clave == ROLE_ATHLETE:
+        return _ATLETA
+    raise ValueError(f"Rol desconocido en team_members.role: {clave!r}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,6 +53,7 @@ class Principal:
         Principal { user, membership, is_owner, swimmer_id }
                      │         │          │          │
                      │         └─ team_id ──▶ el CLUB
+                     │         └─ role ─────▶ el ROL (compuesto, ver `rol`)
                      │
                      └─ swimmer_id ──────────▶ el ATLETA
 
@@ -59,21 +89,34 @@ class Principal:
         return self.membership.role
 
     @property
-    def is_coach(self) -> bool:
-        return self.membership.role == ROLE_COACH
+    def rol(self) -> Rol:
+        """Qué alcanza esta identidad, como objeto de la jerarquía de `Rol`.
+
+        Aquí es donde el paso 3 cambia la forma de las cosas. Antes había tres
+        propiedades comparando cadenas (`is_coach`, `is_athlete`,
+        `sees_every_plan`) y los servicios encadenaban `if` sobre ellas; ahora
+        preguntan al rol y cada subclase contesta lo suyo.
+
+        Se compone, no se hereda: `Principal` **tiene** un rol, no **es** un rol.
+        El rol cuelga de la pertenencia al club y cambia con un `UPDATE`
+        (`docs/REDISENO.md` §4.1); la identidad de la persona, no.
+
+        Los otros dos ejes de este objeto —ser dueño (`teams.owner_id`) y el
+        modo desarrollador (`is_developer`)— siguen fuera de la jerarquía a
+        propósito. Ver la cabecera de `dominio/roles/__init__.py`.
+        """
+        return rol_de(self.membership.role, es_dueno=self.is_owner)
 
     @property
     def is_athlete(self) -> bool:
-        return self.membership.role == ROLE_ATHLETE
+        """Si esta identidad solo alcanza sus propios datos.
 
-    @property
-    def sees_every_plan(self) -> bool:
-        """El dueño llega a todos los macrociclos de su equipo.
-
-        Sin esta excepción, los planes de un entrenador que se va quedarían sin
-        nadie capaz de verlos ni reasignarlos.
+        Vocabulario corto para la única pregunta que hacen los dos filtros de
+        aquí abajo. **La decisión ya no se toma en esta clase**: la contesta el
+        rol, derivándola de su alcance, así que un rol futuro que solo se
+        alcance a sí mismo queda acotado sin tocar nada de esto.
         """
-        return self.is_owner
+        return self.rol.alcanza_solo_lo_suyo
 
     def scope_to_own_swimmer(self, stmt, column):
         """Acota una consulta al nadador propio **si quien pregunta es atleta**.
