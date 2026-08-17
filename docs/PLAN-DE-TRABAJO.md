@@ -843,9 +843,63 @@ estructurales, una por cada sitio donde la copia ya apareció una vez.
 **Efecto visible:** un estilo inexistente y un combo imposible dan ahora mensajes
 distintos. Antes los dos caían en el mismo texto genérico.
 
-**Tests: 699 en verde** (478 de base + 221 nuevos), `ruff check .` limpio. El
+**Tests: 717 en verde** (478 de base + 239 nuevos), `ruff check .` limpio. El
 estilo se **sigue guardando crudo** (`"crol"` no se canoniza a `"libre"`): es el
 comportamiento de siempre y cambiarlo toca filas existentes. Queda para C2.
+
+### La revisión, y los dos hallazgos que NO se arreglaron
+
+Dos revisiones independientes sobre los tres commits: una de forma de API contra
+los pasos que vienen, otra adversarial intentando romperlos. Lo mecánico se
+aplicó en el mismo bloque (repeticiones fuera de `Prescripcion`, `JuegoDeZonas`
+como `Mapping` de verdad, `Fase.secuencia()`, los errores de tipo a `TypeError`,
+`Perfil.desde_texto` tragando las dos grafías, un solo vocabulario en
+`_EscalaTextual`, dos tests que pasaban sin probar lo que decían, y la red que le
+faltaba a `Veredicto`).
+
+**Quedan dos, y son entrada de C2 porque cambian el §3 del modelo.** Los dos se
+verificaron ejecutando, no leyendo:
+
+**1. Falta el tipo para los instantes de reloj.** `Tiempo` hace de dos cosas y
+solo una es siempre positiva: un nado, y un instante o duración del reloj.
+
+```
+Tiempo(0.0)                 → ValueError
+Tiempo(90.0) - Tiempo(0.0)  → ValueError
+Tiempo(90.0) - Tiempo(30.0) → +60.00 s (66.67 %)   ← lectura de rendimiento, sin sentido aquí
+```
+
+La salida de la primera repetición **es 0.0** (`test_aerobic_salida_api.py:51`), y
+el descanso perdido de un parcial es **negativo** (es literalmente
+`missed_intervals`). O sea: `Parcial.inicio` del §5.9 no se puede construir, y la
+conversión reloj→nadado —la invariante que C2 tiene que mover al constructor— no
+se puede escribir con estos tipos. La prueba de que ya duele está dentro de la
+propia librería: `zona.py` se sale del tipo para sumar dos tiempos
+(`Tiempo(trabajo.segundos + teorico.segundos)`).
+
+Propuesta a decidir: un tercer tipo `Duracion` (segundos con signo, admite 0),
+`Tiempo.__add__(Duracion) → Tiempo`, `Tiempo.diferencia(Tiempo) → Duracion`, y
+con ello `Zona.descanso_para → Duracion` y `Prescripcion.descanso: Duracion`.
+**Hacerlo antes de que C2 tenga llamadores encima**: `Prescripcion.descanso` es
+un campo público.
+
+**2. `Mejora.base: float` deja reentrar P6.** Verificado:
+
+```
+Ritmo(80.0) - Ritmo(78.0)  →  .tiempo_resultante()  →  Tiempo 1:18.00
+```
+
+Una mejora de **ritmo** sale convertida en un **tiempo absoluto**. Es la mezcla de
+unidades que estos tipos existen para impedir, entrando por el único tipo que une
+las dos: en cuanto la base deja de saber de qué era, `Mejora` solo puede adivinar.
+Propuesta: `base: Tiempo | Ritmo` y `resultado` devolviendo el **mismo** tipo que
+la base; `tiempo_resultante()` se retira. Sin llamadores fuera de `valores/` y sus
+tests, así que hoy es gratis.
+
+Menores, sin decisión de modelo, para cuando toque: `Mejora` no se compone (C4
+necesita repartir una mejora total en 15 semanas, hoy hay que abrir el objeto),
+no hay promedio de `Tiempo`/`Ritmo` (§5.8 lo pide para `Semana.real()`) ni
+conversión de un tiempo entre piscinas (§5.10 dice que ese es el problema).
 
 **Copia que sigue viva y fuera de este proceso:** `frontend/src/lib/constants.ts`,
 que filtra los combos en la interfaz. El rediseño es del backend y el backend es

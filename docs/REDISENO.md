@@ -27,9 +27,17 @@
 >
 > **Actualización 2026-08-16 — el paso 1 está construido.** `app/dominio/valores/`
 > existe con los objetos del §3 y sus tests; `app/engine/events.py` se borró al
-> migrar su regla a `Prueba`. **Línea base ahora: 699 tests en verde** (478 + 221).
+> migrar su regla a `Prueba`. **Línea base ahora: 717 tests en verde** (478 + 239).
 > Es el primer trozo de este documento que deja de ser modelo y pasa a ser código.
 > Detalle y decisiones en el bloque C1 de `docs/PLAN-DE-TRABAJO.md`.
+>
+> **Dos cosas del §3 quedaron cuestionadas al construirlo, y son entrada del paso
+> 2** (evidencia ejecutada en el bloque C1 del plan): falta un tipo para los
+> **instantes de reloj** —`Tiempo` rechaza el 0, y la salida de la primera
+> repetición es 0, así que `Parcial.inicio` del §5.9 no se puede construir—, y
+> `Mejora.base` como `float` deja que una mejora de **ritmo** salga convertida en
+> un **tiempo absoluto**, que es P6 reentrando por el único tipo que une las dos
+> unidades.
 >
 > Una decisión de construcción que este documento no fijaba: *«el dominio no
 > importa nada»* se tomó **literal**, así que `app/dominio/` tampoco importa
