@@ -1236,9 +1236,55 @@ el código de estado que devuelve.
 
 ---
 
-## C4 · Fusionar los dos motores
+## C4 · Fusionar los dos motores — 🟡 EN CURSO (2026-08-17)
 
 > **Este es el bloque peligroso. Rama propia. Requiere A0 hecho.**
+
+### Dónde va (rama `refactor/motor-unico`, 4 commits)
+
+**Hecho, y sin mover un solo número** — 907 tests y los cuatro snapshots
+idénticos en cada paso:
+
+| # | Paso | Qué quedó |
+|---|---|---|
+| 1 | Constantes a una sola declaración | `dominio/servicios/tablas.py`; `domain/` y `engine/` solo tienen alias |
+| 2 | La curva, patrón Strategy | `curvas.py`: `Curva` + las cinco, cada una con su clave, etiqueta y parámetro |
+| 3 | **El motor** | `envolvente.py` · `kilometraje.py` · `zonas.py` · `plan.py` · `temporada.py` + `MotorCientifico` de fachada |
+| 4 | Partir por debajo de 300 líneas | ningún archivo del motor pasa de 250 |
+
+`engine/envelope`, `feasibility`, `km_distribution`, `zones`, `curves` y
+`progression` son ya **adaptadores de firma**: traducen `WeekEntry` ↔
+`SemanaGenerada` y no calculan nada (764 → 348 líneas). El endpoint de temporada
+del simulador llama al motor, así que **`ScienceEngine` no entra en la
+aplicación por ninguna puerta**: solo lo sostienen sus tests y su snapshot.
+
+Dos reglas más dejaron de estar duplicadas de rebote: `Perfil.para_distancia`
+(la tenían `profile_for_event` y `Prueba.perfil_sugerido`) y los ratios de
+descanso, que ya solo viven en `valores.Zona`.
+
+### Lo que falta para cerrar C4
+
+1. **Mover los seis consumidores al motor** (`plans/roster`, `plans/service`,
+   `plans/weeks`, `dashboard/service`, `simulator/router`,
+   `aerobic_tests/intervals`) y **borrar** `app/domain/` y los adaptadores de
+   `app/engine/`, con sus tests y el snapshot `motor_science.json` — que congela
+   un camino que dejará de existir. `send_off.py`, `aerobic.py` y `time_utils.py`
+   no entran en C4.
+2. **Los tres arreglos de R6**, uno a uno y con su diff delante: el acantilado de
+   `classify_level`, el taper invertido y la onda 3:1 desfasada. **Mueven números
+   de planes vivos**, así que van al final y con visto bueno caso a caso.
+3. **Decidir R7**: `progression_curve` fuera de la tabla `plans` choca con «el
+   contrato del API no cambia» de este mismo bloque. Recomendación: dejar la
+   columna aquí (el motor ya recibe la curva por firma, que es lo que R7 pide de
+   verdad) y sacarla en un bloque propio con su migración.
+
+### Un cambio de comportamiento ya introducido, pendiente de visto bueno
+
+Una clave de curva **desconocida** caía antes en la lineal (el `return x` final
+de la cadena de `if`) y ahora cae en la científica. `plans.progression_curve` es
+texto libre en el esquema, así que una errata daba en silencio la curva que R7
+midió como la que más cambia el veredicto del atleta. Ningún test lo cubría; se
+revierte en una línea de `Curva.desde_clave`.
 
 ### Qué pasa
 
