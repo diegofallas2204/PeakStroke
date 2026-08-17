@@ -16,6 +16,7 @@ from collections.abc import Mapping
 import pytest
 
 from app.dominio.valores import (
+    Duracion,
     Especialidad,
     EstadoDeMacro,
     Estilo,
@@ -108,7 +109,8 @@ class TestTiempo:
         mejora = Tiempo(120.0) - Tiempo(117.0)
         assert isinstance(mejora, Mejora)
         assert mejora.segundos == pytest.approx(3.0)
-        assert mejora.base == pytest.approx(120.0)
+        assert mejora.base == Tiempo(120.0)
+        assert mejora.base_segundos == pytest.approx(120.0)
 
     def test_al_reloj_redondea_hacia_arriba(self):
         # Hacia abajo recortaría el descanso, que es como una zona se vuelve otra.
@@ -133,7 +135,7 @@ class TestMejora:
     def test_de_fraccion_es_el_lenguaje_del_motor_cientifico(self):
         mejora = Mejora.de_fraccion(Tiempo(200.0), 0.05)
         assert mejora.segundos == pytest.approx(10.0)
-        assert mejora.tiempo_resultante() == Tiempo(190.0)
+        assert mejora.resultado == Tiempo(190.0)
 
     def test_una_regresion_es_una_mejora_negativa_y_lo_dice(self):
         mejora = Tiempo(190.0) - Tiempo(200.0)
@@ -141,12 +143,94 @@ class TestMejora:
         assert mejora.porcentaje == pytest.approx(-5.263, abs=1e-3)
 
     def test_no_se_puede_mejorar_mas_que_el_tiempo_entero(self):
-        # El tiempo resultante sería cero o negativo: no es un tiempo.
+        # El resultado sería cero o negativo: no es un tiempo.
         with pytest.raises(ValueError):
-            Mejora(200.0, 200.0)
+            Mejora(200.0, Tiempo(200.0))
+
+    def test_mejorar_un_RITMO_da_un_ritmo_y_no_un_tiempo(self):
+        """P6 reentraba por aquí: con `base` en float, esto daba `Tiempo 1:18.00`.
+
+        Una mejora de 2 s/100 m sobre 80 s/100 m es un ritmo de 78 s/100 m, no un
+        tiempo absoluto de un minuto dieciocho. Una base que no sabe de qué
+        unidad era solo puede adivinar, y adivinaba mal.
+        """
+        de_ritmo = Ritmo(80.0) - Ritmo(78.0)
+        assert isinstance(de_ritmo.resultado, Ritmo)
+        assert de_ritmo.resultado == Ritmo(78.0)
+
+        de_tiempo = Tiempo(200.0) - Tiempo(190.0)
+        assert isinstance(de_tiempo.resultado, Tiempo)
+        assert de_tiempo.resultado == Tiempo(190.0)
+
+    def test_la_base_tiene_que_traer_su_unidad(self):
+        with pytest.raises(TypeError):
+            Mejora(3.0, 120.0)
 
     def test_entre_dos_tiempos_es_lo_mismo_que_restarlos(self):
         assert Mejora.entre(Tiempo(120.0), Tiempo(117.0)) == Tiempo(120.0) - Tiempo(117.0)
+
+
+class TestDuracionEsLoQuePuedeValerCeroOMenos:
+    """El tipo que faltaba, y el hueco que dejaba.
+
+    `Tiempo` hacía de nado y de instante a la vez, y solo el nado es siempre
+    positivo. Estos tests son los casos que **no se podían escribir** antes.
+    """
+
+    def test_la_salida_de_la_primera_repeticion_es_cero(self):
+        # `[0.0, 90.0, 180.0]` — está en test_aerobic_salida_api.py. Con `Tiempo`
+        # el primer parcial de cualquier serie era inconstruible.
+        salidas = [Duracion(i * 90.0) for i in range(3)]
+        assert [d.segundos for d in salidas] == [0.0, 90.0, 180.0]
+        with pytest.raises(ValueError):
+            Tiempo(0.0)
+
+    def test_el_descanso_perdido_es_negativo_y_eso_es_un_hecho(self):
+        # Llegar después de tu salida no es un error de dato: es `missed_intervals`.
+        salida, llegada = Duracion(90.0), Duracion(93.5)
+        perdido = salida - llegada
+        assert perdido.es_negativa()
+        assert perdido.texto() == "-3.50"
+
+    def test_la_conversion_reloj_a_nadado_ya_se_puede_escribir(self):
+        """La invariante que más protege la base aeróbica, ahora expresable.
+
+        Llegadas acumuladas del reloj → tiempos nadados. Antes reventaba en el
+        primer parcial, porque restarle su salida (0) levantaba ValueError.
+        """
+        llegadas = [Duracion(78.0), Duracion(169.0), Duracion(260.0)]
+        salidas = [Duracion(i * 90.0) for i in range(3)]
+        nadados = [(ll - s).a_tiempo() for ll, s in zip(llegadas, salidas, strict=True)]
+        assert [round(t.segundos, 2) for t in nadados] == [78.0, 79.0, 80.0]
+
+    def test_restar_dos_instantes_da_un_hueco_no_una_mejora(self):
+        # `Tiempo(90) - Tiempo(30)` sigue siendo la lectura de rendimiento
+        # (+60 s, 66.67 %), que para dos llegadas de reloj no significa nada.
+        # `diferencia()` es la aritmética de reloj.
+        assert Tiempo(90.0).diferencia(Tiempo(30.0)) == Duracion(60.0)
+        assert Tiempo(30.0).diferencia(Tiempo(90.0)) == Duracion(-60.0)
+        assert isinstance(Tiempo(90.0) - Tiempo(30.0), Mejora)
+
+    def test_desplazar_un_tiempo_por_una_duracion_sigue_siendo_un_tiempo(self):
+        assert Tiempo(90.0) + Duracion(5.0) == Tiempo(95.0)
+        assert Tiempo(90.0) + Duracion(-5.0) == Tiempo(85.0)
+
+    def test_no_se_mezcla_con_ritmo_ni_se_convierte_sola(self):
+        with pytest.raises(TypeError):
+            Duracion(10.0) + Ritmo(58.24)
+        with pytest.raises(TypeError):
+            Tiempo(90.0) + Tiempo(5.0)
+        # Pasar a Tiempo es explícito, y falla si no es positiva.
+        assert Duracion(90.0).a_tiempo() == Tiempo(90.0)
+        with pytest.raises(ValueError):
+            Duracion(-1.0).a_tiempo()
+
+    def test_admite_cero_y_negativos_pero_no_infinitos(self):
+        assert Duracion(0.0).segundos == 0.0
+        assert (-Duracion(5.0)).segundos == -5.0
+        assert abs(Duracion(-5.0)) == Duracion(5.0)
+        with pytest.raises(ValueError):
+            Duracion(float("nan"))
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -326,7 +410,18 @@ class TestPrescripcion:
         with pytest.raises(ValueError, match="no es el trabajo más el descanso"):
             Prescripcion(
                 zona=Zona.R1, ritmo=Ritmo(67.0), salida=Tiempo(70.0),
-                descanso=Tiempo(10.0), distancia_rep=100,
+                descanso=Duracion(10.0), distancia_rep=100,
+            )
+
+    def test_el_descanso_de_una_prescripcion_es_una_duracion(self):
+        # Un descanso es un hueco, no un nado: el prescrito sale positivo, pero
+        # el real de un parcial puede ser negativo y los dos tienen que compararse.
+        buena = Prescripcion.para(Zona.R1, Ritmo(67.0))
+        assert isinstance(buena.descanso, Duracion)
+        with pytest.raises(TypeError):
+            Prescripcion(
+                zona=buena.zona, ritmo=buena.ritmo, salida=buena.salida,
+                descanso=Tiempo(buena.descanso.segundos), distancia_rep=100,
             )
 
     def test_la_salida_se_canta_en_manecillas_de_cinco_segundos(self):
@@ -562,7 +657,8 @@ class TestSonInmutables:
     OBJETOS = [
         Tiempo(116.48),
         Ritmo(58.24),
-        Mejora(3.0, 120.0),
+        Mejora(3.0, Tiempo(120.0)),
+        Duracion(-12.5),
         Prueba(200, Estilo.LIBRE),
         Prescripcion.para(Zona.R1, Ritmo(67.0)),
     ]

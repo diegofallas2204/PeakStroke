@@ -27,17 +27,20 @@
 >
 > **Actualización 2026-08-16 — el paso 1 está construido.** `app/dominio/valores/`
 > existe con los objetos del §3 y sus tests; `app/engine/events.py` se borró al
-> migrar su regla a `Prueba`. **Línea base ahora: 717 tests en verde** (478 + 239).
+> migrar su regla a `Prueba`. **Línea base ahora: 729 tests en verde** (478 + 251).
 > Es el primer trozo de este documento que deja de ser modelo y pasa a ser código.
 > Detalle y decisiones en el bloque C1 de `docs/PLAN-DE-TRABAJO.md`.
 >
-> **Dos cosas del §3 quedaron cuestionadas al construirlo, y son entrada del paso
-> 2** (evidencia ejecutada en el bloque C1 del plan): falta un tipo para los
-> **instantes de reloj** —`Tiempo` rechaza el 0, y la salida de la primera
-> repetición es 0, así que `Parcial.inicio` del §5.9 no se puede construir—, y
-> `Mejora.base` como `float` deja que una mejora de **ritmo** salga convertida en
-> un **tiempo absoluto**, que es P6 reentrando por el único tipo que une las dos
-> unidades.
+> **Construirlo enmendó el §3 en dos puntos, y las dos enmiendas están aplicadas**
+> (código y modelo, mismo día): se añadió **`Duracion`** —`Tiempo` hacía de nado y
+> de instante a la vez y solo el nado es siempre positivo— y **`Mejora.base` pasó
+> de `float` a `Tiempo | Ritmo`**, porque sin unidad una mejora de ritmo salía
+> convertida en un tiempo absoluto: P6 reentrando por el único tipo que une las
+> dos unidades. El porqué de cada una, con su evidencia, en la enmienda del §3.1.
+>
+> Que el modelo estuviera "cerrado" no lo hacía correcto: las dos se vieron **al
+> escribir el código**, no al revisarlo, y la señal de la primera estaba dentro
+> del propio código nuevo (`zona.py` se salía del tipo para sumar dos tiempos).
 >
 > Una decisión de construcción que este documento no fijaba: *«el dominio no
 > importa nada»* se tomó **literal**, así que `app/dominio/` tampoco importa
@@ -110,7 +113,7 @@ reaparece, pero la solución de forma sigue siendo `Prueba` (§C1).
 backend/app/
 ├── dominio/                     ← POO puro. No importa NADA de infraestructura
 │   ├── valores/                 objetos inmutables sin identidad
-│   │   ├── tiempo.py            Tiempo · Ritmo · Mejora
+│   │   ├── tiempo.py            Tiempo · Duracion · Ritmo · Mejora
 │   │   ├── prueba.py            Prueba · Estilo · Piscina
 │   │   ├── zona.py              Zona · Prescripcion · JuegoDeZonas
 │   │   └── escalas.py           Nivel · Perfil · Fase · Especialidad · …
@@ -176,9 +179,10 @@ Inmutables (`frozen=True`), sin identidad, comparables por valor.
 
 | Objeto | Contenido | Comportamiento |
 |---|---|---|
-| `Tiempo` | segundos absolutos | `desde_texto("1:05.32")` · `texto()` · comparación · `- → Mejora` |
+| `Tiempo` | segundos absolutos, **siempre > 0** | `desde_texto("1:05.32")` · `texto()` · comparación · `- → Mejora` · `diferencia() → Duracion` · `+ Duracion → Tiempo` |
+| `Duracion` | segundos **con signo**; admite 0 y negativos | `texto()` · `a_tiempo()` · `es_negativa()` · `+ - neg abs` · comparación |
 | `Ritmo` | segundos por 100 m | `desde(tiempo, distancia)` · `a_tiempo(distancia)` · `texto()` |
-| `Mejora` | segundos + base | `.segundos` · `.porcentaje` · `es_regresion()` |
+| `Mejora` | segundos + `base: Tiempo \| Ritmo` | `.segundos` · `.porcentaje` · `.fraccion` · `es_regresion()` · `resultado` (del **mismo tipo** que la base) |
 
 **Por qué importan.** Hoy hay ocho columnas `float` que mezclan dos unidades:
 `current_time`, `goal_time`, `expected_time`, `recalc_time`, `real_time` son
@@ -188,6 +192,26 @@ impide restarlos entre sí. Con tipos distintos, el error no compila.
 `Mejora` existe porque los dos motores actuales expresan lo mismo de dos formas:
 `progression` maneja segundos, `ScienceEngine` maneja fracciones decimales. Un
 tipo que lleva las dos elimina la conversión manual repetida.
+
+> **Enmienda 2026-08-16, al construir el paso 1.** Dos cosas de esta sección
+> estaban mal y se corrigieron con el código delante:
+>
+> 1. **Faltaba `Duracion`.** `Tiempo` hacía de dos cosas —un nado y un instante o
+>    hueco del reloj— y solo la primera es siempre positiva. La salida de la
+>    primera repetición de una serie **es 0**, y el descanso perdido de un parcial
+>    es **negativo** (`missed_intervals`). Con un solo tipo, ni `Parcial.inicio`
+>    (§5.9) se podía construir ni se podía escribir la conversión reloj→nadado,
+>    que es la invariante que más protege la base aeróbica. La señal estaba en el
+>    propio código nuevo: `zona.py` se salía del tipo para sumar dos tiempos.
+>    Restar dos instantes sigue **sin** ser una `Mejora`: para eso está
+>    `Tiempo.diferencia()`, porque `90 − 30` entre dos llegadas de reloj es un
+>    hueco de 60 s, no una mejora del 66 %.
+> 2. **`Mejora.base` no podía ser un `float`.** Sin unidad, `Ritmo(80) − Ritmo(78)`
+>    devolvía un resultado de tipo `Tiempo`: una mejora de ritmo salía convertida
+>    en un tiempo absoluto de 1:18. Es **P6 reentrando por el único tipo que une
+>    las dos unidades**, que es justo lo que esta sección existe para impedir.
+>    Con `base: Tiempo | Ritmo`, `resultado` devuelve el mismo tipo que la base y
+>    el error deja de poder escribirse.
 
 ### 3.2 La prueba
 
@@ -219,7 +243,7 @@ clase que no deja construir un 50 combinado, la divergencia deja de ser posible.
 Zona          enum ORDENADO      R1 > R2 > MVO2 > RL > V   (lento → rápido)
                                  + ratio_descanso() + tope en segundos
 
-Prescripcion  Zona · Ritmo · salida: Tiempo · descanso: Tiempo · distancia_rep
+Prescripcion  Zona · Ritmo · salida: Tiempo · descanso: Duracion · distancia_rep
               texto() → "10 × 100 a 1:18 salida 1:30"
 
 JuegoDeZonas  Mapping[Zona, Prescripcion]

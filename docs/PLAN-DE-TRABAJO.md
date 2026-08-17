@@ -843,7 +843,7 @@ estructurales, una por cada sitio donde la copia ya apareció una vez.
 **Efecto visible:** un estilo inexistente y un combo imposible dan ahora mensajes
 distintos. Antes los dos caían en el mismo texto genérico.
 
-**Tests: 717 en verde** (478 de base + 239 nuevos), `ruff check .` limpio. El
+**Tests: 729 en verde** (478 de base + 251 nuevos), `ruff check .` limpio. El
 estilo se **sigue guardando crudo** (`"crol"` no se canoniza a `"libre"`): es el
 comportamiento de siempre y cambiarlo toca filas existentes. Queda para C2.
 
@@ -857,8 +857,10 @@ como `Mapping` de verdad, `Fase.secuencia()`, los errores de tipo a `TypeError`,
 `_EscalaTextual`, dos tests que pasaban sin probar lo que decían, y la red que le
 faltaba a `Veredicto`).
 
-**Quedan dos, y son entrada de C2 porque cambian el §3 del modelo.** Los dos se
-verificaron ejecutando, no leyendo:
+**Los dos que cambian el §3 se hicieron después**, en la misma sesión y con el
+modelo delante: se enmendó `REDISENO.md` §3.1 y §3.3 a la vez que el código, con
+la razón escrita. Se conservan aquí con su evidencia porque el porqué se lee
+mejor con el antes delante. Los dos se verificaron ejecutando, no leyendo:
 
 **1. Falta el tipo para los instantes de reloj.** `Tiempo` hace de dos cosas y
 solo una es siempre positiva: un nado, y un instante o duración del reloj.
@@ -895,6 +897,17 @@ las dos: en cuanto la base deja de saber de qué era, `Mejora` solo puede adivin
 Propuesta: `base: Tiempo | Ritmo` y `resultado` devolviendo el **mismo** tipo que
 la base; `tiempo_resultante()` se retira. Sin llamadores fuera de `valores/` y sus
 tests, así que hoy es gratis.
+
+**Cómo quedaron.** `Duracion` es el tipo de todo lo que no es un nado: instantes,
+huecos y descansos, con signo y admitiendo el 0. `Tiempo` queda estrictamente
+positivo. Restar dos instantes ya no es una `Mejora` sino `Tiempo.diferencia()`,
+porque `90 − 30` entre dos llegadas de reloj es un hueco de 60 s y no una mejora
+del 66 %. `Prescripcion.descanso` pasa a `Duracion`, y con eso `zona.py` deja de
+salirse del tipo: `salida = (trabajo + zona.descanso_para(trabajo)).al_reloj()`.
+`Mejora.base` es `Tiempo | Ritmo` y `resultado` devuelve el mismo tipo que la
+base; `tiempo_resultante()` se retiró. Los cuatro casos que no se podían escribir
+son ahora tests (`TestDuracionEsLoQuePuedeValerCeroOMenos`), incluida la
+conversión reloj→nadado entera.
 
 Menores, sin decisión de modelo, para cuando toque: `Mejora` no se compone (C4
 necesita repartir una mejora total en 15 semanas, hoy hay que abrir el objeto),

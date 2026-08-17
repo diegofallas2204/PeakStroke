@@ -27,12 +27,12 @@ from .prueba import (
     Piscina,
     Prueba,
 )
-from .tiempo import PASO_DE_RELOJ_S, Mejora, Ritmo, Tiempo
+from .tiempo import PASO_DE_RELOJ_S, Duracion, Mejora, Ritmo, Tiempo
 from .zona import JuegoDeZonas, Prescripcion, Zona, factores_de_zona
 
 __all__ = [
     # tiempo
-    "Tiempo", "Ritmo", "Mejora", "PASO_DE_RELOJ_S",
+    "Tiempo", "Duracion", "Ritmo", "Mejora", "PASO_DE_RELOJ_S",
     # prueba
     "Prueba", "Estilo", "Piscina", "EVENTOS_DE_REFERENCIA", "DISTANCIA_TIER_1",
     # zona

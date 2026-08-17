@@ -27,7 +27,7 @@ from typing import Self
 
 from .escalas import Perfil
 from .prueba import Piscina, Prueba
-from .tiempo import PASO_DE_RELOJ_S, Ritmo, Tiempo
+from .tiempo import PASO_DE_RELOJ_S, Duracion, Ritmo, Tiempo
 
 # Etiqueta · descanso como fracción del trabajo · (suelo, techo) del descanso en s.
 #
@@ -88,12 +88,19 @@ class Zona(Enum):
     def limites_descanso_s(self) -> tuple[float, float]:
         return _DATOS_DE_ZONA[self.value][2]
 
-    def descanso_para(self, trabajo: Tiempo) -> Tiempo:
-        """Segundos de descanso para una repetición que se nada en `trabajo`."""
+    def descanso_para(self, trabajo: Tiempo) -> Duracion:
+        """Descanso para una repetición que se nada en `trabajo`.
+
+        `Duracion` y no `Tiempo`: un descanso es un hueco, no un nado. El
+        prescrito siempre sale positivo (los suelos de la tabla lo garantizan),
+        pero el descanso **real** de un parcial puede ser negativo cuando el
+        nadador llega después de su salida, y los dos tienen que caber en el
+        mismo tipo para poder compararse.
+        """
         if not isinstance(trabajo, Tiempo):
             raise TypeError("El descanso se calcula sobre un Tiempo de trabajo")
         suelo, techo = self.limites_descanso_s
-        return Tiempo(min(max(trabajo.segundos * self.ratio_descanso, suelo), techo))
+        return Duracion(min(max(trabajo.segundos * self.ratio_descanso, suelo), techo))
 
     def __lt__(self, otra: Zona) -> bool:
         if not isinstance(otra, Zona):
@@ -156,7 +163,7 @@ class Prescripcion:
     zona: Zona
     ritmo: Ritmo
     salida: Tiempo
-    descanso: Tiempo
+    descanso: Duracion
     distancia_rep: int
 
     def __post_init__(self) -> None:
@@ -164,11 +171,13 @@ class Prescripcion:
             raise TypeError("La distancia de repetición son metros enteros")
         if self.distancia_rep <= 0:
             raise ValueError("La distancia de repetición tiene que ser positiva")
-        esperada = self.trabajo.segundos + self.descanso.segundos
-        if abs(self.salida.segundos - esperada) > 1e-6:
+        if not isinstance(self.descanso, Duracion):
+            raise TypeError("El descanso de una prescripción es una Duracion, no un Tiempo")
+        esperada = self.trabajo + self.descanso
+        if abs(self.salida.segundos - esperada.segundos) > 1e-6:
             raise ValueError(
                 f"La salida ({self.salida.texto()}) no es el trabajo más el descanso "
-                f"({_texto(esperada)}): esta serie no es la zona {self.zona.value}"
+                f"({esperada.texto()}): esta serie no es la zona {self.zona.value}"
             )
 
     @classmethod
@@ -186,13 +195,12 @@ class Prescripcion:
         justo lo que la tabla de `Zona` dice que no se debe hacer.
         """
         trabajo = ritmo.a_tiempo(distancia_rep)
-        teorico = zona.descanso_para(trabajo)
-        salida = Tiempo(trabajo.segundos + teorico.segundos).al_reloj(paso_de_reloj)
+        salida = (trabajo + zona.descanso_para(trabajo)).al_reloj(paso_de_reloj)
         return cls(
             zona=zona,
             ritmo=ritmo,
             salida=salida,
-            descanso=Tiempo(salida.segundos - trabajo.segundos),
+            descanso=salida.diferencia(trabajo),
             distancia_rep=distancia_rep,
         )
 
@@ -224,10 +232,6 @@ class Prescripcion:
 
     def __str__(self) -> str:
         return self.texto()
-
-
-def _texto(segundos: float) -> str:
-    return Tiempo(segundos).texto()
 
 
 @dataclass(frozen=True, slots=True)
