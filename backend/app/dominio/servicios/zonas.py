@@ -37,13 +37,14 @@ def piscina_de(texto: str) -> Piscina:
         return Piscina.LARGA
 
 
-def al_reloj(segundos: float) -> float:
+def al_reloj(segundos: float, paso: float = PASO_DE_RELOJ_S) -> float:
     """Cuadra al reloj de pared, siempre hacia arriba.
 
     Hacia abajo recortaría el descanso prescrito, que es como una zona se
-    convierte en otra (ver `Zona`).
+    convierte en otra (ver `Zona`). El `paso` es configurable porque no todas
+    las piscinas cantan sobre la misma manecilla.
     """
-    return Duracion(segundos).al_reloj(PASO_DE_RELOJ_S).segundos
+    return Duracion(segundos).al_reloj(paso).segundos
 
 
 def zonas_de(

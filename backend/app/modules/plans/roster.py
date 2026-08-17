@@ -10,7 +10,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dates import age_at
-from app.engine import progression
+from app.dominio.servicios.motor import MOTOR
 
 # Lectura explícita de un modelo de otro módulo (permitido por las reglas del
 # proyecto): la edad al inicio del macro sale de la ficha. No se importa lógica.
@@ -34,18 +34,18 @@ async def add_athlete(db: AsyncSession, plan: Plan, data: AddAthleteRequest) -> 
     age = age_at(swimmer.birth_date, plan.start_date) if swimmer else None
     for event_data in data.events:
         event = AthleteEvent(**event_data.model_dump())
-        weeks = progression.generate_plan(
-            distance=event.distance, current_time=event.current_time,
-            goal_time=event.goal_time, total_weeks=plan.total_weeks,
-            total_km=plan.total_km, curve=plan.progression_curve,
-            start_date=plan.start_date, weeks_per_micro=plan.weeks_per_micro,
-            phases=phases or None, stroke=event.stroke, pool=plan.pool,
-            n_mac=plan.n_mac, age=age,
+        semanas = MOTOR.generar_plan(
+            distancia=event.distance, tiempo_actual=event.current_time,
+            tiempo_meta=event.goal_time, semanas=plan.total_weeks,
+            km_totales=plan.total_km, curva=plan.progression_curve,
+            inicio=plan.start_date, semanas_por_micro=plan.weeks_per_micro,
+            fases=phases or None, estilo=event.stroke, piscina=plan.pool,
+            n_mac=plan.n_mac, edad=age,
         )
-        for w in weeks:
+        for s in semanas:
             event.weeks.append(WeeklyPlan(
-                week_number=w.week_number, week_date=w.week_date,
-                planned_km=w.planned_km, expected_time=w.expected_time, phase=w.phase,
+                week_number=s.numero, week_date=s.fecha,
+                planned_km=s.km, expected_time=s.tiempo_esperado, phase=s.fase,
             ))
         athlete_plan.events.append(event)
     db.add(athlete_plan)

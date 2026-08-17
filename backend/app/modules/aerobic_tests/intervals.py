@@ -1,9 +1,10 @@
 """Tiempos de entrenamiento de un atleta a partir de su test aeróbico.
 
 Un test dice a qué ritmo nada el atleta hoy. La pizarra necesita además cada
-cuánto sale, y eso son las zonas más el intervalo (`engine/send_off.py`).
+cuánto sale, y eso son las zonas más el intervalo
+(`dominio/servicios/intervalos.py`).
 
-**Aquí no se calcula ninguna zona.** Las zonas salen de `engine/zones.calc_zones`
+**Aquí no se calcula ninguna zona.** Las zonas salen de `MOTOR.zonas`
 sobre el ritmo de la semana del macrociclo —la única fuente de zonas del
 sistema— y este módulo solo elige de qué semana y para qué distancia de
 repetición. Derivarlas de la base aeróbica habría evitado depender del
@@ -20,8 +21,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.dependencies import Principal
-from app.engine.send_off import ZONE_ORDER, training_intervals
-from app.engine.zones import ZONE_LABELS, calc_zones
+from app.dominio.servicios.intervalos import intervalos_de_entrenamiento
+from app.dominio.servicios.motor import MOTOR
+from app.dominio.valores import Zona
 
 # Lectura explícita de la puerta de acceso y de los modelos de `plans`
 # (permitido por las reglas del proyecto): de qué semana sale el ritmo lo decide
@@ -100,22 +102,22 @@ async def training_intervals_for(
         return base
     pace, week_number = ref
 
-    zonas = calc_zones(pace, event.distance, event.stroke, plan.pool)
-    intervalos = training_intervals(
-        {z: (zonas[z] or {}).get("mid") for z in ZONE_ORDER},
-        rep_distance=rep_distance,
-        measured_ratio=medido,
+    zonas = MOTOR.zonas(pace, event.distance, event.stroke, plan.pool)
+    intervalos = intervalos_de_entrenamiento(
+        {z.value: (zonas[z.value] or {}).get("mid") for z in Zona.ordenadas()},
+        distancia_rep=rep_distance,
+        ratio_medido=medido,
     )
     base.reference_pace = round(pace, 2)
     base.reference_week = week_number
     base.event_label = f"{event.distance}m {event.stroke}"
     base.zones = [
         TrainingIntervalResponse(
-            zone=iv.zone, label=ZONE_LABELS.get(iv.zone, iv.zone),
-            pace_100=iv.pace_100, work=iv.work, rest=iv.rest,
-            interval=iv.interval, rest_ratio=iv.rest_ratio,
-            measured_interval=iv.measured_interval,
-            denser_than_measured=iv.denser_than_measured,
+            zone=iv.zona, label=Zona(iv.zona).etiqueta,
+            pace_100=iv.ritmo_100, work=iv.trabajo, rest=iv.descanso,
+            interval=iv.salida, rest_ratio=iv.ratio_descanso,
+            measured_interval=iv.salida_medida,
+            denser_than_measured=iv.mas_denso_que_lo_medido,
         )
         for iv in intervalos.values()
     ]

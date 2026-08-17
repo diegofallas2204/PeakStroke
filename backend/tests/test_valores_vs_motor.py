@@ -20,24 +20,16 @@ from typing import get_args
 
 import pytest
 
-from app.domain.engine import (
-    F_FASE,
-    I_MAX_TABLE,
-    MACRO_15_PHASES,
-    PHASE_LABELS,
-    PHASE_VOLUME_KEY,
-    POOL_FACTOR_25,
-    STROKE_TPACE_CORRECTION_S,
-    TIER_BY_AEROBIC,
-    WEEKLY_VOLUME_KM,
-    ZONE_OVER_RACE,
-    ScienceEngine,
-    classify_level,
-    pool_factor,
-    profile_for_event,
-    zone_factors,
+import app.dominio.servicios.temporada as temporada
+from app.dominio.servicios.envolvente import evento_de_referencia, factibilidad
+from app.dominio.servicios.motor import MOTOR
+from app.dominio.servicios.tablas import (
+    MACRO_15_FASES,
+    TABLA_I_MAX,
+    TIER_POR_AEROBICO,
+    VOLUMEN_MAXIMO_POR_ESTILO,
 )
-from app.dominio.servicios.envolvente import factibilidad
+from app.dominio.servicios.zonas import al_reloj
 from app.dominio.valores import (
     EVENTOS_DE_REFERENCIA,
     Especialidad,
@@ -48,7 +40,6 @@ from app.dominio.valores import (
     JuegoDeZonas,
     ModoDeIngreso,
     Nivel,
-    Perfil,
     Piscina,
     Prescripcion,
     Prueba,
@@ -58,20 +49,9 @@ from app.dominio.valores import (
     TipoDeTest,
     Veredicto,
     Zona,
-    factores_de_zona,
 )
 from app.engine.aerobic import analyze_splits
-from app.engine.envelope import nearest_event
-from app.engine.send_off import (
-    REST_BOUNDS_S,
-    REST_RATIO,
-    ZONE_ORDER,
-    clock_interval,
-    rest_for,
-)
 from app.engine.time_utils import to_clock, to_seconds
-from app.engine.zones import ZONE_ORDER as ZONE_ORDER_REEXPORTADO
-from app.engine.zones import calc_zones
 
 DISTANCIAS = [25, 50, 100, 200, 300, 400, 800, 1500]
 RITMOS = [45.0, 58.24, 62.5, 71.3, 90.0, 133.7]
@@ -96,97 +76,50 @@ class TestTiempoYRitmoVsTimeUtils:
         assert Tiempo(segundos).texto() == to_clock(segundos)
 
     @pytest.mark.parametrize("segundos", [1.0, 12.4, 88.6, 90.0, 90.01, 247.3])
-    def test_al_reloj_coincide_con_clock_interval(self, segundos):
-        assert Tiempo(segundos).al_reloj().segundos == pytest.approx(clock_interval(segundos))
+    def test_al_reloj_coincide_con_el_del_motor(self, segundos):
+        # `send_off.clock_interval` era la otra mitad de este pin y se borró con
+        # su módulo; hoy el motor cuadra al reloj llamando al propio `Tiempo`.
+        assert Tiempo(segundos).al_reloj().segundos == pytest.approx(al_reloj(segundos))
 
 
-class TestPruebaVsElMotorDeDominio:
+class TestPruebaVsLasTablasQueSiguenVivas:
     """Lo que `Prueba` deriva y las tablas del motor indexan tienen que cuadrar.
 
-    Los estilos válidos por distancia **ya no se comparan aquí**: `engine/events.py`
-    se borró al migrar a `Prueba` y no queda copia contra la que contrastar. Esa
-    regla se fija en `test_dominio_valores.py` y en `test_reglas_unicas.py`.
+    **La mayoría de los pines de esta clase se borraron con su copia** en la
+    fusión de motores (C4): el perfil por distancia, la corrección de estilo,
+    el factor de piscina y los factores de zona ya no tienen una segunda
+    implementación en `app/domain/` contra la que contrastar — `Prueba`,
+    `Estilo`, `Piscina` y `Zona` **son** la fuente, y `test_dominio_valores.py`
+    fija sus reglas. Lo que queda aquí son los pines cuya otra mitad sigue viva
+    en `dominio/servicios/tablas.py`.
     """
 
-    def test_el_perfil_sugerido_coincide_con_profile_for_event(self):
-        for prueba in _pruebas_validas():
-            esperado = profile_for_event(prueba.distancia)
-            assert prueba.perfil_sugerido().clave_cientifica == esperado
-
-    def test_el_evento_mas_cercano_coincide_con_nearest_event(self):
+    def test_el_evento_mas_cercano_coincide_con_el_del_motor(self):
         for distancia in [*DISTANCIAS, 150, 300, 600, 1000, 2000]:
-            assert Prueba(distancia).evento_mas_cercano() == nearest_event(distancia)
+            assert Prueba(distancia).evento_mas_cercano() == evento_de_referencia(distancia)
 
     def test_las_distancias_de_referencia_son_las_de_la_tabla_de_i_max(self):
-        assert set(EVENTOS_DE_REFERENCIA) == set(I_MAX_TABLE["elite"])
+        assert set(EVENTOS_DE_REFERENCIA) == set(TABLA_I_MAX["elite"])
 
     def test_el_tier_coincide_con_la_tabla_de_dominancia_aerobica(self):
-        for distancia, datos in TIER_BY_AEROBIC.items():
+        for distancia, datos in TIER_POR_AEROBICO.items():
             assert Prueba(distancia).tier() == datos["tier"]
-
-    def test_la_correccion_de_estilo_es_la_del_motor(self):
-        # En los dos sentidos: que cada estilo esté en la tabla **y** que la
-        # tabla no tenga uno que el enum no contemple. Un estilo nuevo en el
-        # motor sin miembro aquí sería un `KeyError` el día que se indexe.
-        assert {e.clave_cientifica for e in Estilo} == set(STROKE_TPACE_CORRECTION_S)
-        for estilo in Estilo:
-            assert estilo.correccion_tpace_s == STROKE_TPACE_CORRECTION_S[estilo.clave_cientifica]
-
-    def test_el_factor_de_piscina_es_el_del_motor(self):
-        assert {p.clave_cientifica for p in Perfil} == set(POOL_FACTOR_25)
-        for perfil in Perfil:
-            clave = perfil.clave_cientifica
-            assert Piscina.CORTA.factor(perfil) == POOL_FACTOR_25[clave]
-            assert Piscina.CORTA.factor(perfil) == pool_factor(clave, "25")
-            assert Piscina.LARGA.factor(perfil) == pool_factor(clave, "50")
-
-
-class TestZonaVsSendOff:
-    """La lista suelta y el enum ordenado no pueden separarse sin que esto falle."""
-
-    def test_el_orden_del_enum_es_zone_order(self):
-        assert [z.value for z in Zona.ordenadas()] == list(ZONE_ORDER)
-        assert [z.value for z in Zona.ordenadas()] == list(ZONE_ORDER_REEXPORTADO)
-
-    def test_no_hay_zonas_de_mas_ni_de_menos(self):
-        assert {z.value for z in Zona} == set(REST_RATIO) == set(REST_BOUNDS_S)
-
-    def test_los_ratios_de_descanso_son_los_del_motor(self):
-        for zona in Zona:
-            assert zona.ratio_descanso == REST_RATIO[zona.value]
-            assert zona.limites_descanso_s == REST_BOUNDS_S[zona.value]
-
-    @pytest.mark.parametrize("trabajo", [7.5, 30.0, 67.0, 120.0, 600.0])
-    def test_el_descanso_calculado_coincide_con_rest_for(self, trabajo):
-        for zona in Zona:
-            assert zona.descanso_para(Tiempo(trabajo)).segundos == pytest.approx(
-                rest_for(zona.value, trabajo)
-            )
-
-    def test_los_factores_de_zona_son_los_del_motor(self):
-        for prueba in _pruebas_validas():
-            perfil = prueba.perfil_sugerido()
-            mios = factores_de_zona(perfil, prueba.distancia)
-            del_motor = zone_factors(perfil.clave_cientifica, prueba.distancia)
-            assert {z.value: f for z, f in mios.items()} == del_motor
-
-    def test_la_tabla_completa_es_la_misma(self):
-        for perfil in Perfil:
-            del_motor = ZONE_OVER_RACE[perfil.clave_cientifica]
-            for distancia, factores in del_motor.items():
-                mios = factores_de_zona(perfil, distancia)
-                assert {z.value: f for z, f in mios.items()} == factores
 
 
 class TestJuegoDeZonasVsCalcZones:
-    """El adaptador que hoy alimenta la tabla del equipo y el nuevo tipo cuadran."""
+    """El tipo y el motor construyen el mismo juego de zonas.
+
+    Siguen siendo dos implementaciones: `JuegoDeZonas.de` arma prescripciones y
+    `MotorCientifico.zonas` arma el diccionario que consume la interfaz. Las dos
+    leen las mismas tablas, pero no comparten el código que las usa.
+    """
 
     @pytest.mark.parametrize("ritmo", RITMOS)
     @pytest.mark.parametrize("piscina", list(Piscina))
     @pytest.mark.parametrize("rep", [50, 100, 200])
     def test_ritmo_salida_y_descanso_coinciden_zona_a_zona(self, ritmo, piscina, rep):
         for prueba in _pruebas_validas():
-            viejo = calc_zones(ritmo, prueba.distancia, prueba.estilo.value, piscina.value, rep)
+            viejo = MOTOR.zonas(ritmo, prueba.distancia, prueba.estilo.value, piscina.value, rep)
             nuevo = JuegoDeZonas.de(
                 Ritmo(ritmo), prueba, piscina, distancia_rep=rep,
             )
@@ -198,48 +131,36 @@ class TestJuegoDeZonasVsCalcZones:
                 assert round(prescripcion.descanso.segundos, 2) == pytest.approx(esperado["rest"])
 
     def test_la_prescripcion_suelta_tambien_coincide(self):
-        # `send_off.training_intervals` redondea el trabajo a 2 decimales antes de
-        # cuadrar al reloj; `calc_zones` no. Aquí se comprueba la vía de zonas,
-        # que es la que ve el entrenador en la tabla del equipo.
+        # `intervalos_de_entrenamiento` redondea el trabajo a 2 decimales antes
+        # de cuadrar al reloj; la vía de zonas no. Aquí se comprueba esta, que es
+        # la que ve el entrenador en la tabla del equipo.
         prescripcion = Prescripcion.para(Zona.MVO2, Ritmo(62.5), 200)
         trabajo = 62.5 * 2
         assert prescripcion.salida.segundos == pytest.approx(
-            clock_interval(trabajo + rest_for("MVO2", trabajo))
+            al_reloj(trabajo + Zona.MVO2.descanso_para(Tiempo(trabajo)).segundos)
         )
 
 
 class TestEscalasVsSuFuente:
-    @pytest.mark.parametrize("umbral", [200.0, 150.1, 150.0, 120.1, 120.0, 95.1, 95.0, 70.1, 70.0])
-    def test_el_nivel_coincide_con_classify_level(self, umbral):
-        assert Nivel.desde_umbral(Ritmo(umbral)).value == classify_level(umbral)
-
-    def test_las_fases_son_las_cinco_claves_cientificas_mas_la_extension(self):
-        assert {f.value for f in Fase} == set(F_FASE)
-
-    def test_cada_fase_lleva_su_f_fase(self):
-        for fase in Fase:
-            assert fase.f_fase == F_FASE[fase.value]
+    """Igual que arriba: los pines contra `app/domain/engine.py` se borraron con
+    él. `Nivel`, `Fase` y sus bandas de volumen ya no tienen segunda copia; lo
+    que queda es lo que sigue viviendo en `dominio/servicios/tablas.py` y en los
+    módulos que la fusión no absorbió.
+    """
 
     def test_el_orden_cronologico_es_el_de_la_estructura_del_macro(self):
-        # `MACRO_15_PHASES` es la fuente viva del orden. Si `Fase.secuencia()` se
-        # separa de ella, el reparto de fases sobre semanas cambia sin que nadie
-        # lo note — exactamente lo que pasa con dos listas de zonas.
-        del_motor = tuple(fase for _, _, fase in MACRO_15_PHASES)
+        # `MACRO_15_FASES` es la fuente viva del orden, y la usa la curva
+        # científica. Si `Fase.secuencia()` se separa de ella, el reparto de
+        # fases sobre semanas cambia sin que nadie lo note.
+        del_motor = tuple(fase for _, _, fase in MACRO_15_FASES)
         assert tuple(f.value for f in Fase.secuencia()) == del_motor
 
-    def test_la_banda_de_volumen_es_la_del_motor(self):
-        for fase in Fase:
-            assert fase.clave_de_volumen == PHASE_VOLUME_KEY[fase.value]
-            for nivel in Nivel:
-                esperada = WEEKLY_VOLUME_KM[nivel.value][PHASE_VOLUME_KEY[fase.value]]
-                assert fase.banda_de_volumen(nivel) == esperada
-
-    def test_las_etiquetas_de_fase_son_las_del_motor(self):
-        for fase in Fase:
-            assert fase.etiqueta == PHASE_LABELS[fase.value]
-
     def test_los_niveles_son_las_claves_de_las_tablas_cientificas(self):
-        assert {n.value for n in Nivel} == set(WEEKLY_VOLUME_KM)
+        assert {n.value for n in Nivel} == set(TABLA_I_MAX)
+        for estilo in Estilo:
+            assert {n.value for n in Nivel} == set(
+                VOLUMEN_MAXIMO_POR_ESTILO[estilo.clave_cientifica]
+            )
 
     def test_la_tendencia_es_la_que_anota_el_analisis_aerobico(self):
         # Las tres que puede escribir `analyze_splits`, ni una más.
@@ -264,7 +185,7 @@ class TestEscalasVsSuFuente:
     def test_la_proyeccion_anual_habla_OTRO_vocabulario_y_este_tipo_no_lo_cubre(self):
         """`Veredicto` es el de la factibilidad, y solo ese. Queda apuntado.
 
-        `ScienceEngine.project_season` emite `ok | optimistic | unrealistic`, que
+        `temporada.proyectar` emite `ok | optimistic | unrealistic`, que
         es una escala distinta: no dice si la meta es alcanzable sino si la
         temporada proyectada es realista. El §3.4 del rediseño solo nombra la
         primera, así que meter los dos vocabularios en un enum sería inventar
@@ -280,11 +201,10 @@ class TestEscalasVsSuFuente:
         Este test es el aviso: si alguien decide unificarlas o crear la segunda,
         falla y hay que actualizar el modelo a la vez que el código.
 
-        (De paso: los dos comentarios que documentan esa escala —`engine.py:437` y
-        `simulator/schemas.py:102`— dicen `below`, un veredicto que el código no
-        emite.)
+        (De paso: el comentario de `simulator/schemas.py` que documenta esa
+        escala dice `below`, un veredicto que el código no emite.)
         """
-        anual = set(re.findall(r'verdict = "(\w+)"', inspect.getsource(ScienceEngine)))
+        anual = set(re.findall(r'veredicto = "(\w+)"', inspect.getsource(temporada)))
         de_factibilidad = {v.value for v in Veredicto}
         assert anual == {"ok", "optimistic", "unrealistic"}, (
             f"cambiaron los veredictos de la proyección anual: {anual}"

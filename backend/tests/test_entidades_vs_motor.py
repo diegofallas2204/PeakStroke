@@ -10,9 +10,10 @@ Qué convive con qué, y por qué:
 * `engine/aerobic.analyze_splits` sigue en pie porque lo usa el endpoint de
   previsualización (`aerobic_tests/router.py`), que analiza sin guardar nada.
   La escritura y la lectura ya pasan por la entidad.
-* `core/dates.age_at` y `engine/progression.monday_of` ya **delegan**, así que
-  ahí no hay dos implementaciones: lo que se fija es que la delegación no cambió
-  la respuesta de sus llamadores.
+* `core/dates.age_at` ya **delega**, así que ahí no hay dos implementaciones:
+  lo que se fija es que la delegación no cambió la respuesta de sus llamadores.
+  `engine/progression.monday_of` era el otro envoltorio y **se borró con su
+  módulo** en la fusión de motores (C4); su pin se fue con él, que es la regla.
 
 Los pines se borran con su copia el día que la copia se retire.
 """
@@ -26,7 +27,6 @@ from app.core.dates import age_at
 from app.dominio.entidades import Atleta, Macrociclo, TestAerobico, lunes_de
 from app.dominio.valores import EstadoDeMacro, ModoDeIngreso, TipoDeTest
 from app.engine.aerobic import analyze_splits
-from app.engine.progression import monday_of
 
 # (numeros, distancia_rep, salida, modo) — casos que cubren los cuatro caminos:
 # con y sin intervalo, en modo `rep` y en modo `clock`, con distancia de
@@ -109,8 +109,10 @@ class TestEdadVsElEnvoltorio:
         assert age_at(nacimiento, referencia) == Atleta(nacimiento=nacimiento).edad_en(referencia)
 
 
-class TestCalendarioVsElMotor:
-    """`engine/progression.monday_of` delega en `dominio…macrociclo.lunes_de`."""
+class TestCalendarioDelMacro:
+    """El lunes de la semana N. Ya no hay con quién compararlo: `monday_of` se
+    borró con `engine/progression.py`, así que esto fija la regla, no la
+    coincidencia."""
 
     @pytest.mark.parametrize("inicio", [
         date(2026, 1, 5),    # lunes
@@ -119,12 +121,14 @@ class TestCalendarioVsElMotor:
         date(2025, 12, 29),  # cruza de año
     ])
     @pytest.mark.parametrize("semana", [1, 2, 12, 18])
-    def test_coinciden(self, inicio, semana):
-        assert monday_of(inicio, semana) == lunes_de(inicio, semana)
+    def test_siempre_cae_en_lunes_y_avanza_de_siete_en_siete(self, inicio, semana):
+        dia = lunes_de(inicio, semana)
+        assert dia.weekday() == 0
+        assert (dia - lunes_de(inicio, 1)).days == (semana - 1) * 7
 
-    def test_la_semana_actual_se_apoya_en_el_mismo_lunes(self, ):
+    def test_la_semana_actual_se_apoya_en_el_mismo_lunes(self):
         macro = Macrociclo(inicio=date(2026, 1, 7), semanas=12)
-        assert macro.lunes_de(1) == monday_of(date(2026, 1, 7), 1)
+        assert macro.lunes_de(1) == lunes_de(date(2026, 1, 7), 1)
         assert macro.semana_actual(date(2026, 1, 5)) == 1
 
 

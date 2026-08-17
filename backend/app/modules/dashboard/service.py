@@ -6,8 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.dependencies import Principal
-from app.engine import progression
-from app.engine.zones import calc_zones, zone_km_distribution
+from app.dominio.entidades import lunes_de
+from app.dominio.servicios.kilometraje import km_por_zona
+from app.dominio.servicios.motor import MOTOR
 from app.modules.plans.access import get_plan, visible_to
 from app.modules.plans.models import AthleteEvent, AthletePlan, Plan
 from app.modules.plans.service import current_week_of, effective_status
@@ -112,9 +113,9 @@ async def build_summary(
 
         status = "pending"
         if cur is not None and cur.real_time is not None:
-            status = progression.performance_status(cur.real_time, cur.expected_time)
+            status = MOTOR.estado_de_rendimiento(cur.real_time, cur.expected_time)
         elif last_real is not None:
-            status = progression.performance_status(last_real.real_time, last_real.expected_time)
+            status = MOTOR.estado_de_rendimiento(last_real.real_time, last_real.expected_time)
         counts[status] = counts.get(status, 0) + 1
 
         total_improvement = event.current_time - event.goal_time
@@ -168,7 +169,7 @@ async def build_summary(
         competitions=[
             CompetitionInfo(
                 name=c.name, week_number=c.week_number,
-                week_date=progression.monday_of(plan.start_date, c.week_number),
+                week_date=lunes_de(plan.start_date, c.week_number),
                 days=c.days, is_main=c.is_main,
                 weeks_away=(c.week_number - current) if current else None,
             )
@@ -200,7 +201,7 @@ def _team_progression(
                 )
         points.append(TeamWeekPoint(
             week_number=week_n,
-            date_label=progression.monday_of(plan.start_date, week_n).strftime("%d/%m"),
+            date_label=lunes_de(plan.start_date, week_n).strftime("%d/%m"),
             expected_progress=round(sum(expected_fracs) / len(expected_fracs), 1)
             if expected_fracs else 0.0,
             real_progress=round(sum(real_fracs) / len(real_fracs), 1) if real_fracs else None,
@@ -245,14 +246,14 @@ async def team_week(
             specialty=specialty, event_label=event_label(event),
             expected_time=week.expected_time, pace_100m=round(pace, 2),
             real_time=week.real_time,
-            status=progression.performance_status(week.real_time, week.expected_time)
+            status=MOTOR.estado_de_rendimiento(week.real_time, week.expected_time)
             if week.real_time is not None else None,
-            zones=calc_zones(pace, event.distance, event.stroke, plan.pool),
-            zone_km=zone_km_distribution(week.planned_km, distance=event.distance, specialty=specialty),
+            zones=MOTOR.zonas(pace, event.distance, event.stroke, plan.pool),
+            zone_km=km_por_zona(week.planned_km, distancia=event.distance, especialidad=specialty),
             planned_km=week.planned_km, disabled=week.disabled,
         ))
     return TeamWeekResponse(
         week_number=week_number,
-        date_label=progression.monday_of(plan.start_date, week_number).strftime("%d/%m"),
+        date_label=lunes_de(plan.start_date, week_number).strftime("%d/%m"),
         phase=phase, rows=rows,
     )

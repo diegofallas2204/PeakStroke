@@ -19,12 +19,10 @@ from __future__ import annotations
 
 import pytest
 
+from app.dominio.servicios.intervalos import intervalos_de_entrenamiento
+from app.dominio.servicios.zonas import al_reloj as clock_interval
+from app.dominio.valores import Zona
 from app.engine.aerobic import analyze_splits
-from app.engine.send_off import (
-    REST_RATIO,
-    clock_interval,
-    training_intervals,
-)
 
 
 class TestSalidaEnElAnalisis:
@@ -113,12 +111,12 @@ class TestRedondeoAlReloj:
         assert clock_interval(90.1) == 95.0
 
     def test_paso_configurable(self):
-        assert clock_interval(86.2, step=10) == 90.0
-        assert clock_interval(91.0, step=10) == 100.0
+        assert clock_interval(86.2, paso=10) == 90.0
+        assert clock_interval(91.0, paso=10) == 100.0
 
     def test_paso_invalido(self):
         with pytest.raises(ValueError):
-            clock_interval(90.0, step=0)
+            clock_interval(90.0, paso=0)
 
 
 class TestTiemposDeEntrenamiento:
@@ -127,52 +125,52 @@ class TestTiemposDeEntrenamiento:
     ZONAS = {"R1": 82.0, "R2": 75.0, "MVO2": 70.0, "RL": 66.0, "V": 62.0}
 
     def test_una_entrada_por_zona(self):
-        out = training_intervals(self.ZONAS, rep_distance=100)
+        out = intervalos_de_entrenamiento(self.ZONAS, distancia_rep=100)
         assert list(out) == ["R1", "R2", "MVO2", "RL", "V"]
 
     def test_el_trabajo_escala_con_la_distancia(self):
-        out = training_intervals(self.ZONAS, rep_distance=200)
-        assert out["R1"].work == pytest.approx(164.0)
+        out = intervalos_de_entrenamiento(self.ZONAS, distancia_rep=200)
+        assert out["R1"].trabajo == pytest.approx(164.0)
 
     def test_la_salida_siempre_deja_sitio_al_descanso(self):
-        for zona, iv in training_intervals(self.ZONAS, rep_distance=100).items():
-            assert iv.interval > iv.work, zona
-            assert iv.rest == pytest.approx(iv.interval - iv.work)
+        for zona, iv in intervalos_de_entrenamiento(self.ZONAS, distancia_rep=100).items():
+            assert iv.salida > iv.trabajo, zona
+            assert iv.descanso == pytest.approx(iv.salida - iv.trabajo)
 
     def test_el_descanso_crece_con_la_intensidad(self):
-        out = training_intervals(self.ZONAS, rep_distance=100)
-        ratios = [out[z].rest / out[z].work for z in ("R1", "R2", "MVO2", "RL", "V")]
+        out = intervalos_de_entrenamiento(self.ZONAS, distancia_rep=100)
+        ratios = [out[z].descanso / out[z].trabajo for z in ("R1", "R2", "MVO2", "RL", "V")]
         assert ratios == sorted(ratios), "una zona más dura descansa más, nunca menos"
 
     def test_valores_concretos_de_la_zona_base(self):
         # R1 a 82 s/100m: descanso 8% = 6.6 s → 88.6 s → 1:30 en el reloj.
-        iv = training_intervals(self.ZONAS, rep_distance=100)["R1"]
-        assert iv.work == pytest.approx(82.0)
-        assert iv.interval == 90.0
+        iv = intervalos_de_entrenamiento(self.ZONAS, distancia_rep=100)["R1"]
+        assert iv.trabajo == pytest.approx(82.0)
+        assert iv.salida == 90.0
 
     def test_zona_sin_ritmo_se_omite(self):
-        out = training_intervals({"R1": 82.0, "V": None}, rep_distance=100)
+        out = intervalos_de_entrenamiento({"R1": 82.0, "V": None}, distancia_rep=100)
         assert "V" not in out
 
     def test_distancia_invalida(self):
         with pytest.raises(ValueError):
-            training_intervals(self.ZONAS, rep_distance=0)
+            intervalos_de_entrenamiento(self.ZONAS, distancia_rep=0)
 
     def test_la_tabla_de_ratios_cubre_todas_las_zonas(self):
-        assert set(REST_RATIO) == {"R1", "R2", "MVO2", "RL", "V"}
+        assert {z.value for z in Zona.ordenadas()} == {"R1", "R2", "MVO2", "RL", "V"}
 
 
 class TestDensidadMedida:
     """La salida medida en el test se compara contra la prescrita."""
 
     def test_la_medida_viaja_hasta_la_prescripcion(self):
-        out = training_intervals(
-            {"R1": 82.0}, rep_distance=100, measured_ratio=0.30,
+        out = intervalos_de_entrenamiento(
+            {"R1": 82.0}, distancia_rep=100, ratio_medido=0.30,
         )
-        assert out["R1"].measured_interval == 110.0   # 82 × 1.30 = 106.6 → 110
-        assert out["R1"].denser_than_measured is True
+        assert out["R1"].salida_medida == 110.0   # 82 × 1.30 = 106.6 → 110
+        assert out["R1"].mas_denso_que_lo_medido is True
 
     def test_sin_medida_no_hay_comparacion(self):
-        out = training_intervals({"R1": 82.0}, rep_distance=100)
-        assert out["R1"].measured_interval is None
-        assert out["R1"].denser_than_measured is None
+        out = intervalos_de_entrenamiento({"R1": 82.0}, distancia_rep=100)
+        assert out["R1"].salida_medida is None
+        assert out["R1"].mas_denso_que_lo_medido is None

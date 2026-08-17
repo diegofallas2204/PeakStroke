@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import Principal
-from app.engine import progression
+from app.dominio.servicios.motor import fases_por_defecto
 
 # Lecturas explícitas de modelos de otros módulos (permitido por las reglas
 # del proyecto). No se importa lógica ajena.
@@ -101,7 +101,7 @@ async def create_plan(db: AsyncSession, data: PlanCreate, team_id: int, coach_id
     plan = Plan(**data.model_dump(exclude={"phases", "competitions"}), team_id=team_id)
     plan.coaches.append(PlanCoach(coach_id=coach_id, team_id=team_id))
     phases = [p.model_dump() for p in data.phases] or \
-        progression.default_phase_ranges(data.total_weeks)
+        fases_por_defecto(data.total_weeks)
     for i, p in enumerate(phases):
         plan.phases.append(PlanPhase(
             name=p["name"], type=p.get("type", "base"), color=p.get("color", "#8b5cf6"),
