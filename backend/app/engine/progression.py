@@ -6,7 +6,9 @@ la base de datos. La capa de servicio persiste el resultado.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date
+
+from app.dominio.entidades import lunes_de
 
 from .curves import curve_progress
 from .envelope import science_envelope
@@ -67,9 +69,14 @@ def _phase_for_week(week: int, phases: list[dict]) -> str:
 
 
 def monday_of(start_date: date, week_number: int) -> date:
-    """Fecha del lunes de la semana N (1-indexada) desde la fecha de inicio."""
-    base = start_date - timedelta(days=start_date.weekday())
-    return base + timedelta(weeks=week_number - 1)
+    """Fecha del lunes de la semana N (1-indexada) desde la fecha de inicio.
+
+    La regla es del macrociclo y vive en `dominio.entidades.macrociclo.lunes_de`
+    desde el paso 2 del rediseño. Aquí queda la delegación porque este módulo la
+    usa dentro de bucles que no tienen un `Macrociclo` a mano; conservar la copia
+    la habría dejado divergiendo sola, que es lo que ya pasó dos veces.
+    """
+    return lunes_de(start_date, week_number)
 
 
 def clamp_weekly_rate(expected: list[float], current_time: float, peak_week_s: float) -> list[float]:

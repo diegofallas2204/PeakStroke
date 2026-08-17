@@ -10,7 +10,7 @@ crearlo, editarlo, borrarlo y presentarlo—. Los atletas inscritos están en
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +22,7 @@ from app.engine import progression
 # del proyecto). No se importa lógica ajena.
 from app.modules.aerobic_tests.models import AerobicTest
 from app.modules.swimmers.models import Swimmer
+from app.persistencia.mapeo import macrociclo_desde_fila
 
 from .access import plan_unscoped
 from .models import Competition, Plan, PlanCoach, PlanPhase
@@ -29,28 +30,29 @@ from .schemas import AthletePlanResponse, PlanCreate, PlanResponse, PlanUpdate
 
 
 def current_week_of(plan: Plan, today: date | None = None) -> int | None:
-    today = today or date.today()
-    start = progression.monday_of(plan.start_date, 1)
-    delta_weeks = (today - start).days // 7 + 1
-    if delta_weeks < 1:
-        return None
-    return min(delta_weeks, plan.total_weeks)
+    """En qué semana va el macrociclo. **Envoltorio en retirada.**
+
+    La regla es `Macrociclo.semana_actual()` desde el paso 2 del rediseño
+    (2026-08-16). Aquí queda la delegación mientras haya llamadores que tengan
+    la fila y no la entidad — `dashboard` y `aerobic_tests/intervals` importan
+    esta función, que es P5 en una línea: una vista importando la lógica de otro
+    módulo para poder preguntarle algo a un plan.
+    """
+    return macrociclo_desde_fila(plan).semana_actual(today)
 
 
 def effective_status(plan: Plan, today: date | None = None) -> str:
-    """Estado mostrado al entrenador.
+    """Estado mostrado al entrenador. **Envoltorio en retirada.**
 
     Suspendido / inactivo (draft) / completado (finished) son overrides manuales
     y mandan tal cual. Si el macrociclo está vigente (active) pero su última
     semana ya pasó, se auto-marca como completado por fecha.
+
+    La regla es `Macrociclo.estado_efectivo()`, que devuelve un `EstadoDeMacro`;
+    el `.value` se desenvuelve aquí porque los schemas de la API siguen hablando
+    en cadenas.
     """
-    if plan.status in ("suspended", "draft", "finished"):
-        return plan.status
-    today = today or date.today()
-    last_week_end = progression.monday_of(plan.start_date, plan.total_weeks) + timedelta(days=6)
-    if today > last_week_end:
-        return "finished"
-    return "active"
+    return macrociclo_desde_fila(plan).estado_efectivo(today).value
 
 
 async def _swimmer_map(db: AsyncSession, ids: list[int]) -> dict[int, Swimmer]:

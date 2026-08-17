@@ -14,20 +14,24 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dates import age_at
 from app.core.dependencies import Principal
 
 # Lectura explícita de un modelo de otro módulo (permitido por las reglas del
 # proyecto): la ficha viaja con el email de su cuenta. No se importa lógica.
 from app.modules.auth.models import User
+from app.persistencia.mapeo import atleta_desde_fila
 
 from .models import Swimmer
 from .schemas import SwimmerCreate, SwimmerResponse, SwimmerUpdate
 
 
 def to_response(swimmer: Swimmer) -> SwimmerResponse:
+    """La ficha hacia fuera. La edad se la pide al atleta, no a una función.
+
+    Es la misma respuesta que antes; lo que cambia es quién sabe calcularla.
+    """
     resp = SwimmerResponse.model_validate(swimmer)
-    resp.age = age_at(swimmer.birth_date)
+    resp.age = atleta_desde_fila(swimmer).edad_en()
     return resp
 
 

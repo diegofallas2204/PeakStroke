@@ -1,14 +1,20 @@
-"""Aritmética de calendario compartida.
+"""Aritmética de calendario compartida. **Envoltorio en retirada.**
 
-Vive en `core/` y no en un módulo porque la usan dos (`plans` y `swimmers`), y
-las reglas del proyecto prohíben que un módulo importe lógica de otro. No va en
-`engine/` ni en `domain/` porque no es ciencia de natación: el motor consume la
-edad ya calculada (ajusta al alza el techo `I_max` de los menores), pero pasar
-de fecha de nacimiento a años cumplidos es calendario y nada más.
+La edad nació duplicada (`plans/service.age_at` y `swimmers/service._age`, la
+misma aritmética con dos firmas) y este módulo la unificó. Eso arregló la
+duplicación pero dejó la regla fuera de su objeto, que es el modelo anémico —P4
+de `docs/REDISENO.md` §0—: una función que recibe la fecha de nacimiento de un
+atleta en vez de un atleta que sabe su edad.
+
+Desde el paso 2 del rediseño (2026-08-16) la regla es `Atleta.edad_en()` y aquí
+solo queda la delegación, para los llamadores que todavía tienen una fecha suelta
+y no la ficha. Se borra cuando no quede ninguno.
 """
 from __future__ import annotations
 
 from datetime import date
+
+from app.dominio.entidades import anios_cumplidos
 
 
 def age_at(birth_date: date | None, ref: date | None = None) -> int | None:
@@ -21,10 +27,4 @@ def age_at(birth_date: date | None, ref: date | None = None) -> int | None:
     que se tiene **al empezar el macrociclo**, no la de hoy, o un plan pasaría a
     calcularse distinto el día del cumpleaños.
     """
-    if birth_date is None:
-        return None
-    ref = ref or date.today()
-    years = ref.year - birth_date.year
-    if (ref.month, ref.day) < (birth_date.month, birth_date.day):
-        years -= 1
-    return max(years, 0)
+    return anios_cumplidos(birth_date, ref)
