@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from app.dominio.entidades import lunes_de
+from app.dominio.servicios.tablas import TOLERANCIA_DE_ESTADO
 
 from .curves import curve_progress
 from .envelope import science_envelope
@@ -16,7 +17,7 @@ from .km_distribution import distribute_km
 from .zones import calc_zones
 
 # Tolerancia para clasificar real vs. esperado (fracción del tiempo esperado).
-STATUS_TOLERANCE = 0.004  # ±0.4%
+STATUS_TOLERANCE = TOLERANCIA_DE_ESTADO  # ±0.4%
 
 DEFAULT_PHASES = [
     # (nombre, tipo, fracción del macrociclo, color)

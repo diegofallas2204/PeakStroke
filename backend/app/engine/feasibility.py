@@ -16,12 +16,13 @@ import math
 from dataclasses import dataclass
 
 from app.domain import MAX_EXTENSION_WEEKS
+from app.dominio.servicios.tablas import RATIO_EXIGENTE, RATIO_REALISTA
 
 from .envelope import science_envelope
 
 TIER1_THRESHOLD = 400
-OK_RATIO = 0.85
-WARNING_RATIO = 1.15
+OK_RATIO = RATIO_REALISTA
+WARNING_RATIO = RATIO_EXIGENTE
 # El tope de semanas de extensión NO se declara aquí: se importa del motor de
 # dominio (`app.domain.MAX_EXTENSION_WEEKS`, alias `ScienceEngine.MAX_EXTENSION_WEEKS`),
 # que es la única fuente. Hasta 2026-08-13 este módulo tenía su propio 26 bajo un

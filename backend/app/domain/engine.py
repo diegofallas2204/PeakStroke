@@ -46,9 +46,29 @@ import math
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from app.dominio.servicios.tablas import (
+    DEGRADACION_ENTRE_MACROS,
+    MACRO_15_FASES,
+    MAX_SEMANAS_EXTENSION,
+    MEJORA_ANUAL_ESPERADA,
+    PATRON_DE_CARGA_MESO,
+    PROYECCION_SPRINT_A_100,
+    TABLA_I_MAX,
+    TIER_POR_AEROBICO,
+    VOLUMEN_MAXIMO_POR_ESTILO,
+    factor_juvenil,
+    margen_de_confianza,
+)
+
 # ───────────────────────────────────────────────────────────────────────────
 # CONSTANTES CIENTÍFICAS  (fuente: SWIMMING_SCIENCE_REFERENCE.md)
 # ───────────────────────────────────────────────────────────────────────────
+#
+# **Ya no se declaran aquí.** Desde el paso 4 del rediseño la única declaración
+# está en `app/dominio/servicios/tablas.py`, con su § al lado; los nombres de
+# abajo son alias que sostienen a los consumidores de siempre mientras este
+# módulo se disuelve. Un alias no puede divergir de su fuente; una segunda
+# tabla con los mismos números, sí — que es como divergieron los dos motores.
 
 ZONE_LABELS: dict[str, str] = {
     "R1": "R1", "R2": "R2", "MVO2": "MVO2", "RL": "RL", "V": "V",
@@ -149,7 +169,7 @@ def pool_factor(profile: str, pool: str) -> float:
 # vive en los factores de velocidad (50 vs 100 difieren por ~1.100 constante).
 # Por eso esto SOLO corrige el ritmo /100m mostrado/usado como referencia de
 # carrera; las ZONAS no cambian (el factor de 50m ya incorpora este escalado).
-SPRINT_TO_100: dict[int, float] = {50: 1.100}
+SPRINT_TO_100 = PROYECCION_SPRINT_A_100
 
 def race_pace_100(predicted: float, distance: int) -> float:
     """Ritmo de carrera /100m REALISTA del evento.
@@ -169,13 +189,7 @@ def race_pace_100(predicted: float, distance: int) -> float:
 #                        el primer macro (con MACROCYCLE_DEGRADATION=0.60).
 # Validado vs literatura: élite ~0.5-1.5%/año (Pyne 2004), joven ~7-14.6%/temporada
 # (Morais 2021, 3 macros 7.8/3.7/3.8%), progresión por edad×nivel (Ruiz-Navarro 2025).
-I_MAX_TABLE: dict[str, dict[int, float]] = {
-    "beginner":     {50: 0.035, 100: 0.030, 200: 0.032, 400: 0.035, 800: 0.038, 1500: 0.040},
-    "recreational": {50: 0.025, 100: 0.022, 200: 0.024, 400: 0.026, 800: 0.028, 1500: 0.030},
-    "advanced":     {50: 0.015, 100: 0.013, 200: 0.015, 400: 0.017, 800: 0.019, 1500: 0.021},
-    "competitive":  {50: 0.008, 100: 0.007, 200: 0.008, 400: 0.009, 800: 0.010, 1500: 0.011},
-    "elite":        {50: 0.003, 100: 0.0025, 200: 0.003, 400: 0.0035, 800: 0.004, 1500: 0.0045},
-}
+I_MAX_TABLE = TABLA_I_MAX
 
 # §4.3 — decaimiento geométrico del I_max entre macrociclos consecutivos.
 # RECALIBRADO 2026-06-22: 0.85 → 0.60. El 0.85 sobreestimaba la acumulación de una
@@ -184,20 +198,9 @@ I_MAX_TABLE: dict[str, dict[int, float]] = {
 # (Morais et al. 2021, jóvenes 9-14a: 7.8 / 3.7 / 3.8% → factor inter-macro ≈ 0.60)
 # y concuerda con Mujika 1995 (tapers 2.9/3.2/1.8% entre temporadas, ~0.62).
 # Solo afecta planes con n_mac ≥ 2; los planes de un solo macro no cambian. Ver nota 17.
-MACROCYCLE_DEGRADATION = 0.60
+MACROCYCLE_DEGRADATION = DEGRADACION_ENTRE_MACROS
 
-
-def youth_imax_factor(age: int | None) -> float:
-    """§4.4 — multiplicador de I_max para atletas menores de 18 años.
-
-    Los jóvenes tienen mayor potencial de adaptación que los adultos mientras no
-    han alcanzado la maduración biológica. Edad >= 18 → sin corrección (factor 1.0).
-    """
-    if age is None or age >= 18:
-        return 1.0
-    if age <= 14:
-        return 2.0
-    return 1.5   # 15–17 años
+youth_imax_factor = factor_juvenil   # §4.4 — multiplicador para menores de 18
 
 
 # §4.3 — multiplicador de mejora por fase del macrociclo.
@@ -213,13 +216,7 @@ F_FASE: dict[str, float] = {
 # §4.5 — mejora ANUAL esperada (temporada de ~3 macros), proporción decimal {min,max}.
 # Techo de la literatura para validar la proyección anual (nota 17 del vault):
 # Pyne 2004 (élite ~1%), Ruiz-Navarro 2025 (por edad×nivel), Morais 2021 (joven).
-ANNUAL_IMPROVEMENT_RANGE: dict[str, tuple[float, float]] = {
-    "beginner":     (0.08, 0.15),
-    "recreational": (0.05, 0.10),
-    "advanced":     (0.03, 0.06),
-    "competitive":  (0.02, 0.035),
-    "elite":        (0.005, 0.015),
-}
+ANNUAL_IMPROVEMENT_RANGE = MEJORA_ANUAL_ESPERADA
 
 # §2.4 — clasificación de nivel por CSS (s/100m), tabla de crol.
 def classify_level(css_100m: float) -> str:
@@ -244,14 +241,7 @@ def css_from_test(t400_s: float, t50_s: float) -> float:
     return 100.0 / css_ms
 
 # §18 — clasificación de tier por dominancia aeróbica (para notas).
-TIER_BY_AEROBIC: dict[int, dict] = {
-    50:   {"tier": 2, "aerobic": 0.05, "desc": "Sprint — anaeróbico dominante"},
-    100:  {"tier": 2, "aerobic": 0.35, "desc": "Sprint-resistencia"},
-    200:  {"tier": 2, "aerobic": 0.60, "desc": "Mix — transición"},
-    400:  {"tier": 1, "aerobic": 0.87, "desc": "Aeróbico dominante"},
-    800:  {"tier": 1, "aerobic": 0.93, "desc": "Aeróbico alto"},
-    1500: {"tier": 1, "aerobic": 0.95, "desc": "Aeróbico muy alto"},
-}
+TIER_BY_AEROBIC = TIER_POR_AEROBICO
 
 # §9.1 — volumen semanal (km) por nivel y fase {min,max}.
 WEEKLY_VOLUME_KM: dict[str, dict[str, tuple[float, float]]] = {
@@ -263,26 +253,13 @@ WEEKLY_VOLUME_KM: dict[str, dict[str, tuple[float, float]]] = {
 }
 
 # §13.2 — patrón de carga 3:1 dentro del mesociclo (semana relativa → % carga).
-MESO_LOAD_PATTERN: dict[int, float] = {1: 0.77, 2: 0.875, 3: 0.975, 0: 0.55}
+MESO_LOAD_PATTERN = PATRON_DE_CARGA_MESO
 
 # §20.3 — margen de error de la predicción (s) según banda de semanas.
-def confidence_margin(week: int) -> int:
-    if week <= 4:
-        return 2
-    if week <= 8:
-        return 4
-    if week <= 12:
-        return 6
-    return 8
+confidence_margin = margen_de_confianza
 
 # Estructura fija del macrociclo de 15 semanas: (semana_ini, semana_fin, fase).
-MACRO_15_PHASES: list[tuple[int, int, str]] = [
-    (1, 3, "base_general"),
-    (4, 7, "base_especifica"),
-    (8, 11, "umbral_css"),
-    (12, 13, "pre_competitivo"),
-    (14, 15, "taper"),
-]
+MACRO_15_PHASES = MACRO_15_FASES
 
 # Tope de semanas EXTRA tras el macro cuando la meta supera el techo realista.
 # 30 = dos macros de 15 exactos. FUENTE ÚNICA: `app.engine.feasibility` lo importa
@@ -291,7 +268,7 @@ MACRO_15_PHASES: list[tuple[int, int, str]] = [
 # Evita "semanas necesarias" desorbitadas: el techo informa, no fantasea con 80
 # semanas. Ojo con subirlo: la extensión mejora a ritmo seguro PLANO, sin aplicar
 # MACROCYCLE_DEGRADATION, así que cada semana extra exagera un poco más.
-MAX_EXTENSION_WEEKS = 30
+MAX_EXTENSION_WEEKS = MAX_SEMANAS_EXTENSION
 
 
 # ── CURVA CIENTÍFICA (fuente única de la forma de progresión) ────────────────
@@ -354,13 +331,7 @@ STROKE_ALIASES: dict[str, str] = {
 }
 
 # §7.3 — volumen máximo semanal por estilo y nivel (km).
-MAX_VOLUME_BY_STROKE: dict[str, dict[str, float]] = {
-    "freestyle":        {"beginner": 20, "recreational": 35, "advanced": 55, "competitive": 70, "elite": 90},
-    "backstroke":       {"beginner": 18, "recreational": 30, "advanced": 50, "competitive": 65, "elite": 85},
-    "butterfly":        {"beginner": 12, "recreational": 20, "advanced": 30, "competitive": 40, "elite": 55},
-    "breaststroke":     {"beginner": 15, "recreational": 25, "advanced": 38, "competitive": 50, "elite": 65},
-    "individual_medley":{"beginner": 20, "recreational": 30, "advanced": 45, "competitive": 60, "elite": 80},
-}
+MAX_VOLUME_BY_STROKE = VOLUMEN_MAXIMO_POR_ESTILO
 
 
 # ───────────────────────────────────────────────────────────────────────────

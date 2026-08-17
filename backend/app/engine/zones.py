@@ -29,6 +29,10 @@ from app.domain import (
     profile_for_event,
     zone_factors,
 )
+from app.dominio.servicios.tablas import (
+    MEZCLA_DE_ZONAS_POR_DISTANCIA,
+    MEZCLA_DE_ZONAS_POR_ESPECIALIDAD,
+)
 
 from .send_off import ZONE_ORDER as _ZONE_ORDER
 from .send_off import clock_interval, rest_for
@@ -60,23 +64,11 @@ _ZONE_DISPLAY_TOLERANCE = 0.01  # ±1%
 #   400m → 87% aeróbico  → umbral predominante
 #   800m → 93% aeróbico  → base aeróbica muy alta
 #   1500m → 95% aeróbico → máximo R1/R2
-_DISTANCE_ZONE_MIX: dict[int, dict[str, float]] = {
-    50:   {"R1": 0.28, "R2": 0.12, "MVO2": 0.18, "RL": 0.25, "V": 0.17},
-    100:  {"R1": 0.40, "R2": 0.14, "MVO2": 0.18, "RL": 0.18, "V": 0.10},
-    200:  {"R1": 0.53, "R2": 0.16, "MVO2": 0.15, "RL": 0.12, "V": 0.04},
-    400:  {"R1": 0.64, "R2": 0.17, "MVO2": 0.11, "RL": 0.06, "V": 0.02},
-    800:  {"R1": 0.70, "R2": 0.16, "MVO2": 0.09, "RL": 0.04, "V": 0.01},
-    1500: {"R1": 0.74, "R2": 0.15, "MVO2": 0.07, "RL": 0.03, "V": 0.01},
-}
+_DISTANCE_ZONE_MIX = MEZCLA_DE_ZONAS_POR_DISTANCIA
 
 # Distribución por especialidad — se conserva como fallback cuando no hay
 # distancia disponible (simulador) y como referencia de la tabla de datos.
-SPECIALTY_ZONE_MIX: dict[str, dict[str, float]] = {
-    "velocidad":      {"R1": 0.35, "R2": 0.13, "MVO2": 0.18, "RL": 0.22, "V": 0.12},
-    "medio_fondo":    {"R1": 0.53, "R2": 0.16, "MVO2": 0.15, "RL": 0.12, "V": 0.04},
-    "fondo":          {"R1": 0.68, "R2": 0.16, "MVO2": 0.10, "RL": 0.05, "V": 0.01},
-    "aguas_abiertas": {"R1": 0.74, "R2": 0.15, "MVO2": 0.07, "RL": 0.03, "V": 0.01},
-}
+SPECIALTY_ZONE_MIX = MEZCLA_DE_ZONAS_POR_ESPECIALIDAD
 
 SPECIALTY_LABELS = {
     "velocidad": "Velocidad",

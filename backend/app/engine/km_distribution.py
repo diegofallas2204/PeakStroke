@@ -10,19 +10,25 @@ El resultado se normaliza para que la suma sea exactamente el total planificado.
 """
 from __future__ import annotations
 
-# Onda intra-microciclo: carga relativa de cada semana dentro del micro.
-_MICRO_WAVE = {
-    4: [0.78, 0.90, 1.00, 0.58],
-    5: [0.72, 0.84, 0.94, 1.00, 0.58],
-}
+from app.dominio.servicios.tablas import (
+    CAIDA_DEL_TAPER,
+    DESCARGA_ULTIMA_SEMANA,
+    ONDA_DEL_MICRO,
+    RAMPA_HASTA,
+    RAMPA_INICIAL,
+)
+
+# Onda intra-microciclo: carga relativa de cada semana dentro del micro. La tabla
+# vive en `dominio/servicios/tablas.py` desde el paso 4; aquí solo se lee.
+_MICRO_WAVE = ONDA_DEL_MICRO
 
 
 def _macro_envelope(index: int, total: int) -> float:
     """Rampa 0.65 -> 1.0 hasta el 70% del ciclo, luego taper hasta 0.40."""
     x = index / (total - 1) if total > 1 else 0.0
-    if x <= 0.70:
-        return 0.65 + 0.35 * (x / 0.70)
-    return 1.0 - 0.60 * ((x - 0.70) / 0.30)
+    if x <= RAMPA_HASTA:
+        return RAMPA_INICIAL + (1.0 - RAMPA_INICIAL) * (x / RAMPA_HASTA)
+    return 1.0 - CAIDA_DEL_TAPER * ((x - RAMPA_HASTA) / (1.0 - RAMPA_HASTA))
 
 
 def distribute_km(total_weeks: int, total_km: float, weeks_per_micro: int = 4) -> list[float]:
@@ -34,7 +40,7 @@ def distribute_km(total_weeks: int, total_km: float, weeks_per_micro: int = 4) -
         micro_pos = i % weeks_per_micro
         # La última semana siempre es descarga (taper final), no pico de carga.
         if i == total_weeks - 1:
-            factor = envelope * 0.55
+            factor = envelope * DESCARGA_ULTIMA_SEMANA
         else:
             factor = envelope * wave[min(micro_pos, len(wave) - 1)]
         raw.append(factor)
