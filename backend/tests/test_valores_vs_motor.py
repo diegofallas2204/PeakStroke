@@ -37,6 +37,7 @@ from app.domain.engine import (
     profile_for_event,
     zone_factors,
 )
+from app.dominio.servicios.envolvente import factibilidad
 from app.dominio.valores import (
     EVENTOS_DE_REFERENCIA,
     Especialidad,
@@ -61,7 +62,6 @@ from app.dominio.valores import (
 )
 from app.engine.aerobic import analyze_splits
 from app.engine.envelope import nearest_event
-from app.engine.feasibility import analyze_feasibility
 from app.engine.send_off import (
     REST_BOUNDS_S,
     REST_RATIO,
@@ -252,9 +252,13 @@ class TestEscalasVsSuFuente:
         assert {t.value for t in Tendencia} == anotadas
 
     def test_el_veredicto_es_el_de_la_factibilidad(self):
-        fuente = inspect.getsource(analyze_feasibility)
-        emitidos = set(re.findall(r'status = "(\w+)"', fuente))
-        assert emitidos, "cambió la forma de anotar el veredicto en analyze_feasibility"
+        # La fuente viva se mudó con el paso 4: el veredicto lo emite el motor
+        # único (`dominio.servicios.envolvente.factibilidad`) y
+        # `engine/feasibility.analyze_feasibility` es ya solo la forma vieja del
+        # resultado. El pin sigue el cálculo, que es lo que dice comprobar.
+        fuente = inspect.getsource(factibilidad)
+        emitidos = set(re.findall(r'estado = "(\w+)"', fuente))
+        assert emitidos, "cambió la forma de anotar el veredicto en factibilidad()"
         assert {v.value for v in Veredicto} == emitidos
 
     def test_la_proyeccion_anual_habla_OTRO_vocabulario_y_este_tipo_no_lo_cubre(self):

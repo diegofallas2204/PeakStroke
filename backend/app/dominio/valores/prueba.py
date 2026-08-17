@@ -188,12 +188,12 @@ class Prueba:
         return True
 
     def perfil_sugerido(self) -> Perfil:
-        """velocidad 50-100 · medio fondo 200-400 · fondo 800-1500."""
-        if self.distancia <= 100:
-            return Perfil.VELOCIDAD
-        if self.distancia <= 400:
-            return Perfil.MEDIO_FONDO
-        return Perfil.FONDO
+        """velocidad 50-100 · medio fondo 200-400 · fondo 800-1500.
+
+        La regla es de la distancia, no de la prueba entera, y por eso vive en
+        `Perfil.para_distancia`: el motor la necesita sin tener un estilo a mano.
+        """
+        return Perfil.para_distancia(self.distancia)
 
     def tier(self) -> int:
         """1 = regla aeróbica (≥ 400 m) · 2 = ventanas de velocidad (< 400 m)."""

@@ -5,7 +5,7 @@ from datetime import date
 
 from fastapi import APIRouter
 
-from app.domain import ScienceEngine
+from app.dominio.servicios.motor import MOTOR
 from app.engine.curves import CURVES
 from app.engine.feasibility import analyze_feasibility
 from app.engine.progression import WeekEntry, generate_extension, generate_plan
@@ -98,17 +98,28 @@ async def run_simulation(data: SimulationRequest):
 @router.post("/season", response_model=SeasonResponse)
 async def project_season(data: SeasonRequest):
     """Proyección ANUAL: encadena N macrociclos (re-test entre cada uno) con el
-    motor científico de dominio y la compara con el techo de la literatura."""
-    proj = ScienceEngine().project_season(
-        current_time=data.current_time, distance=data.distance, stroke=data.stroke,
-        pool=data.pool, age=data.swimmer_age, n_macros=data.n_macros,
+    motor científico y la compara con el techo de la literatura.
+
+    El estilo y la piscina no entran: la proyección solo lee el techo realista
+    de cada macro, que es de la distancia y el nivel. Se seguían pasando porque
+    la firma vieja los pedía.
+    """
+    proj = MOTOR.proyectar_temporada(
+        tiempo_actual=data.current_time, distancia=data.distance,
+        n_macros=data.n_macros, edad=data.swimmer_age,
     )
     return SeasonResponse(
-        level=proj.level, n_macros=proj.n_macros,
-        season_start=proj.season_start, season_end=proj.season_end,
-        season_improvement_s=proj.season_improvement_s,
-        season_improvement_pct=proj.season_improvement_pct,
-        annual_low_pct=proj.annual_low_pct, annual_high_pct=proj.annual_high_pct,
-        verdict=proj.verdict, message=proj.message,
-        macros=[MacroProjectionItem(**vars(m)) for m in proj.macros],
+        level=proj.nivel, n_macros=proj.n_macros,
+        season_start=proj.inicio, season_end=proj.fin,
+        season_improvement_s=proj.mejora_s,
+        season_improvement_pct=proj.mejora_pct,
+        annual_low_pct=proj.rango_bajo_pct, annual_high_pct=proj.rango_alto_pct,
+        verdict=proj.veredicto, message=proj.mensaje,
+        macros=[
+            MacroProjectionItem(
+                n_mac=m.n_mac, start_time=m.tiempo_inicial, end_time=m.tiempo_final,
+                improvement_s=m.mejora_s, improvement_pct=m.mejora_pct,
+            )
+            for m in proj.macros
+        ],
     )

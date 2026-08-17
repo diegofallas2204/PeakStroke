@@ -96,6 +96,22 @@ class Perfil(_EscalaTextual):
     FONDO = "fondo"
 
     @classmethod
+    def para_distancia(cls, distancia: int) -> Perfil:
+        """El perfil que sugiere la prueba: velocidad 50-100 · medio fondo
+        200-400 · fondo 800-1500. El entrenador puede cambiarlo.
+
+        Está aquí y no en `Prueba` porque el motor necesita el perfil de una
+        distancia suelta —para clasificar el nivel o calcular zonas— y exigirle
+        una `Prueba` completa lo obligaría a inventarse un estilo. `Prueba`
+        delega en esto, así que sigue habiendo una sola regla.
+        """
+        if distancia <= 100:
+            return cls.VELOCIDAD
+        if distancia <= 400:
+            return cls.MEDIO_FONDO
+        return cls.FONDO
+
+    @classmethod
     def desde_texto(cls, valor: str) -> Perfil:
         """Traga **las dos** grafías, que es la razón de existir de este tipo.
 
