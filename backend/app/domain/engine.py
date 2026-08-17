@@ -46,6 +46,7 @@ import math
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from app.dominio.servicios.curvas import Cientifica
 from app.dominio.servicios.tablas import (
     DEGRADACION_ENTRE_MACROS,
     MACRO_15_FASES,
@@ -278,29 +279,16 @@ MAX_EXTENSION_WEEKS = MAX_SEMANAS_EXTENSION
 # defecto del sistema. Validada en notas 09/16/17 del vault (Mujika 1995;
 # cohorte de periodización; Morais 2021). El simulador conserva sigmoide/exp/log/
 # lineal solo para COMPARAR escenarios — la ciencia por defecto es esta.
-def _science_curve_segments() -> list[tuple[float, float, float]]:
-    """(x_ini, x_fin, peso F_fase) de cada fase como fracción del macro."""
-    total_w = MACRO_15_PHASES[-1][1]   # 15 semanas
-    return [((ini - 1) / total_w, fin / total_w, F_FASE[phase])
-            for ini, fin, phase in MACRO_15_PHASES]
-
-_SCIENCE_SEGMENTS = _science_curve_segments()
-_SCIENCE_TOTAL = sum(w * (x1 - x0) for x0, x1, w in _SCIENCE_SEGMENTS)
-
-
 def science_curve_progress(x: float) -> float:
-    """Fracción de mejora acumulada [0..1] en el punto x [0..1] (fracción del
-    macro transcurrida) según la curva CIENTÍFICA F_FASE. f(0)=0, f(1)=1.
+    """Fracción de mejora acumulada [0..1] en el punto x [0..1] según la curva
+    CIENTÍFICA F_FASE. f(0)=0, f(1)=1.
 
-    Es la integral normalizada de la densidad de mejora (peso F_fase por fase):
-    crece lento en base general y acelera hacia el taper (supercompensación)."""
-    x = max(0.0, min(1.0, x))
-    acc = 0.0
-    for x0, x1, w in _SCIENCE_SEGMENTS:
-        if x <= x0:
-            break
-        acc += w * (min(x, x1) - x0)
-    return acc / _SCIENCE_TOTAL
+    La forma vive desde el paso 4 en `dominio.servicios.curvas.Cientifica`, que
+    la deriva de `MACRO_15_FASES` y de `Fase.f_fase`. Aquí queda la delegación
+    para los llamadores de siempre.
+    """
+    return Cientifica().progreso(x)
+
 
 # Fase → banda de volumen a usar (pre_competitivo no tiene banda propia).
 PHASE_VOLUME_KEY: dict[str, str] = {
