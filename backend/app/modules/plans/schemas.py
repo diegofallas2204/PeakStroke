@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.engine.events import allowed_strokes, is_valid_event
+from app.dominio.valores import Prueba
 
 
 # ── Fases y competencias ─────────────────────────────────────────────
@@ -70,12 +70,9 @@ class EventInput(BaseModel):
 
     @model_validator(mode="after")
     def _valid_event(self) -> EventInput:
-        if not is_valid_event(self.distance, self.stroke):
-            opciones = ", ".join(allowed_strokes(self.distance))
-            raise ValueError(
-                f"{self.distance}m {self.stroke} no es una prueba válida. "
-                f"Para {self.distance}m: {opciones}."
-            )
+        # Construir la `Prueba` ES la validación: el combo imposible no llega a
+        # existir, y el mensaje sale del dominio. Ver `app/dominio/valores/prueba.py`.
+        Prueba(self.distance, self.stroke)
         return self
 
 

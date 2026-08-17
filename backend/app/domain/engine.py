@@ -55,11 +55,15 @@ ZONE_LABELS: dict[str, str] = {
 }
 
 # ── Estilos válidos por distancia ───────────────────────────────────────────
-# NO vive aquí. Fuente única: `app.engine.events.allowed_strokes`.
+# NO vive aquí. Fuente única: `app.dominio.valores.Prueba`, que la impone en su
+# constructor — un combo imposible no llega a existir.
 # Había una copia en este módulo que daba el 50 COMBINADO por válido; esa prueba
 # no existe en natación. La copia no estaba exportada en `domain/__init__.py`, así
 # que nadie la consumía: era una regla muerta que contradecía a la viva.
 # Retirada 2026-08-13 (divergencia 1 de la auditoría de motores duplicados).
+# La copia viva pasó de `app/engine/events.py` a `Prueba` el 2026-08-16, y ese
+# módulo se borró: mientras la regla fuera una función suelta, la siguiente copia
+# volvía a entrar (REDISENO §0, P6 → P2).
 
 # ── Corrección de T-pace por estilo (s/100m sobre crol) ─────────────────────
 # CALIBRADO con el pool nacional, 2026-06-13. El doc §7.1 tenía espalda/mariposa

@@ -6,7 +6,10 @@ Estos tests no comprueban el valor de la regla nada más: comprueban que sigue
 habiendo una sola copia. Una regla correcta duplicada vuelve a divergir sola.
 
 Divergencia 1 — estilos válidos por distancia. Fuente única:
-`app.engine.events.allowed_strokes` (coincide con el frontend `lib/constants.ts`).
+`app.dominio.valores.Prueba`, que la impone en el constructor. Vivió en
+`app.engine.events.allowed_strokes` hasta el 2026-08-16, cuando esos asserts se
+**movieron** aquí y el módulo se borró (el frontend conserva su copia en
+`lib/constants.ts` para filtrar la interfaz; el backend es quien rechaza).
 
 Divergencia 2 — tope de semanas de extensión. Fuente única:
 `app.domain.MAX_EXTENSION_WEEKS`, que `app.engine.feasibility` importa.
@@ -14,47 +17,62 @@ Divergencia 2 — tope de semanas de extensión. Fuente única:
 from __future__ import annotations
 
 import ast
+import importlib.util
 import inspect
 import math
+
+import pytest
 
 import app.domain.engine as domain_engine
 import app.engine.feasibility as feasibility
 from app.domain import MAX_EXTENSION_WEEKS, ScienceEngine
+from app.dominio.valores import Estilo, Prueba
 from app.engine.envelope import science_envelope
-from app.engine.events import allowed_strokes, is_valid_event
 
 
 class TestEstilosValidosFuenteUnica:
     """El 50 combinado no existe en natación (divergencia 1)."""
 
     def test_no_hay_50_combinado(self):
-        assert "combinado" not in allowed_strokes(50)
-        assert is_valid_event(50, "combinado") is False
+        assert Estilo.COMBINADO not in Prueba.estilos_validos(50)
+        assert Prueba.es_valida(50, "combinado") is False
+        with pytest.raises(ValueError):
+            Prueba(50, Estilo.COMBINADO)
 
     def test_50_tiene_los_cuatro_estilos_reales(self):
-        assert sorted(allowed_strokes(50)) == ["espalda", "libre", "mariposa", "pecho"]
+        assert sorted(e.value for e in Prueba.estilos_validos(50)) == [
+            "espalda", "libre", "mariposa", "pecho",
+        ]
 
     def test_el_dominio_ya_no_define_la_regla(self):
         # La copia de `domain/engine.py` daba el 50 combinado por válido y no
         # estaba exportada: código muerto contradiciendo a la regla viva.
         assert not hasattr(domain_engine, "allowed_strokes"), (
             "Volvió a aparecer allowed_strokes en app/domain/engine.py: "
-            "la regla vive en app/engine/events.py y solo ahí."
+            "la regla vive en app.dominio.valores.Prueba y solo ahí."
+        )
+
+    def test_el_adaptador_tampoco_la_redefine(self):
+        # `app/engine/events.py` se borró al migrar a `Prueba`. Que vuelva a
+        # existir es, otra vez, una segunda copia de la misma regla.
+        assert importlib.util.find_spec("app.engine.events") is None, (
+            "Volvió a aparecer app/engine/events.py: la validez de una prueba "
+            "es una invariante de app.dominio.valores.Prueba, no una función."
         )
 
     # Comportamiento heredado de test_domain_engine.py, ahora sobre la fuente viva.
     def test_800_1500_solo_libre(self):
-        assert allowed_strokes(800) == ["libre"]
-        assert allowed_strokes(1500) == ["libre"]
+        assert Prueba.estilos_validos(800) == frozenset({Estilo.LIBRE})
+        assert Prueba.estilos_validos(1500) == frozenset({Estilo.LIBRE})
 
     def test_400_libre_y_combinado(self):
-        strokes = allowed_strokes(400)
-        assert "libre" in strokes
-        assert "combinado" in strokes
-        assert "mariposa" not in strokes
+        estilos = Prueba.estilos_validos(400)
+        assert Estilo.LIBRE in estilos
+        assert Estilo.COMBINADO in estilos
+        assert Estilo.MARIPOSA not in estilos
 
     def test_100_todos_los_estilos(self):
-        assert len(allowed_strokes(100)) == 5
+        assert len(Prueba.estilos_validos(100)) == 5
 
 
 class TestTopeDeExtensionFuenteUnica:

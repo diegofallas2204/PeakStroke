@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.engine.events import allowed_strokes, is_valid_event
+from app.dominio.valores import Prueba
 
 
 class SimulationRequest(BaseModel):
@@ -26,12 +26,8 @@ class SimulationRequest(BaseModel):
 
     @model_validator(mode="after")
     def _valid_event(self) -> SimulationRequest:
-        if not is_valid_event(self.distance, self.stroke):
-            opciones = ", ".join(allowed_strokes(self.distance))
-            raise ValueError(
-                f"{self.distance}m {self.stroke} no es una prueba válida. "
-                f"Para {self.distance}m: {opciones}."
-            )
+        # Construir la `Prueba` ES la validación. Ver `app/dominio/valores/prueba.py`.
+        Prueba(self.distance, self.stroke)
         return self
 
 
@@ -81,12 +77,8 @@ class SeasonRequest(BaseModel):
 
     @model_validator(mode="after")
     def _valid_event(self) -> SeasonRequest:
-        if not is_valid_event(self.distance, self.stroke):
-            opciones = ", ".join(allowed_strokes(self.distance))
-            raise ValueError(
-                f"{self.distance}m {self.stroke} no es una prueba válida. "
-                f"Para {self.distance}m: {opciones}."
-            )
+        # Construir la `Prueba` ES la validación. Ver `app/dominio/valores/prueba.py`.
+        Prueba(self.distance, self.stroke)
         return self
 
 
