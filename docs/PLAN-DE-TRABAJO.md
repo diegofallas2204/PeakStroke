@@ -1236,55 +1236,91 @@ el código de estado que devuelve.
 
 ---
 
-## C4 · Fusionar los dos motores — 🟡 EN CURSO (2026-08-17)
+## C4 · Fusionar los dos motores — ✅ HECHO (2026-08-17)
 
 > **Este es el bloque peligroso. Rama propia. Requiere A0 hecho.**
 
-### Dónde va (rama `refactor/motor-unico`, 4 commits)
+### Cómo quedó (rama `refactor/motor-unico`, 6 commits)
 
-**Hecho, y sin mover un solo número** — 907 tests y los cuatro snapshots
-idénticos en cada paso:
+**Hay un solo motor y vive en el dominio.** `app/domain/` se borró entero y de
+`app/engine/` solo quedan `aerobic.py` (el análisis del test, que no es motor) y
+`time_utils.py` (formato).
 
-| # | Paso | Qué quedó |
+```
+app/dominio/servicios/
+├── tablas.py       las constantes que no son de ningún objeto de valor
+├── curvas.py       Curva (Strategy) + Cientifica · Sigmoide · Lineal · Exp · Log
+├── envolvente.py   techo I_max, pico de una semana, Factibilidad
+├── kilometraje.py  reparto normalizado + mezcla por zonas + banda de aviso
+├── zonas.py        ritmo y salida de cada zona
+├── intervalos.py   la pizarra: trabajo, descanso y salida por zona
+├── plan.py         generar · extender · recalcular desde un tiempo real
+├── temporada.py    N macrociclos encadenados
+└── motor.py        MotorCientifico — la fachada, la única puerta
+```
+
+Ninguno pasa de 250 líneas. Seis consumidores hablan con él: `plans/roster`,
+`plans/service`, `plans/weeks`, `dashboard/service`, `simulator/router` y
+`aerobic_tests/intervals`.
+
+| # | Paso | Números movidos |
 |---|---|---|
-| 1 | Constantes a una sola declaración | `dominio/servicios/tablas.py`; `domain/` y `engine/` solo tienen alias |
-| 2 | La curva, patrón Strategy | `curvas.py`: `Curva` + las cinco, cada una con su clave, etiqueta y parámetro |
-| 3 | **El motor** | `envolvente.py` · `kilometraje.py` · `zonas.py` · `plan.py` · `temporada.py` + `MotorCientifico` de fachada |
-| 4 | Partir por debajo de 300 líneas | ningún archivo del motor pasa de 250 |
+| 1 | Constantes a una sola declaración | ninguno |
+| 2 | La curva, patrón Strategy | ninguno (salvo la clave desconocida, ver abajo) |
+| 3 | El motor: envolvente · kilometraje · zonas · plan · temporada | ninguno |
+| 4 | Partir por debajo de 300 líneas | ninguno |
+| 5 | Borrar `app/domain/` y los adaptadores de `app/engine/` | ninguno |
+| 6 | Defecto 1 de R6: el nivel sale del test | **sí, y aprobado** |
 
-`engine/envelope`, `feasibility`, `km_distribution`, `zones`, `curves` y
-`progression` son ya **adaptadores de firma**: traducen `WeekEntry` ↔
-`SemanaGenerada` y no calculan nada (764 → 348 líneas). El endpoint de temporada
-del simulador llama al motor, así que **`ScienceEngine` no entra en la
-aplicación por ninguna puerta**: solo lo sostienen sus tests y su snapshot.
+**Lo que hace fiable el refactor no es que los tests pasen: es que los tres
+snapshots que sobreviven son los MISMOS ARCHIVOS que generaron los motores
+viejos.** No se regeneró ninguno; el runner traduce las claves del dataclass
+nuevo para que el JSON siga siendo comparable. Un snapshot regenerado no
+demuestra nada.
 
-Dos reglas más dejaron de estar duplicadas de rebote: `Perfil.para_distancia`
-(la tenían `profile_for_event` y `Prueba.perfil_sugerido`) y los ratios de
-descanso, que ya solo viven en `valores.Zona`.
+### Los tres defectos de R6
 
-### Lo que falta para cerrar C4
+**Dos se cerraron al borrar `ScienceEngine`**, y está medido: la última semana
+vuelve a ser descarga (10.6 vs 23.6 km, defecto 2) y la onda 3:1 se cuenta
+dentro del microciclo y no sobre la semana absoluta (defecto 3). Los dos vivían
+solo en el motor que no corría en producción.
 
-1. **Mover los seis consumidores al motor** (`plans/roster`, `plans/service`,
-   `plans/weeks`, `dashboard/service`, `simulator/router`,
-   `aerobic_tests/intervals`) y **borrar** `app/domain/` y los adaptadores de
-   `app/engine/`, con sus tests y el snapshot `motor_science.json` — que congela
-   un camino que dejará de existir. `send_off.py`, `aerobic.py` y `time_utils.py`
-   no entran en C4.
-2. **Los tres arreglos de R6**, uno a uno y con su diff delante: el acantilado de
-   `classify_level`, el taper invertido y la onda 3:1 desfasada. **Mueven números
-   de planes vivos**, así que van al final y con visto bueno caso a caso.
-3. **Decidir R7**: `progression_curve` fuera de la tabla `plans` choca con «el
-   contrato del API no cambia» de este mismo bloque. Recomendación: dejar la
-   columna aquí (el motor ya recibe la curva por firma, que es lo que R7 pide de
-   verdad) y sacarla en un bloque propio con su migración.
+**El tercero se arregló**: `Nivel` se estimaba del ritmo de carrera, pero su
+tabla está calibrada para un umbral MEDIDO, así que una décima cambiaba el
+nivel y con él todo lo que cuelga (`2:10.40 → elite`, `2:10.50 → competitive`,
+techo +1.86 s). Ahora manda `AthletePlan.aerobic_base` cuando existe, y sin test
+se cae a la estimación. Con test, esas dos décimas se separan −0.10 s: la
+diferencia real. Mueve planes NUEVOS y recálculos; el `expected_time` guardado
+no se toca, así que ningún atleta ve cambiar su plan en curso.
 
-### Un cambio de comportamiento ya introducido, pendiente de visto bueno
+### Dos cambios de comportamiento, los dos aprobados
 
-Una clave de curva **desconocida** caía antes en la lineal (el `return x` final
-de la cadena de `if`) y ahora cae en la científica. `plans.progression_curve` es
-texto libre en el esquema, así que una errata daba en silencio la curva que R7
-midió como la que más cambia el veredicto del atleta. Ningún test lo cubría; se
-revierte en una línea de `Curva.desde_clave`.
+1. Una clave de curva **desconocida** caía en la lineal (el `return x` final de
+   la cadena de `if`) y ahora cae en la científica. `progression_curve` es texto
+   libre, así que una errata daba en silencio la curva que R7 midió como la que
+   más cambia el veredicto del atleta.
+2. El nivel desde el test aeróbico, arriba.
+
+### Lo que NO entró, y por qué
+
+**R7 — `progression_curve` fuera de la tabla `plans`.** Choca con «el contrato
+del API no cambia» de este mismo bloque: quitar la columna toca migración,
+`PlanCreate`, `PlanResponse` y el desplegable del wizard. El motor ya recibe la
+curva por firma, que es lo que R7 pide de verdad; **sacarla de la tabla queda
+como bloque propio con su migración**.
+
+### Los tests: 907 → 822
+
+| Cambio | Δ | Por qué |
+|---|---|---|
+| `motor_science.json` retirado | −61 | congelaba un algoritmo que la fusión absorbió |
+| pines de `test_valores_vs_motor.py` | −14 | comparaban `valores/` contra copias que ya no existen |
+| `test_reglas_unicas.py` | −3 | el tope de extensión ya no puede declararse dos veces |
+| `test_domain_engine.py` → `test_motor_cientifico.py` | −10 | caen los asserts sobre la forma de `PlanResult` |
+| tests del nivel desde el test aeróbico | +8 | nuevos |
+
+`test_engine.py`, `test_send_off.py` y `test_entidades_vs_motor.py` conservan sus
+37, 24 y 10 tests: solo cambió a quién preguntan.
 
 ### Qué pasa
 
