@@ -155,7 +155,7 @@ peakstroke/
   infraestructura. Se puede ajustar, versionar y testear sin levantar nada.
 - **Router sin lógica**: los endpoints reciben, delegan al service y retornan.
 - **Una responsabilidad por archivo**, ningún archivo >300 líneas.
-- **Fuente de verdad única**: zonas en `engine/zones.py`, catálogos UI en
+- **Fuente de verdad única**: zonas en `dominio/servicios/zonas.py`, catálogos UI en
   `lib/constants.ts`.
 
 ### API (REST, versionada `/api/v1`)
@@ -252,9 +252,9 @@ Del documento `macrociclos_natacion_investigacion.pdf`:
 | Periodización y fases | Matveyev (1964), Bompa & Haff (2009) | Fases por defecto Base/Construcción/Pico/Descenso |
 | Supercompensación 3:1 | Bompa & Haff (2009) | Onda de microciclo en `km_distribution.py` |
 | Taper 40–60% de volumen | Mujika | Envolvente final del kilometraje |
-| Distribución por especialidad | Seiler (2010), Issurin (2008) | `SPECIALTY_ZONE_MIX` en `engine/zones.py` |
+| Distribución por especialidad | Seiler (2010), Issurin (2008) | `MEZCLA_DE_ZONAS_POR_ESPECIALIDAD` en `dominio/servicios/tablas.py` |
 | Dominio aeróbico por prueba | Gastin (2001), Maglischo (2011) | `AEROBIC_RATIO` del análisis de factibilidad |
-| Factores de zona por distancia | Calculadora de entrenadores (Excel) | `engine/zones.py` (tabla §2.1) |
+| Factores de zona por distancia | Calculadora de entrenadores (Excel) | `dominio/valores/zona.py` (`factores_de_zona`) |
 
 ---
 

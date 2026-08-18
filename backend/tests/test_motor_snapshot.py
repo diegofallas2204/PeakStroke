@@ -9,10 +9,21 @@ representativos, y falla diciendo qué caso y qué campo cambió.
 
 Un fichero de referencia por camino, porque un diff mezclado no se lee:
 
-  · `engine.progression.generate_plan`        → `snapshots/motor_progression.json`
-  · `engine.progression.recalculate_remaining`→ `snapshots/motor_recalculo.json`
-  · `domain.ScienceEngine.generate_plan`      → `snapshots/motor_science.json`
-  · `domain.ScienceEngine.project_season`     → `snapshots/motor_temporada.json`
+  · `MotorCientifico.generar_plan`        → `snapshots/motor_progression.json`
+  · `MotorCientifico.recalcular_desde`    → `snapshots/motor_recalculo.json`
+  · `MotorCientifico.proyectar_temporada` → `snapshots/motor_temporada.json`
+
+**Los archivos de referencia no se han tocado en la fusión** (C4): los tres
+caminos que quedan siguen comparándose contra el JSON que se generó con los
+motores viejos, y por eso el `_en_ingles` de abajo traduce las claves del
+dataclass nuevo. Un snapshot regenerado no demuestra nada; uno que sobrevive a
+la reescritura del motor, sí.
+
+El cuarto camino era `ScienceEngine.generate_plan` (`motor_science.json`) y se
+retiró **con su algoritmo**: la fusión lo absorbió, así que congelaba una salida
+que ya no puede producirse. Lo que de él sobrevive —la forma F_FASE, la
+extensión a ritmo seguro y el techo— lo cubren los otros tres caminos,
+`test_engine.py` y `test_reglas_unicas.py`.
 
 `ScienceEngine.generate_plan` no recibe `curve` ni `total_weeks` (siempre 15
 semanas + curva F_FASE), así que los casos que solo varían en esos dos ejes
@@ -62,9 +73,8 @@ from motor_casos import (
     SeasonCase,
 )
 
-from app.domain import ScienceEngine
-from app.engine.envelope import level_for
-from app.engine.progression import generate_plan, recalculate_remaining
+from app.dominio.servicios.envolvente import nivel_de
+from app.dominio.servicios.motor import MOTOR
 
 SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
 UPDATE_ENV = "PEAKSTROKE_UPDATE_SNAPSHOTS"
@@ -74,13 +84,33 @@ MAX_DIFF_LINES = 12     # diferencias que se enseñan antes de resumir
 
 # ── Ejecución de cada camino del motor ───────────────────────────────────────
 
-def _run_progression(case: Case) -> dict[str, Any]:
-    weeks = generate_plan(
+# El JSON de referencia se escribió con los nombres del `WeekEntry` viejo. La
+# fusión cambió el dataclass, no los números, así que se traduce aquí en vez de
+# regenerar el archivo: mantenerlo intacto es lo que hace que el snapshot
+# demuestre algo.
+_CLAVES_EN_INGLES = {
+    "numero": "week_number", "fecha": "week_date", "tiempo_esperado": "expected_time",
+    "ritmo_100": "pace_100m", "km": "planned_km", "fase": "phase",
+    "mejora_vs_anterior": "improvement_vs_prev",
+    "mejora_acumulada": "cumulative_improvement",
+    "zonas": "zones", "deshabilitada": "disabled",
+}
+
+
+def _en_ingles(semana) -> dict[str, Any]:
+    return {_CLAVES_EN_INGLES[k]: v for k, v in asdict(semana).items()}
+
+
+def _plan(case: Case):
+    return MOTOR.generar_plan(
         case.distance, case.current_time, case.goal_time, case.total_weeks,
-        case.total_km, case.curve, START_DATE, stroke=case.stroke, pool=case.pool,
-        n_mac=case.n_mac, age=case.age,
+        case.total_km, case.curve, START_DATE, estilo=case.stroke, piscina=case.pool,
+        n_mac=case.n_mac, edad=case.age,
     )
-    return {"entrada": case.entrada(), "semanas": [asdict(w) for w in weeks]}
+
+
+def _run_progression(case: Case) -> dict[str, Any]:
+    return {"entrada": case.entrada(), "semanas": [_en_ingles(s) for s in _plan(case)]}
 
 
 def _run_recalculo(case: RecalcCase) -> dict[str, Any]:
@@ -90,35 +120,41 @@ def _run_recalculo(case: RecalcCase) -> dict[str, Any]:
     `from_week` deben quedar intactas, y eso también es comportamiento a congelar.
     """
     base = case.base
-    weeks = generate_plan(
-        base.distance, base.current_time, base.goal_time, base.total_weeks,
-        base.total_km, base.curve, START_DATE, stroke=base.stroke, pool=base.pool,
-        n_mac=base.n_mac, age=base.age,
+    weeks = MOTOR.recalcular_desde(
+        _plan(base), desde_semana=case.from_week, tiempo_ancla=case.anchor_time,
+        tiempo_meta=base.goal_time, curva=base.curve, distancia=base.distance,
+        deshabilitadas=set(case.disabled), estilo=base.stroke, piscina=base.pool,
+        n_mac=base.n_mac, edad=base.age,
     )
-    weeks = recalculate_remaining(
-        weeks, from_week=case.from_week, anchor_time=case.anchor_time,
-        goal_time=base.goal_time, curve=base.curve, distance=base.distance,
-        disabled_weeks=set(case.disabled), stroke=base.stroke, pool=base.pool,
-        n_mac=base.n_mac, age=base.age,
-    )
-    return {"entrada": case.entrada(), "semanas": [asdict(w) for w in weeks]}
+    return {"entrada": case.entrada(), "semanas": [_en_ingles(s) for s in weeks]}
 
 
-def _run_science(case: Case) -> dict[str, Any]:
-    plan = ScienceEngine().generate_plan(
-        current_time=case.current_time, goal_time=case.goal_time,
-        distance=case.distance, stroke=case.stroke, pool=case.pool,
-        start_date=START_DATE, n_mac=case.n_mac, age=case.age,
-    )
-    return {"entrada": case.entrada(), "plan": asdict(plan)}
+_CLAVES_DE_TEMPORADA = {
+    "nivel": "level", "n_macros": "n_macros", "inicio": "season_start",
+    "fin": "season_end", "mejora_s": "season_improvement_s",
+    "mejora_pct": "season_improvement_pct", "rango_bajo_pct": "annual_low_pct",
+    "rango_alto_pct": "annual_high_pct", "veredicto": "verdict", "mensaje": "message",
+    "macros": "macros",
+}
+_CLAVES_DE_MACRO = {
+    "n_mac": "n_mac", "tiempo_inicial": "start_time", "tiempo_final": "end_time",
+    "mejora_s": "improvement_s", "mejora_pct": "improvement_pct",
+}
 
 
 def _run_temporada(case: SeasonCase) -> dict[str, Any]:
-    season = ScienceEngine().project_season(
-        current_time=case.current_time, distance=case.distance, stroke=case.stroke,
-        pool=case.pool, profile=case.profile, age=case.age, n_macros=case.n_macros,
+    proyeccion = MOTOR.proyectar_temporada(
+        case.current_time, case.distance, n_macros=case.n_macros,
+        edad=case.age, perfil=case.profile,
     )
-    return {"entrada": case.entrada(), "temporada": asdict(season)}
+    crudo = asdict(proyeccion)
+    crudo["macros"] = [
+        {_CLAVES_DE_MACRO[k]: v for k, v in m.items()} for m in crudo["macros"]
+    ]
+    return {
+        "entrada": case.entrada(),
+        "temporada": {_CLAVES_DE_TEMPORADA[k]: v for k, v in crudo.items()},
+    }
 
 
 @dataclass(frozen=True)
@@ -137,7 +173,6 @@ class Suite:
 SUITES: dict[str, Suite] = {
     "progression": Suite("motor_progression.json", PLAN_CASES, _run_progression),
     "recalculo": Suite("motor_recalculo.json", RECALC_CASES, _run_recalculo),
-    "science": Suite("motor_science.json", PLAN_CASES, _run_science),
     "temporada": Suite("motor_temporada.json", SEASON_CASES, _run_temporada),
 }
 CASOS = [(name, cid) for name, s in SUITES.items() for cid in s.case_ids]
@@ -222,7 +257,7 @@ class TestCatalogo:
     def test_los_casos_cubren_los_cinco_niveles(self) -> None:
         """Cada tiempo congelado sigue clasificando en el nivel que dice cubrir."""
         for case_id, distance, current_time, level in LEVEL_CLAIMS:
-            assert level_for(distance, current_time) == level, case_id
+            assert nivel_de(distance, current_time).value == level, case_id
 
     @pytest.mark.parametrize("suite", SUITES)
     def test_los_ids_de_caso_son_unicos(self, suite: str) -> None:

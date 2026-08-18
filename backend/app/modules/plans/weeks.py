@@ -14,8 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dates import age_at
 from app.core.dependencies import Principal
-from app.engine import progression
-from app.engine.zones import calc_zones, zone_km_distribution
+from app.dominio.servicios.kilometraje import km_por_zona
+from app.dominio.servicios.motor import MOTOR, SemanaGenerada
 
 # Lectura explícita de un modelo de otro módulo (permitido por las reglas del
 # proyecto). No se importa lógica ajena.
@@ -37,7 +37,7 @@ async def event_weeks_response(db: AsyncSession, event: AthleteEvent) -> list[We
         pace = effective / (event.distance / 100)
         status = diff_s = diff_p = None
         if w.real_time is not None:
-            status = progression.performance_status(w.real_time, w.expected_time)
+            status = MOTOR.estado_de_rendimiento(w.real_time, w.expected_time)
             diff_s = round(w.real_time - w.expected_time, 2)
             diff_p = round((w.real_time - w.expected_time) / w.expected_time * 100, 2)
         result.append(WeekResponse(
@@ -45,8 +45,8 @@ async def event_weeks_response(db: AsyncSession, event: AthleteEvent) -> list[We
             date_label=w.week_date.strftime("%d/%m"),
             planned_km=w.planned_km, expected_time=w.expected_time,
             recalc_time=w.recalc_time, pace_100m=round(pace, 2),
-            zones=calc_zones(pace, event.distance, event.stroke, pool),
-            zone_km=zone_km_distribution(w.planned_km, distance=event.distance, specialty=specialty),
+            zones=MOTOR.zonas(pace, event.distance, event.stroke, pool),
+            zone_km=km_por_zona(w.planned_km, distancia=event.distance, especialidad=specialty),
             real_time=w.real_time, status=status,
             diff_seconds=diff_s, diff_percent=diff_p,
             phase=w.phase, disabled=w.disabled, disable_reason=w.disable_reason,
@@ -110,22 +110,26 @@ async def _recalculate_event(db: AsyncSession, event: AthleteEvent) -> None:
     plan = event.athlete_plan.plan
     swimmer = await db.get(Swimmer, event.athlete_plan.swimmer_id)
     age = age_at(swimmer.birth_date, plan.start_date) if swimmer else None
-    entries = [
-        progression.WeekEntry(
-            week_number=w.week_number, week_date=w.week_date,
-            expected_time=w.expected_time, pace_100m=0.0, planned_km=w.planned_km,
-            phase=w.phase, improvement_vs_prev=0.0, cumulative_improvement=0.0,
+    entradas = [
+        SemanaGenerada(
+            numero=w.week_number, fecha=w.week_date,
+            tiempo_esperado=w.expected_time, ritmo_100=0.0, km=w.planned_km,
+            fase=w.phase, mejora_vs_anterior=0.0, mejora_acumulada=0.0,
         )
         for w in weeks
     ]
-    progression.recalculate_remaining(
-        entries, from_week=anchor_week + 1, anchor_time=float(anchor_time),
-        goal_time=event.goal_time, curve=plan.progression_curve,
-        distance=event.distance, disabled_weeks=disabled, stroke=event.stroke,
-        pool=plan.pool, n_mac=plan.n_mac, age=age,
+    MOTOR.recalcular_desde(
+        entradas, desde_semana=anchor_week + 1, tiempo_ancla=float(anchor_time),
+        tiempo_meta=event.goal_time, curva=plan.progression_curve,
+        distancia=event.distance, deshabilitadas=disabled, estilo=event.stroke,
+        piscina=plan.pool, n_mac=plan.n_mac, edad=age,
+        # Misma clasificación que al generar el plan: si el recálculo derivara
+        # el nivel del ritmo mientras el alta lo tomó del test, el mismo atleta
+        # tendría dos niveles según por qué puerta se entre.
+        base_aerobica=event.athlete_plan.aerobic_base,
     )
-    recalc_map = {e.week_number: e.expected_time for e in entries
-                  if e.week_number > anchor_week}
+    recalc_map = {e.numero: e.tiempo_esperado for e in entradas
+                  if e.numero > anchor_week}
     for w in weeks:
         w.recalc_time = recalc_map.get(w.week_number)
     await db.commit()

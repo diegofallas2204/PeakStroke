@@ -38,10 +38,11 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
 ## Reglas de código (NO negociables)
 - Toda feature backend nueva: `backend/app/modules/<feature>/` con models.py / schemas.py / service.py / router.py
 - `router.py` nunca tiene lógica de negocio — recibe, delega al service, retorna
-- El motor científico vive en `backend/app/domain/` (port verbatim del sandbox, FUENTE DE VERDAD). `backend/app/engine/` lo adapta a los consumidores (zones, feasibility, progression). Ambos son funciones puras: jamás importan DB ni modelos
-- **`backend/app/dominio/` es el rediseño POO y no importa NADA** — ni infraestructura, ni `modules/`, ni `core/`, **ni `app/domain/`**. Lo comprueba `tests/test_entidades.py` al revés: todo import absoluto tiene que ser de la biblioteca estándar. Hoy tiene `valores/` (paso 1, 2026-08-16): `Tiempo`·`Duracion`·`Ritmo`·`Mejora`, `Prueba`·`Estilo`·`Piscina`, `Zona`·`Prescripcion`·`JuegoDeZonas` y las diez escalas, todos `frozen=True, slots=True`; y `entidades/` (paso 2, 2026-08-16): `Atleta`, `Macrociclo`·`FaseDelMacro`·`Competencia`, `TestAerobico`·`Parcial`. Las entidades son mutables y **se comparan por `id`, no por valor** (`base.PorIdentidad`): dos atletas homónimos son dos personas; y `roles/` (paso 3, 2026-08-17): `Rol` abstracto con `Administrador`·`EntrenadorEnJefe`·`Entrenador`·`AtletaRol`, objetos **sin estado** que contestan `puede_ver`/`puede_escribir`/`alcance_de_atletas`/`alcance_de_macrociclos`/`secciones_visibles`
+- **El motor científico es UNO y vive en `backend/app/dominio/servicios/`** (paso 4 del rediseño, 2026-08-17): `MotorCientifico` (fachada) sobre `tablas` · `curvas` · `envolvente` · `kilometraje` · `zonas` · `plan` · `temporada`. Funciones puras que no importan nada de fuera, como el resto de `dominio/`.
+  Lo que decía este bullet —«`app/domain/` es la FUENTE DE VERDAD y `app/engine/` lo adapta»— **era falso**: `ScienceEngine.generate_plan()` solo corría en los tests y los planes que se guardaban salían de `app/engine/progression.py`. Dos algoritmos que compartían las tablas pero no el cálculo, y por eso divergieron tres veces. **`app/domain/` ya no existe**, y de `app/engine/` solo quedan `aerobic.py` (análisis del test, que no es motor) y `time_utils.py` (formato)
+- **`backend/app/dominio/` es el rediseño POO y no importa NADA** — ni infraestructura, ni `modules/`, ni `core/`. Lo comprueba `tests/test_entidades.py` al revés: todo import absoluto tiene que ser de la biblioteca estándar. Hoy tiene `valores/` (paso 1, 2026-08-16): `Tiempo`·`Duracion`·`Ritmo`·`Mejora`, `Prueba`·`Estilo`·`Piscina`, `Zona`·`Prescripcion`·`JuegoDeZonas` y las diez escalas, todos `frozen=True, slots=True`; y `entidades/` (paso 2, 2026-08-16): `Atleta`, `Macrociclo`·`FaseDelMacro`·`Competencia`, `TestAerobico`·`Parcial`. Las entidades son mutables y **se comparan por `id`, no por valor** (`base.PorIdentidad`): dos atletas homónimos son dos personas; `roles/` (paso 3, 2026-08-17): `Rol` abstracto con `Administrador`·`EntrenadorEnJefe`·`Entrenador`·`AtletaRol`, objetos **sin estado** que contestan `puede_ver`/`puede_escribir`/`alcance_de_atletas`/`alcance_de_macrociclos`/`secciones_visibles`; y `servicios/` (paso 4, 2026-08-17): el motor científico **único** — `MotorCientifico` de fachada sobre `tablas`·`curvas`·`envolvente`·`kilometraje`·`zonas`·`plan`·`intervalos`·`temporada`
 - **La entidad se construye desde la fila; no la envuelve.** La traducción vive en `backend/app/persistencia/mapeo/`, del lado de fuera (`api → persistencia → dominio`, y el dominio no apunta a nada). Un envoltorio con la instancia del ORM dentro escribiría en la sesión al mutarse —dejando sin trabajo a los repositorios del paso 5— y se podría construir alrededor de cualquier fila, que es justo lo que rompe la invariante del `TestAerobico`
-- **Las funciones que las entidades sustituyen se quedan como envoltorio y se vacían después**: `core/dates.age_at` → `Atleta.edad_en()`, `engine/progression.monday_of` → `macrociclo.lunes_de()`, `plans/service.current_week_of` y `effective_status` → `Macrociclo`. Ninguna conserva ya su copia de la regla
+- **Las funciones que las entidades sustituyen se quedan como envoltorio y se vacían después**: `core/dates.age_at` → `Atleta.edad_en()`, `plans/service.current_week_of` y `effective_status` → `Macrociclo`. Ninguna conserva ya su copia de la regla
 - **`Tiempo` es siempre positivo; lo que puede valer 0 o menos es una `Duracion`** — un nado frente a un instante, un hueco o un descanso. La salida de la primera repetición es 0 y el descanso perdido es negativo, así que mezclarlos hacía inconstruible el primer parcial de cualquier serie. Restar dos `Tiempo` da una `Mejora` (rendimiento); restar dos instantes es `Tiempo.diferencia()` (reloj). Y `Mejora.base` lleva su unidad (`Tiempo | Ritmo`): con un `float`, una mejora de ritmo salía convertida en un tiempo absoluto
 - **La validez de una prueba es del constructor de `Prueba`, no de una función.** `Prueba(50, "combinado")` levanta `ValueError` y ese es el mensaje del 422; `app/engine/events.py` ya no existe. Mientras la regla convivía con las tablas del motor viejo, `tests/test_valores_vs_motor.py` compara cada tabla nueva **contra la fuente viva** — no contra números tecleados. Al retirar una copia vieja, su pin se borra con ella
 - Módulos no se importan entre sí salvo lecturas explícitas de modelos; nunca lógica cruzada
@@ -53,10 +54,10 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
 - `pace_100m` es la unidad central de todos los cálculos de zonas
 - Zonas ancladas al RITMO DE CARRERA × factor[perfil][distancia] (+ corrección de
   estilo, × factor piscina), calibradas con el pool nacional. Fuente de verdad:
-  `backend/app/domain/engine.py` (`ZONE_OVER_RACE`); `engine/zones.py` lo adapta a
-  la forma {min,mid,max} que consume el frontend
-- **Una prescripción son DOS números: el ritmo y la salida.** `calc_zones`
-  devuelve además `send_off` y `rest` por zona (`engine/send_off.py`), así que la
+  `dominio/valores/zona.py` (`factores_de_zona`), y quien las calcula es
+  `MotorCientifico.zonas()`, en la forma {min,mid,max} que consume el frontend
+- **Una prescripción son DOS números: el ritmo y la salida.** `MotorCientifico.zonas()`
+  devuelve además `send_off` y `rest` por zona (ratios y topes en `valores.Zona`), así que la
   mitad que faltaba llega sola a la tabla del equipo y al plan semanal. El
   descanso es un ratio sobre el trabajo que crece con la intensidad (R1 0.08 →
   V 3.50, con topes en segundos), y la salida se redondea **hacia arriba** al
@@ -80,13 +81,22 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
   sigue siendo el ancla temporal. (Antes la regla era "solo fechas, nunca semana";
   cambiada 2026-06-24 por legibilidad — ver simulador `SimulatorPage` `renderWeekTick`.)
 - La curva ideal (`expected_time`) nunca se modifica; los recálculos van en `recalc_time`
+- **El nivel del atleta sale de su test aeróbico cuando lo hay** (`AthletePlan.aerobic_base`),
+  y solo si no lo hay se estima desde el ritmo de carrera. La tabla de niveles está
+  calibrada para un umbral medido de 400/1500: alimentarla con el ritmo de un 200 deja
+  un borde de una décima que cambia el volumen prescrito un 45 % (defecto 1 de §10.4,
+  cerrado el 2026-08-17). El alta en el macrociclo y el recálculo pasan los dos el
+  mismo dato — si solo lo pasara uno, el atleta tendría dos niveles según la puerta
 - **Curva de progresión por defecto = `"science"`** (distribución F_FASE, back-loaded,
-  pico en taper). Fuente única: `domain/engine.py::science_curve_progress`, expuesta
-  vía `engine/curves.py`. Sigmoide/exp/log/lineal solo comparan escenarios. La mejora
+  pico en taper). Fuente única: `dominio/servicios/curvas.py::Cientifica`, que
+  deriva sus tramos de `MACRO_15_FASES` y `Fase.f_fase`. Sigmoide/exp/log/lineal
+  solo comparan escenarios —pero **cambian el veredicto que ve el atleta**: el
+  mismo nado sale `AHEAD` con la científica y `BEHIND` con la exponencial—. La mejora
   por MACROCICLO (`I_max × N/5`) ≠ la anual: la temporada son ~3 macros encadenados
   con degradación `MACROCYCLE_DEGRADATION = 0.60`. Validado en notas 16/17 del vault
-- **Proyección anual**: `ScienceEngine.project_season()` (3 macros) → `POST
-  /api/v1/simulator/season`. Usa el motor de dominio directamente, no adaptadores
+- **Proyección anual**: `MOTOR.proyectar_temporada()` (3 macros) → `POST
+  /api/v1/simulator/season`. Estilo y piscina no entran: solo lee el techo
+  realista de cada macro, que es de la distancia y el nivel
 
 ## Identidad y roles (backend completo 2026-08-07)
 - `PEAKSTROKE_AUTH_ENABLED=false` por defecto: **la app no pide login**. Toda

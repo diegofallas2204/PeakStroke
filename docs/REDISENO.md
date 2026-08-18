@@ -860,7 +860,7 @@ El resto son renombres de columna y `CheckConstraint` añadidos.
 | 1 | `dominio/valores/` completo — **✅ HECHO 2026-08-16** | bajo | P6, P2 | sí |
 | 2 | Entidades ricas (`Atleta`, `Macrociclo`, `TestAerobico`) — **✅ HECHO 2026-08-16** | bajo | P4 | sí |
 | 3 | `Rol` + subclases; `Principal` compone — **✅ HECHO 2026-08-17** | bajo | — | sí |
-| 4 | **Fusión de los dos motores** | **medio-alto** | P1, P3 | rama propia |
+| 4 | **Fusión de los dos motores** — **✅ HECHO 2026-08-17** (rama `refactor/motor-unico`) | **medio-alto** | P1, P3 | rama propia |
 | 5 | `persistencia/repositorios/` + recorte de imports cruzados | medio | P5 | sí |
 | 6 | `Resultado` + migración de `real_time` | medio | §5.10 | sí |
 | 7 | `Sesion` (R1: **`Serie` fuera**) | medio | el hueco de fondo | sí |

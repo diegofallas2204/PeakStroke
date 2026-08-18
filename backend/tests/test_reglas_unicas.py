@@ -12,22 +12,25 @@ Divergencia 1 — estilos válidos por distancia. Fuente única:
 `lib/constants.ts` para filtrar la interfaz; el backend es quien rechaza).
 
 Divergencia 2 — tope de semanas de extensión. Fuente única:
-`app.domain.MAX_EXTENSION_WEEKS`, que `app.engine.feasibility` importa.
+`app.dominio.servicios.tablas.MAX_SEMANAS_EXTENSION`. Hasta la fusión de motores
+(C4) había que comprobar que las **dos** implementaciones capaban en el mismo
+número; hoy hay una sola, así que lo que se comprueba es que el número que lee
+el entrenador (`factibilidad`) y las filas que ve (`generar_extension`) siguen
+cuadrando.
 """
 from __future__ import annotations
 
-import ast
 import importlib.util
-import inspect
 import math
+from datetime import date
 
 import pytest
 
-import app.domain.engine as domain_engine
-import app.engine.feasibility as feasibility
-from app.domain import MAX_EXTENSION_WEEKS, ScienceEngine
+import app.dominio.servicios.envolvente as envolvente
+from app.dominio.servicios.envolvente import envolvente_de, factibilidad
+from app.dominio.servicios.motor import MOTOR
+from app.dominio.servicios.tablas import MAX_SEMANAS_EXTENSION
 from app.dominio.valores import Estilo, Prueba
-from app.engine.envelope import science_envelope
 
 
 class TestEstilosValidosFuenteUnica:
@@ -44,13 +47,12 @@ class TestEstilosValidosFuenteUnica:
             "espalda", "libre", "mariposa", "pecho",
         ]
 
-    def test_el_dominio_ya_no_define_la_regla(self):
-        # La copia de `domain/engine.py` daba el 50 combinado por válido y no
-        # estaba exportada: código muerto contradiciendo a la regla viva.
-        assert not hasattr(domain_engine, "allowed_strokes"), (
-            "Volvió a aparecer allowed_strokes en app/domain/engine.py: "
-            "la regla vive en app.dominio.valores.Prueba y solo ahí."
-        )
+    def test_el_motor_no_define_la_regla(self):
+        # La copia vivía en `domain/engine.py`, que la fusión borró. Que no
+        # reaparezca en el motor nuevo es la misma comprobación, un piso más
+        # arriba: la validez de una prueba es de `Prueba` y de nadie más.
+        assert not hasattr(envolvente, "allowed_strokes")
+        assert not hasattr(envolvente, "estilos_validos")
 
     def test_el_adaptador_tampoco_la_redefine(self):
         # `app/engine/events.py` se borró al migrar a `Prueba`. Que vuelva a
@@ -90,65 +92,41 @@ class TestTopeDeExtensionFuenteUnica:
 
     def _semanas_extra_honestas(self) -> int:
         """Semanas extra que harían falta de verdad, sin tope."""
-        env = science_envelope(self.DISTANCIA, self.ACTUAL, self.SEMANAS)
-        safe_rate = env.safe_total_s / self.SEMANAS
-        return math.ceil((env.realistic_ceiling - self.META) / safe_rate)
-
-    def test_feasibility_no_redeclara_el_tope(self):
-        # Comprobación estructural: comparar valores no basta, porque una copia
-        # nueva con el mismo número pasaría y volvería a divergir a la primera
-        # que alguien tocara uno de los dos.
-        arbol = ast.parse(inspect.getsource(feasibility))
-        redeclarado = [
-            nodo for nodo in arbol.body
-            if isinstance(nodo, ast.Assign)
-            and any(isinstance(t, ast.Name) and t.id == "MAX_EXTENSION_WEEKS"
-                    for t in nodo.targets)
-        ]
-        assert not redeclarado, (
-            "app/engine/feasibility.py volvió a declarar MAX_EXTENSION_WEEKS: "
-            "tiene que importarlo de app.domain, que es la única fuente."
+        env = envolvente_de(self.DISTANCIA, self.ACTUAL, self.SEMANAS)
+        return math.ceil(
+            (env.techo_realista - self.META) / env.ritmo_seguro_semanal_s(self.SEMANAS)
         )
-
-    def test_los_dos_motores_leen_el_mismo_valor(self):
-        assert feasibility.MAX_EXTENSION_WEEKS == MAX_EXTENSION_WEEKS
-        assert ScienceEngine.MAX_EXTENSION_WEEKS == MAX_EXTENSION_WEEKS
 
     def test_el_escenario_de_referencia_sigue_pasandose_del_tope(self):
         # Si la ciencia se recalibra y esta meta deja de desbordar el tope, los
         # dos tests de abajo dejarían de comprobar nada sin fallar. Este avisa.
-        assert self._semanas_extra_honestas() > MAX_EXTENSION_WEEKS
+        assert self._semanas_extra_honestas() > MAX_SEMANAS_EXTENSION
 
-    def test_feasibility_capa_en_el_tope(self):
-        res = feasibility.analyze_feasibility(
-            distance=self.DISTANCIA, stroke="libre", current_time=self.ACTUAL,
-            goal_time=self.META, total_weeks=self.SEMANAS,
-        )
-        assert res.status == "aggressive"
-        assert res.extension_weeks == MAX_EXTENSION_WEEKS
-        assert res.recommended_weeks == self.SEMANAS + MAX_EXTENSION_WEEKS
+    def _veredicto(self):
+        return factibilidad(self.DISTANCIA, self.ACTUAL, self.META, self.SEMANAS)
 
-    def test_el_dominio_capa_en_el_mismo_tope(self):
-        plan = ScienceEngine().generate_plan(
-            current_time=self.ACTUAL, goal_time=self.META,
-            distance=self.DISTANCIA, stroke="libre", pool="50",
-        )
-        extras = [w for w in plan.weeks if w.is_extension]
-        assert len(extras) == MAX_EXTENSION_WEEKS
-        assert plan.total_weeks == ScienceEngine.TOTAL_WEEKS + MAX_EXTENSION_WEEKS
+    def test_la_factibilidad_capa_en_el_tope(self):
+        res = self._veredicto()
+        assert res.estado == "aggressive"
+        assert res.semanas_extra == MAX_SEMANAS_EXTENSION
+        assert res.semanas_recomendadas == self.SEMANAS + MAX_SEMANAS_EXTENSION
 
-    def test_las_semanas_sugeridas_coinciden_con_el_plan_extendido(self):
+    def test_las_semanas_sugeridas_coinciden_con_las_filas_generadas(self):
         """El número que lee el entrenador y las filas que ve tienen que cuadrar.
 
         Esto es exactamente lo que la divergencia rompía: el simulador sugería
-        41 semanas (tope 26) mientras el motor extendía hasta 45 (tope 30).
+        41 semanas (tope 26) mientras el motor extendía hasta 45 (tope 30). Con
+        un solo motor las dos salidas nacen de la misma envolvente, y este test
+        fija que sigan naciendo de ahí.
         """
-        res = feasibility.analyze_feasibility(
-            distance=self.DISTANCIA, stroke="libre", current_time=self.ACTUAL,
-            goal_time=self.META, total_weeks=self.SEMANAS,
+        res = self._veredicto()
+        extension = MOTOR.generar_extension(
+            distancia=self.DISTANCIA, tiempo_actual=self.ACTUAL,
+            techo_realista=res.techo_realista, tiempo_meta=self.META,
+            ritmo_seguro=res.ritmo_seguro_semanal_s, n_extra=res.semanas_extra,
+            inicio=date(2026, 1, 5), semanas_del_macro=self.SEMANAS,
+            km_semanales=20.0,
         )
-        plan = ScienceEngine().generate_plan(
-            current_time=self.ACTUAL, goal_time=self.META,
-            distance=self.DISTANCIA, stroke="libre", pool="50",
-        )
-        assert res.recommended_weeks == plan.total_weeks
+        assert len(extension) == MAX_SEMANAS_EXTENSION
+        assert res.semanas_recomendadas == self.SEMANAS + len(extension)
+        assert extension[-1].numero == res.semanas_recomendadas

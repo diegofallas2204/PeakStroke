@@ -1236,9 +1236,91 @@ el código de estado que devuelve.
 
 ---
 
-## C4 · Fusionar los dos motores
+## C4 · Fusionar los dos motores — ✅ HECHO (2026-08-17)
 
 > **Este es el bloque peligroso. Rama propia. Requiere A0 hecho.**
+
+### Cómo quedó (rama `refactor/motor-unico`, 6 commits)
+
+**Hay un solo motor y vive en el dominio.** `app/domain/` se borró entero y de
+`app/engine/` solo quedan `aerobic.py` (el análisis del test, que no es motor) y
+`time_utils.py` (formato).
+
+```
+app/dominio/servicios/
+├── tablas.py       las constantes que no son de ningún objeto de valor
+├── curvas.py       Curva (Strategy) + Cientifica · Sigmoide · Lineal · Exp · Log
+├── envolvente.py   techo I_max, pico de una semana, Factibilidad
+├── kilometraje.py  reparto normalizado + mezcla por zonas + banda de aviso
+├── zonas.py        ritmo y salida de cada zona
+├── intervalos.py   la pizarra: trabajo, descanso y salida por zona
+├── plan.py         generar · extender · recalcular desde un tiempo real
+├── temporada.py    N macrociclos encadenados
+└── motor.py        MotorCientifico — la fachada, la única puerta
+```
+
+Ninguno pasa de 250 líneas. Seis consumidores hablan con él: `plans/roster`,
+`plans/service`, `plans/weeks`, `dashboard/service`, `simulator/router` y
+`aerobic_tests/intervals`.
+
+| # | Paso | Números movidos |
+|---|---|---|
+| 1 | Constantes a una sola declaración | ninguno |
+| 2 | La curva, patrón Strategy | ninguno (salvo la clave desconocida, ver abajo) |
+| 3 | El motor: envolvente · kilometraje · zonas · plan · temporada | ninguno |
+| 4 | Partir por debajo de 300 líneas | ninguno |
+| 5 | Borrar `app/domain/` y los adaptadores de `app/engine/` | ninguno |
+| 6 | Defecto 1 de R6: el nivel sale del test | **sí, y aprobado** |
+
+**Lo que hace fiable el refactor no es que los tests pasen: es que los tres
+snapshots que sobreviven son los MISMOS ARCHIVOS que generaron los motores
+viejos.** No se regeneró ninguno; el runner traduce las claves del dataclass
+nuevo para que el JSON siga siendo comparable. Un snapshot regenerado no
+demuestra nada.
+
+### Los tres defectos de R6
+
+**Dos se cerraron al borrar `ScienceEngine`**, y está medido: la última semana
+vuelve a ser descarga (10.6 vs 23.6 km, defecto 2) y la onda 3:1 se cuenta
+dentro del microciclo y no sobre la semana absoluta (defecto 3). Los dos vivían
+solo en el motor que no corría en producción.
+
+**El tercero se arregló**: `Nivel` se estimaba del ritmo de carrera, pero su
+tabla está calibrada para un umbral MEDIDO, así que una décima cambiaba el
+nivel y con él todo lo que cuelga (`2:10.40 → elite`, `2:10.50 → competitive`,
+techo +1.86 s). Ahora manda `AthletePlan.aerobic_base` cuando existe, y sin test
+se cae a la estimación. Con test, esas dos décimas se separan −0.10 s: la
+diferencia real. Mueve planes NUEVOS y recálculos; el `expected_time` guardado
+no se toca, así que ningún atleta ve cambiar su plan en curso.
+
+### Dos cambios de comportamiento, los dos aprobados
+
+1. Una clave de curva **desconocida** caía en la lineal (el `return x` final de
+   la cadena de `if`) y ahora cae en la científica. `progression_curve` es texto
+   libre, así que una errata daba en silencio la curva que R7 midió como la que
+   más cambia el veredicto del atleta.
+2. El nivel desde el test aeróbico, arriba.
+
+### Lo que NO entró, y por qué
+
+**R7 — `progression_curve` fuera de la tabla `plans`.** Choca con «el contrato
+del API no cambia» de este mismo bloque: quitar la columna toca migración,
+`PlanCreate`, `PlanResponse` y el desplegable del wizard. El motor ya recibe la
+curva por firma, que es lo que R7 pide de verdad; **sacarla de la tabla queda
+como bloque propio con su migración**.
+
+### Los tests: 907 → 822
+
+| Cambio | Δ | Por qué |
+|---|---|---|
+| `motor_science.json` retirado | −61 | congelaba un algoritmo que la fusión absorbió |
+| pines de `test_valores_vs_motor.py` | −14 | comparaban `valores/` contra copias que ya no existen |
+| `test_reglas_unicas.py` | −3 | el tope de extensión ya no puede declararse dos veces |
+| `test_domain_engine.py` → `test_motor_cientifico.py` | −10 | caen los asserts sobre la forma de `PlanResult` |
+| tests del nivel desde el test aeróbico | +8 | nuevos |
+
+`test_engine.py`, `test_send_off.py` y `test_entidades_vs_motor.py` conservan sus
+37, 24 y 10 tests: solo cambió a quién preguntan.
 
 ### Qué pasa
 

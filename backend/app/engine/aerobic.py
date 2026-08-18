@@ -13,7 +13,7 @@ que les corresponde; `send_off` es lo que hace posible la resta.
 
 De la salida sale además el descanso real de cada repetición, y de ahí la
 densidad del test: el dato que faltaba para prescribir los tiempos de
-entrenamiento (ver `engine/send_off.py`).
+entrenamiento (ver `dominio/servicios/intervalos.py`).
 """
 from __future__ import annotations
 

@@ -28,7 +28,7 @@ Prioridad: P1 = bloquea trabajo en curso · P2 = debería caer pronto · P3 = de
 >
 > **TODO-16 cerrado del todo el 2026-08-16**: `frontend/src/lib/types.ts` (446)
 > partido en `lib/types/` por módulo, con barril. Ningún archivo del proyecto
-> pasa ya de 300 líneas salvo `domain/engine.py`, que es excepción declarada.
+> pasa ya de 300 líneas: `domain/engine.py`, la última excepción, se disolvió en C4 (2026-08-17).
 >
 > **Abierto el 2026-08-10** (sesión de salida del test + alta por correo, **307
 > tests en verde**): TODO-17 y TODO-18, los dos aplazados a sabiendas por la
@@ -245,7 +245,7 @@ Tres decisiones del corte, por si hay que rehacerlo:
 
 | archivo | líneas | nota |
 |---|---:|---|
-| `backend/app/domain/engine.py` | 721 | **Excepción legítima**: port verbatim del sandbox, fuente de verdad. Se disuelve en C4 del rediseño, no aquí |
+| ~~`backend/app/domain/engine.py`~~ | ~~721~~ | **Borrado el 2026-08-17** en C4: se disolvió en `dominio/servicios/`, donde ningún archivo pasa de 250 líneas |
 
 ---
 
