@@ -62,7 +62,7 @@ vive el comportamiento. Seis hallazgos de la auditoría, en orden de gravedad:
 |---|---|---|
 | P1 | **Hay dos motores.** El que declara ser la fuente de verdad no corre en producción | `ScienceEngine.generate_plan()` solo se llama en tests; los planes reales salen de `engine/progression.py` |
 | P2 | **Ya divergieron.** Y son más de tres | ~~50 m combinado~~ y ~~`MAX_EXTENSION_WEEKS` (30/26)~~ cerradas en A1 el 2026-08-13; **siguen abiertas**: fases (5/4/4), clasificación de nivel, techo I_max, factibilidad, ritmo /100 del sprint, `ZONE_LABELS` |
-| P3 | **`Semana.phase` guarda una etiqueta de interfaz**, no una fase de dominio | la DB tiene `"Construcción"`; `F_FASE` se indexa por `base_especifica`. No se pueden cruzar |
+| P3 | **`Semana.phase` guarda una etiqueta de interfaz**, no una fase de dominio | la DB tiene `"Construcción"`; `F_FASE` se indexa por `base_especifica`. No se pueden cruzar. **SIGUE ABIERTO tras C4**: se esperaba que lo cerrara la fusión de motores y la fusión pasó sin tocarlo, porque no le hacía falta para conservar los números. Es el único hallazgo de §0 sin bloque asignado |
 | P4 | **Modelo anémico.** 14 modelos, 1 con comportamiento | reglas puras (`edad_at`, `current_week_of`, `effective_status`) huérfanas en `service.py` |
 | P5 | **El corte es por endpoint, no por concepto.** La regla "los módulos no se importan" ya está rota | `dashboard`, `aerobic_tests` y `link_codes` importan lógica de otros módulos |
 | P6 | **Obsesión por primitivos.** `(distancia, estilo, piscina)` viaja suelto; 8 columnas de tiempos son `float` mezclando dos unidades | de todo el esquema, solo `role` tiene `CheckConstraint` |

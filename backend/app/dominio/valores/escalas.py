@@ -43,9 +43,9 @@ class _EscalaTextual(Enum):
         raise ValueError(f"{cls.__name__} no reconocido: {valor!r}. Válidos: {validos}")
 
 
-# §2.4 — umbrales de clasificación por CSS (s/100 m), tabla de crol.
-# Fuente: `app.domain.engine.classify_level`. Se lee de arriba abajo: el primer
-# umbral que el ritmo NO supera manda.
+# §2.4 — umbrales de clasificación por CSS (s/100 m), tabla de crol. Se lee de
+# arriba abajo: el primer umbral que el ritmo NO supera manda. Única declaración
+# desde que C4 borró `app/domain/engine.classify_level`, que era la otra.
 _UMBRALES_DE_NIVEL: tuple[tuple[float, str], ...] = (
     (150.0, "beginner"),
     (120.0, "recreational"),
@@ -57,13 +57,13 @@ _UMBRALES_DE_NIVEL: tuple[tuple[float, str], ...] = (
 class Nivel(_EscalaTextual):
     """Nivel del atleta. **Siempre derivado**: no se escribe a mano ni se guarda.
 
-    `desde_umbral` recibe el ritmo de **umbral** (un CSS medido, o el ritmo de
-    carrera corregido por el factor MVO2 mientras no haya test). Quién calcula
-    ese umbral es una decisión del paso 4 del rediseño: hoy `envelope.level_for`
-    lo deriva del ritmo de un 200 con una tabla calibrada para un test de
-    400/1500, y por eso una décima de segundo cambia el volumen prescrito un 45 %
-    (REDISENO §10.4, defecto 1). Este tipo no arregla eso; solo garantiza que la
-    clasificación viva en un sitio.
+    `desde_umbral` recibe el ritmo de **umbral**: desde el paso 4 (2026-08-17)
+    ese umbral es el **test aeróbico del atleta** cuando existe, y solo si no hay
+    test se estima desde el ritmo de carrera. Era el defecto 1 de §10.4: la tabla
+    está calibrada para un test de 400/1500 y se la alimentaba con el ritmo de un
+    200, así que una décima cambiaba el volumen prescrito un 45 %. Quién elige
+    una u otra fuente es `servicios.envolvente.nivel_de`; este tipo solo garantiza
+    que la clasificación viva en un sitio.
     """
 
     PRINCIPIANTE = "beginner"
@@ -128,7 +128,7 @@ class Perfil(_EscalaTextual):
         return self.value.replace("_", " ")
 
 
-# §4.3 F_FASE · §9.1 banda de volumen. Fuente: `app.domain.engine`.
+# §4.3 F_FASE · §9.1 banda de volumen. Única declaración desde C4.
 # (multiplicador de mejora, clave de la banda de volumen que le toca)
 _DATOS_DE_FASE: dict[str, tuple[float, str]] = {
     "base_general": (0.60, "base_general"),
@@ -168,9 +168,12 @@ class Fase(_EscalaTextual):
 
     `desde_texto` acepta **solo** estas seis claves. No traduce
     `Base/Construcción/Pico/Descenso` ni `base|build|peak|taper`: son cuatro
-    tramos contra cinco fases y el reparto no está decidido —lo decide la fusión
-    de motores (paso 4)—. Adivinarlo aquí sería inventar la sexta versión de la
-    regla que este tipo existe para cerrar.
+    tramos contra cinco fases y **el reparto sigue sin decidirse**. Se esperaba
+    que lo cerrara la fusión de motores (paso 4, 2026-08-17); la fusión pasó sin
+    tocarlo porque no le hacía falta para conservar los números, así que hoy es
+    el último resto de P3 y **no tiene bloque asignado** — ver «cinco cabos
+    sueltos» en `docs/PLAN-DE-TRABAJO.md`. Adivinarlo aquí sería inventar la
+    sexta versión de la regla que este tipo existe para cerrar.
     """
 
     BASE_GENERAL = "base_general"

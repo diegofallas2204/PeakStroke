@@ -45,6 +45,61 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 
 ---
 
+## Dónde estamos y qué sigue — medido el 2026-08-17
+
+**Los pasos 1 a 4 del rediseño son código.** `app/dominio/` tiene `valores/`,
+`entidades/`, `roles/` y `servicios/`, y el motor científico es **uno**:
+`app/domain/` se borró y `app/engine/` quedó en dos módulos que nunca fueron
+motor. Todo en la rama `feat/salida-y-alta-por-correo`.
+
+| | |
+|---|---|
+| Tests backend | **822 en verde** (95 s) · `ruff check .` limpio |
+| Backend | 9.983 líneas · 15 modelos · **3 archivos >300** (`valores/tiempo.py` 354, `valores/escalas.py` 315, `valores/zona.py` 312) |
+| Frontend | 8.586 líneas · **0 archivos >300** |
+| Snapshot del motor | 3 caminos · 92 casos · **sin regenerar desde A0** |
+
+Los tres archivos que pasan de 300 son de `valores/` y crecieron con la fusión;
+partirlos es barato y no bloquea nada, pero conviene hacerlo antes de que se
+vuelvan cinco.
+
+### El orden de lo que queda
+
+| # | Bloque | Riesgo | Por qué va ahí |
+|---|---|---|---|
+| 1 | **C5 · Repositorios** | medio | Es el que desbloquea a los demás: sin repositorio no hay dónde poner los mutadores que C2 dejó fuera (`dar_de_baja`, `inscribir`), y `dashboard` sigue importando lógica de `plans` |
+| 2 | **P3 · Las tres fases** | bajo-medio | **Sigue abierto y ya no tiene dueño** (ver abajo). Barato ahora, caro después de C6 |
+| 3 | **C6 · `Resultado`** | medio | Cierra el agujero de `delete_plan`, que hoy puede llevarse todos los tiempos reales de un equipo |
+| 4 | **R7 · La curva sale de `plans`** | bajo | Migración + `PlanCreate`/`PlanResponse` + el desplegable del wizard |
+| 5 | **C7 · `Sesion`** | medio | Necesita C6 hecho |
+| 6 | **C8 · `CargaDiaria` + Banister** | bajo | Necesita C7 |
+
+### Cinco cabos sueltos concretos
+
+1. **P3 — las tres fases siguen sin unificar, y C4 no lo decidió.** Varios
+   docstrings prometían que *«el reparto lo decide la fusión de motores»*; la
+   fusión pasó y no lo decidió, porque no le hacía falta para no mover números.
+   Hoy conviven: las **cinco** claves científicas de `Fase` (que gobiernan la
+   curva), los **cuatro** tramos que el entrenador ve (`Base/Construcción/
+   Pico/Descenso`, que son los que `SemanaGenerada.fase` escribe y la base
+   guarda) y los **cuatro** de `PlanPhase.type`. La ciencia sigue sin poder leer
+   lo que la aplicación persiste. **Es el último resto de P3 y necesita bloque
+   propio.**
+2. **R7 — `progression_curve` sigue siendo columna de `plans`.** El motor ya
+   recibe la curva por firma, que es lo que R7 pide de verdad; sacarla de la
+   tabla toca migración, dos schemas y el wizard.
+3. **El estilo se sigue guardando crudo** (`"crol"` en vez de `"libre"`).
+   Canonizarlo toca filas existentes: es migración de datos, y por eso se
+   reasignó a C5.
+4. **El snapshot no cubre el camino nuevo.** Sus casos no llevan
+   `base_aerobica`, así que recorren la estimación del nivel y no el test.
+   Tampoco cubren `factibilidad`, `generar_extension`, `km_por_zona`,
+   `rep_distance ≠ 100`, `weeks_per_micro = 5` ni las fases personalizadas.
+5. **`FeasibilityResponse.window_min` viaja siempre `None`.** La banda inferior
+   se retiró al pasar a un techo científico y el campo se quedó en el schema.
+
+---
+
 ## Estado de partida (medido el 2026-08-12)
 
 Esto es lo que hay hoy, comprobado, no estimado:

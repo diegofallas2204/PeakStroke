@@ -613,7 +613,7 @@ class TestFaseEsElUnicoVocabulario:
 
     @pytest.mark.parametrize("ajeno", ["Construcción", "build", "peak", "Descenso", "Base"])
     def test_no_traduce_los_otros_dos_vocabularios(self, ajeno):
-        """Cuatro tramos contra cinco fases: el reparto lo decide la fusión (paso 4).
+        """Cuatro tramos contra cinco fases, y el reparto SIGUE sin decidirse.
 
         Adivinarlo aquí sería inventar la sexta versión de la regla que este tipo
         existe para cerrar.

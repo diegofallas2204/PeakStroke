@@ -204,7 +204,7 @@ class TestMacrociclo:
 
     def test_la_fase_de_dominio_viaja_vacia_hasta_el_paso_4(self):
         # La base guarda cuatro tramos y `Fase` tiene cinco claves científicas:
-        # ese reparto lo decide la fusión de motores, no este paso.
+        # ese reparto sigue abierto: la fusión de motores pasó sin cerrarlo.
         tramo = FaseDelMacro(nombre="Construcción", semana_inicio=5, semana_fin=10)
         assert tramo.fase is None
         assert tramo.duracion_en_semanas() == 6

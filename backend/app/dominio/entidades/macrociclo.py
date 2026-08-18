@@ -8,7 +8,7 @@ plan. Con la semana dentro del objeto, quien tenga el macrociclo ya lo sabe.
 **`fase_de()` devuelve la `FaseDelMacro`, no una `Fase`.** El desdoble de §5.5
 es a propósito y aquí solo está la mitad de arriba: la base guarda cuatro tramos
 (`base|build|peak|taper`) y `Fase` tiene cinco claves científicas. Ese reparto no
-está decidido —lo decide la fusión de motores, paso 4— y `escalas.Fase.desde_texto`
+está decidido —la fusión de motores pasó sin cerrarlo— y `escalas.Fase.desde_texto`
 se niega expresamente a adivinarlo. Traducirlo aquí sería inventar la sexta
 versión de la regla que `Fase` existe para cerrar, así que `FaseDelMacro.fase`
 viaja en `None` hasta que el paso 4 diga cómo se reparten.
