@@ -120,11 +120,19 @@ def generar(
     piscina: str = "50",
     n_mac: int = 1,
     edad: int | None = None,
+    base_aerobica: float | None = None,
 ) -> list[SemanaGenerada]:
-    """El plan completo. Las semanas y los km son los que puso el entrenador."""
+    """El plan completo. Las semanas y los km son los que puso el entrenador.
+
+    `base_aerobica` es el umbral medido del atleta (s/100 m). Cuando lo hay, es
+    quien clasifica el nivel y, con él, el techo de mejora: ver `nivel_de`.
+    """
     fases = fases or fases_por_defecto(semanas)
     km = reparto_de_km(semanas, km_totales, semanas_por_micro)
-    env = envolvente_de(distancia, tiempo_actual, semanas, n_mac=n_mac, edad=edad)
+    env = envolvente_de(
+        distancia, tiempo_actual, semanas, n_mac=n_mac, edad=edad,
+        base_aerobica=base_aerobica,
+    )
 
     meta_del_macro = max(tiempo_meta, env.techo_realista)
     mejora = max(tiempo_actual - meta_del_macro, 0.0)
@@ -205,6 +213,7 @@ def recalcular_desde(
     piscina: str = "50",
     n_mac: int = 1,
     edad: int | None = None,
+    base_aerobica: float | None = None,
 ) -> list[SemanaGenerada]:
     """Reancla la curva en un tiempo real y reparte lo que queda.
 
@@ -221,7 +230,10 @@ def recalcular_desde(
         return semanas
 
     n_activas = len(activas)
-    env = envolvente_de(distancia, tiempo_ancla, n_activas, n_mac=n_mac, edad=edad)
+    env = envolvente_de(
+        distancia, tiempo_ancla, n_activas, n_mac=n_mac, edad=edad,
+        base_aerobica=base_aerobica,
+    )
     meta_del_tramo = max(tiempo_meta, env.techo_realista)
     mejora = max(tiempo_ancla - meta_del_tramo, 0.0)
     forma = Curva.desde_clave(curva)

@@ -291,3 +291,57 @@ class TestProyeccionAnual:
         assert proyeccion.nivel == "elite"
         assert proyeccion.veredicto in ("ok", "optimistic")
         assert proyeccion.rango_alto_pct == pytest.approx(1.5)
+
+
+# ── El nivel sale del test aeróbico (defecto 1 de §10.4) ────────────────────
+
+class TestElNivelSaleDelTest:
+    """La tabla de niveles está calibrada para un umbral MEDIDO, y por eso manda.
+
+    Sin test, el nivel se estima desde el ritmo de carrera y el borde es
+    brutal: `2:10.40` clasifica elite y `2:10.50` competitive, con el techo de
+    mejora saltando +1.86 s de una décima a la otra. Con test, los dos caen del
+    mismo lado y el salto se queda en la décima que de verdad los separa.
+    """
+
+    ANTES, DESPUES = 130.40, 130.50   # las dos décimas del acantilado
+    BASE = 75.0                        # s/100 m medidos en el test
+
+    def _techo(self, tiempo, base=None):
+        return envolvente_de(200, tiempo, 15, base_aerobica=base).techo_realista
+
+    def test_sin_test_el_acantilado_sigue_ahi(self):
+        # No se ha arreglado la estimación: se ha dejado de usar cuando hay algo
+        # mejor. Que siga midiéndose es lo que avisa si alguien la recalibra.
+        assert nivel_de(200, self.ANTES).value == "elite"
+        assert nivel_de(200, self.DESPUES).value == "competitive"
+        assert self._techo(self.ANTES) - self._techo(self.DESPUES) > 1.5
+
+    def test_con_test_las_dos_decimas_caen_en_el_mismo_nivel(self):
+        assert (nivel_de(200, self.ANTES, base_aerobica=self.BASE)
+                == nivel_de(200, self.DESPUES, base_aerobica=self.BASE))
+
+    def test_con_test_el_techo_se_mueve_lo_que_se_movio_el_tiempo(self):
+        salto = self._techo(self.ANTES, self.BASE) - self._techo(self.DESPUES, self.BASE)
+        assert abs(salto) < 0.15   # la décima de diferencia, y nada más
+
+    def test_el_mismo_test_clasifica_igual_venga_de_donde_venga_el_tiempo(self):
+        niveles = {
+            nivel_de(200, t, base_aerobica=self.BASE) for t in (120.0, 130.0, 140.0)
+        }
+        assert len(niveles) == 1
+
+    @pytest.mark.parametrize("sin_dato", [None, 0.0, -1.0])
+    def test_sin_base_valida_se_cae_a_la_estimacion(self, sin_dato):
+        # Una ficha sin test, o con un 0 mal guardado, no puede quedarse sin
+        # nivel: se cae al ritmo de carrera, que siempre existe.
+        assert (nivel_de(200, self.ANTES, base_aerobica=sin_dato)
+                == nivel_de(200, self.ANTES))
+
+    def test_el_plan_entero_cambia_con_el_test(self):
+        sin = _plan(130.0, 125.0)
+        con = MOTOR.generar_plan(200, 130.0, 125.0, 15, 450.0, "science", INICIO,
+                                 base_aerobica=self.BASE)
+        assert con[-1].tiempo_esperado < sin[-1].tiempo_esperado
+        # El kilometraje NO se mueve: lo pone el entrenador, no el nivel (R6).
+        assert [s.km for s in con] == [s.km for s in sin]

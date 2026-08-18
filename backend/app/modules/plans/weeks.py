@@ -123,6 +123,10 @@ async def _recalculate_event(db: AsyncSession, event: AthleteEvent) -> None:
         tiempo_meta=event.goal_time, curva=plan.progression_curve,
         distancia=event.distance, deshabilitadas=disabled, estilo=event.stroke,
         piscina=plan.pool, n_mac=plan.n_mac, edad=age,
+        # Misma clasificación que al generar el plan: si el recálculo derivara
+        # el nivel del ritmo mientras el alta lo tomó del test, el mismo atleta
+        # tendría dos niveles según por qué puerta se entre.
+        base_aerobica=event.athlete_plan.aerobic_base,
     )
     recalc_map = {e.numero: e.tiempo_esperado for e in entradas
                   if e.numero > anchor_week}

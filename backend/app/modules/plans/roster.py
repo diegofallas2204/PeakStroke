@@ -41,6 +41,11 @@ async def add_athlete(db: AsyncSession, plan: Plan, data: AddAthleteRequest) -> 
             inicio=plan.start_date, semanas_por_micro=plan.weeks_per_micro,
             fases=phases or None, estilo=event.stroke, piscina=plan.pool,
             n_mac=plan.n_mac, edad=age,
+            # El nivel sale del test aeróbico cuando la inscripción lo trae: es
+            # el dato para el que la tabla de niveles está calibrada. Derivarlo
+            # del ritmo de carrera deja un borde de una décima que mueve el
+            # volumen un 45 % (defecto 1 de §10.4).
+            base_aerobica=data.aerobic_base,
         )
         for s in semanas:
             event.weeks.append(WeeklyPlan(

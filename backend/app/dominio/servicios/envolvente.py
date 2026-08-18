@@ -49,10 +49,11 @@ def umbral_de(
     se usa aquí como ancla de umbral (≈CSS), no como velocidad a VO2max literal.
     Para Emiliano cae a ~1 % de su CSS real (§2.4).
 
-    **Es el defecto 1 de §10.4 y este paso no lo arregla**: la tabla de niveles
-    está calibrada para un test de 400/1500 y se le entrega el ritmo de un 200,
+    **Tiene un borde afilado y por eso es el plan B**: la tabla de niveles está
+    calibrada para un test de 400/1500 y aquí se le entrega el ritmo de un 200,
     así que una décima de segundo puede cambiar el nivel —y con él, el volumen
-    prescrito— un 45 %. Arreglarlo mueve números de planes vivos y va aparte.
+    prescrito— un 45 % (defecto 1 de §10.4). Cuando el atleta tiene test
+    aeróbico, manda el test; ver `nivel_de`.
     """
     perfil = perfil or Perfil.para_distancia(distancia)
     ritmo_de_carrera = tiempo_actual / (distancia / 100.0)
@@ -60,13 +61,31 @@ def umbral_de(
 
 
 def nivel_de(
-    distancia: int, tiempo_actual: float, perfil: Perfil | None = None,
+    distancia: int,
+    tiempo_actual: float,
+    perfil: Perfil | None = None,
+    base_aerobica: float | None = None,
 ) -> Nivel:
     """Nivel del atleta para esa prueba y ese tiempo (§2.4).
 
+    **Manda el test aeróbico.** `base_aerobica` es un umbral MEDIDO (s/100 m: lo
+    que la inscripción guarda en `aerobic_base`, venga de un T-30, un T-15 o un
+    CSS), y la tabla de niveles está calibrada exactamente para eso. Sin test se
+    cae al umbral estimado desde el ritmo de carrera, que es una aproximación
+    con un borde muy afilado: medido, `2:10.40` en 200 clasifica elite y
+    `2:10.50` competitive, y con ello el techo de mejora pasa de 1.17 s a 3.13 s
+    — una décima de segundo cambiando el plan un 45 % (defecto 1 de §10.4).
+
+    El test no borra el acantilado, lo esquiva: dos atletas con el mismo test
+    salen en el mismo nivel aunque su tiempo de 200 caiga a los dos lados de la
+    frontera. Que el nivel dependa del dato para el que la tabla se calibró es
+    lo que lo hace estable.
+
     `perfil` solo se pasa cuando el entrenador lo forzó: cambia qué columna de
-    factores se lee y, con ella, el umbral estimado.
+    factores se lee y, con ella, el umbral estimado. Con test no interviene.
     """
+    if base_aerobica is not None and base_aerobica > 0:
+        return Nivel.desde_umbral(Ritmo(base_aerobica))
     return Nivel.desde_umbral(umbral_de(distancia, tiempo_actual, perfil))
 
 
@@ -113,14 +132,16 @@ def envolvente_de(
     n_mac: int = 1,
     edad: int | None = None,
     perfil: Perfil | None = None,
+    base_aerobica: float | None = None,
 ) -> Envolvente:
     """Techo I_max + ritmo seguro por semana para (prueba, nivel, macro).
 
     `n_mac` degrada el techo (§4.3: el segundo macro de una temporada rinde
     menos que el primero) y `edad` lo amplía en menores (§4.4).
+    `base_aerobica` es el umbral medido del atleta; ver `nivel_de`.
     """
     evento = evento_de_referencia(distancia)
-    nivel = nivel_de(distancia, tiempo_actual, perfil)
+    nivel = nivel_de(distancia, tiempo_actual, perfil, base_aerobica)
     i_max_meso = (
         TABLA_I_MAX[nivel.value][evento]
         * (DEGRADACION_ENTRE_MACROS ** (n_mac - 1))
@@ -163,6 +184,7 @@ def factibilidad(
     semanas_por_micro: int = 4,
     n_mac: int = 1,
     edad: int | None = None,
+    base_aerobica: float | None = None,
 ) -> Factibilidad:
     """Compara la mejora pedida con el techo científico del macro.
 
@@ -183,7 +205,10 @@ def factibilidad(
             techo_realista=tiempo_actual, ritmo_seguro_semanal_s=0.0, detalle={},
         )
 
-    env = envolvente_de(distancia, tiempo_actual, semanas, n_mac=n_mac, edad=edad)
+    env = envolvente_de(
+        distancia, tiempo_actual, semanas, n_mac=n_mac, edad=edad,
+        base_aerobica=base_aerobica,
+    )
     pct = mejora_total / tiempo_actual
     ratio = pct / env.i_max_total if env.i_max_total else 999.0
     ritmo_seguro = env.mejora_maxima_s / semanas if semanas else 0.0

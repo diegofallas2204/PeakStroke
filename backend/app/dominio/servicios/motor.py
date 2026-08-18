@@ -61,19 +61,24 @@ class MotorCientifico:
 
     def envolvente(
         self, distancia: int, tiempo_actual: float, semanas: int,
-        n_mac: int = 1, edad: int | None = None,
+        n_mac: int = 1, edad: int | None = None, base_aerobica: float | None = None,
     ) -> Envolvente:
         """Cuánto puede mejorar en ese macro, y cuánto en su semana más rápida."""
-        return envolvente_de(distancia, tiempo_actual, semanas, n_mac=n_mac, edad=edad)
+        return envolvente_de(
+            distancia, tiempo_actual, semanas, n_mac=n_mac, edad=edad,
+            base_aerobica=base_aerobica,
+        )
 
     def factibilidad(
         self, distancia: int, tiempo_actual: float, tiempo_meta: float, semanas: int,
         semanas_por_micro: int = 4, n_mac: int = 1, edad: int | None = None,
+        base_aerobica: float | None = None,
     ) -> Factibilidad:
         """Si la meta que puso el entrenador cabe en el techo científico."""
         return factibilidad(
             distancia, tiempo_actual, tiempo_meta, semanas,
             semanas_por_micro=semanas_por_micro, n_mac=n_mac, edad=edad,
+            base_aerobica=base_aerobica,
         )
 
     # ── Plan ────────────────────────────────────────────────────────────────
@@ -93,12 +98,13 @@ class MotorCientifico:
         piscina: str = "50",
         n_mac: int = 1,
         edad: int | None = None,
+        base_aerobica: float | None = None,
     ) -> list[SemanaGenerada]:
         """El plan completo, semana a semana."""
         return _plan.generar(
             distancia, tiempo_actual, tiempo_meta, semanas, km_totales, curva, inicio,
             semanas_por_micro=semanas_por_micro, fases=fases, estilo=estilo,
-            piscina=piscina, n_mac=n_mac, edad=edad,
+            piscina=piscina, n_mac=n_mac, edad=edad, base_aerobica=base_aerobica,
         )
 
     def generar_extension(
@@ -135,12 +141,13 @@ class MotorCientifico:
         piscina: str = "50",
         n_mac: int = 1,
         edad: int | None = None,
+        base_aerobica: float | None = None,
     ) -> list[SemanaGenerada]:
         """Reancla la curva en un tiempo real y reparte lo que queda."""
         return _plan.recalcular_desde(
             semanas, desde_semana, tiempo_ancla, tiempo_meta, curva, distancia,
             deshabilitadas=deshabilitadas, estilo=estilo, piscina=piscina,
-            n_mac=n_mac, edad=edad,
+            n_mac=n_mac, edad=edad, base_aerobica=base_aerobica,
         )
 
     # ── Lecturas sueltas ────────────────────────────────────────────────────
