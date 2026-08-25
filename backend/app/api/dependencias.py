@@ -23,6 +23,7 @@ from app.persistencia.repositorios import (
     RepositorioDeEquipos,
     RepositorioDeMacrociclos,
     RepositorioDeTests,
+    RepositorioDeUsuarios,
 )
 
 
@@ -45,6 +46,11 @@ async def repo_de_tests(
     principal: Principal = Depends(get_current_principal),
 ) -> RepositorioDeTests:
     return RepositorioDeTests(db, principal)
+
+
+async def repo_de_usuarios(db: AsyncSession = Depends(get_db)) -> RepositorioDeUsuarios:
+    """Sin `Principal`: la cuenta es identidad pura, sin frontera de equipo."""
+    return RepositorioDeUsuarios(db)
 
 
 async def repo_de_codigos(db: AsyncSession = Depends(get_db)) -> RepositorioDeCodigos:

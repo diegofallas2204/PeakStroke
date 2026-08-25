@@ -5,6 +5,10 @@ sistema pasan por aquí y hay que pasar las dos, igual que en los macrociclos: e
 equipo evita devolver la ficha de otro club, y `scope_to_own_swimmer` evita
 devolverle al atleta la del compañero de calle.
 
+Devuelve filas y no `Atleta`: la respuesta del API se valida sobre la fila, y la
+entidad la construye quien necesita preguntarle algo —hoy solo la edad, en
+`api/v1/atletas/service.to_response`—.
+
 **`crear()` existe para que `codigos` no tenga que llamar a otra rebanada.** Dar
 de alta a un atleta por su correo crea la ficha, la cuenta y el código en un
 gesto (2026-08-10), y hasta el paso 5 eso se hacía importando
@@ -20,8 +24,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.principal import Principal
-from app.dominio.entidades import Atleta
-from app.persistencia.mapeo import atleta_desde_fila
 from app.persistencia.tablas.atletas import Swimmer
 
 
@@ -67,18 +69,6 @@ class RepositorioDeAtletas:
         stmt = self.acotar(select(Swimmer).where(Swimmer.id == swimmer_id))
         return (await self.db.execute(stmt)).scalar_one_or_none()
 
-    async def por_id(self, swimmer_id: int) -> Atleta | None:
-        fila = await self.fila_de(swimmer_id)
-        return atleta_desde_fila(fila) if fila is not None else None
-
-    async def todos(
-        self, *, busqueda: str | None = None, incluir_de_baja: bool = False,
-    ) -> list[Atleta]:
-        return [
-            atleta_desde_fila(f) for f in
-            await self.filas(busqueda=busqueda, incluir_de_baja=incluir_de_baja)
-        ]
-
     # ── Escrituras ───────────────────────────────────────────────────────────
     #
     # Todas están detrás de `require_coach`; un atleta no llega a ellas. El
@@ -119,6 +109,3 @@ class RepositorioDeAtletas:
         await self.db.commit()
         await self.db.refresh(fila)
         return fila
-
-    async def confirmar(self) -> None:
-        await self.db.commit()

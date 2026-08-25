@@ -98,21 +98,14 @@ extend-immutable-calls = [
 # al partirlo (2026-08-14): sus dos argumentos son un `Select` y una `Column` de
 # SQLAlchemy, y anotarlos ata la firma a los genéricos internos de la librería.
 "app/core/principal.py" = ["ANN001", "ANN201"]
-"app/modules/*/router.py" = ["ANN001", "ANN201", "ANN202"]
 "app/api/v1/*/router.py" = ["ANN001", "ANN201", "ANN202"]
 # Manejadores que salieron de `auth/router.py` al partirlo (2026-08-13) y que
 # viajaron a `api/v1/auth/` en el paso 5: la deuda viaja con el código, no con la
 # ruta del fichero.
 "app/api/v1/auth/members.py" = ["ANN201"]
 "app/api/v1/auth/sessions.py" = ["ANN201"]
-"app/modules/aerobic_tests/service.py" = ["ANN202"]
 # `acotar(stmt)` recibe un `Select` de SQLAlchemy y devuelve otro; anotarlo ata
 # la firma a los genéricos internos de la librería. Lo tienen todos los
 # repositorios, y la deuda viajó con el código al pasar de `modules/*/access.py`
 # y `modules/*/service.py` a `persistencia/` (2026-08-25).
-"app/persistencia/repositorios/*.py" = ["ANN001", "ANN201"]
-# Script de documentación (genera el PDF del manual). Sus argumentos sin anotar
-# son tipos de reportlab —estilos, colores, **kw de ParagraphStyle— y anotarlos
-# obliga a decidir entre `Any` (que ANN401 prohíbe) y atarse a los internos de
-# la librería. No es código de runtime: reportlab solo está en desarrollo.
-"tools/generate_manual.py" = ["ANN"]
+"app/persistencia/repositorios/*.py" = ["ANN001", "ANN201", "ANN202"]

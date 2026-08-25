@@ -40,9 +40,6 @@ from app.persistencia.tablas.planes import (
     PlanCoach,
     WeeklyPlan,
 )
-
-# `aerobic_tests` sigue en `modules/` hasta su propio paso. Se lee su modelo, que
-# es la misma lectura que hará cuando esté en `persistencia/tablas/`.
 from app.persistencia.tablas.tests_aerobicos import AerobicTest
 
 _PLAN_LOAD = (
@@ -123,9 +120,6 @@ class RepositorioDeMacrociclos:
 
     # ── El macrociclo, como entidad ──────────────────────────────────────────
 
-    async def todos(self) -> list[Macrociclo]:
-        return [macrociclo_desde_fila(f) for f in await self.filas()]
-
     async def por_id(self, plan_id: int) -> Macrociclo | None:
         """`None` si no existe **o** si el solicitante no debe verlo.
 
@@ -137,7 +131,7 @@ class RepositorioDeMacrociclos:
 
     async def activo(self) -> Macrociclo | None:
         """El macrociclo vigente más reciente **de los que alcanza**."""
-        fila = await self.fila_del_activo()
+        fila = await self._fila_del_activo()
         return macrociclo_desde_fila(fila) if fila is not None else None
 
     async def recargar(self, plan_id: int) -> Macrociclo:
@@ -157,7 +151,7 @@ class RepositorioDeMacrociclos:
         stmt = self.acotar(select(Plan).options(*_PLAN_LOAD).where(Plan.id == plan_id))
         return (await self.db.execute(stmt)).scalar_one_or_none()
 
-    async def fila_del_activo(self) -> Plan | None:
+    async def _fila_del_activo(self) -> Plan | None:
         stmt = self.acotar(
             select(Plan).where(Plan.status == EstadoDeMacro.ACTIVO.value),
         ).order_by(Plan.created_at.desc())

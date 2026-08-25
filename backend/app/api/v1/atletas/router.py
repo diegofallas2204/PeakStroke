@@ -6,13 +6,11 @@ el paso 5.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencias import repo_de_atletas
-from app.core.database import get_db
+from app.api.dependencias import repo_de_atletas, repo_de_usuarios
 from app.core.guards import require_coach
 from app.core.principal import Principal
-from app.persistencia.repositorios import RepositorioDeAtletas
+from app.persistencia.repositorios import RepositorioDeAtletas, RepositorioDeUsuarios
 from app.persistencia.tablas.atletas import Swimmer
 
 from . import service
@@ -33,10 +31,10 @@ async def list_swimmers(
     search: str | None = None,
     include_inactive: bool = False,
     repo: RepositorioDeAtletas = Depends(repo_de_atletas),
-    db: AsyncSession = Depends(get_db),
+    usuarios: RepositorioDeUsuarios = Depends(repo_de_usuarios),
 ):
     filas = await repo.filas(busqueda=search, incluir_de_baja=include_inactive)
-    return await service.with_accounts(db, filas)
+    return await service.with_accounts(usuarios, filas)
 
 
 @router.post("/", response_model=SwimmerResponse, status_code=201)

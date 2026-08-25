@@ -11,12 +11,9 @@ acabaría tarde o temprano devolviendo lo que no debe, y eso ya pasó.
 """
 from __future__ import annotations
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.persistencia.mapeo import atleta_desde_fila
+from app.persistencia.repositorios import RepositorioDeUsuarios
 from app.persistencia.tablas.atletas import Swimmer
-from app.persistencia.tablas.usuarios import User
 
 from .schemas import SwimmerResponse
 
@@ -28,19 +25,19 @@ def to_response(fila: Swimmer) -> SwimmerResponse:
     return resp
 
 
-async def with_accounts(db: AsyncSession, filas: list[Swimmer]) -> list[SwimmerResponse]:
+async def with_accounts(
+    usuarios: RepositorioDeUsuarios, filas: list[Swimmer],
+) -> list[SwimmerResponse]:
     """Las fichas, cada una con el email de su cuenta si la tiene.
 
     Una consulta para toda la lista en vez de una por ficha: la página de
-    atletas pinta el equipo entero y el N+1 se nota enseguida.
+    atletas pinta el equipo entero y el N+1 se nota enseguida. La consulta es del
+    agregado Usuario, así que la hace su repositorio — aquí solo se juntan.
     """
     respuestas = [to_response(f) for f in filas]
-    user_ids = [f.user_id for f in filas if f.user_id is not None]
-    if not user_ids:
-        return respuestas
-
-    stmt = select(User.id, User.email).where(User.id.in_(user_ids))
-    emails = dict((await db.execute(stmt)).all())
+    emails = await usuarios.correos_de(
+        [f.user_id for f in filas if f.user_id is not None],
+    )
     for resp, fila in zip(respuestas, filas, strict=True):
         if fila.user_id is not None:
             resp.user_email = emails.get(fila.user_id)

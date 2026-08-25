@@ -6,9 +6,11 @@ tres condiciones —equipo, nadador propio y de alta— viven juntas. Repartidas
 cada consulta, tarde o temprano una se queda sin alguna, que es exactamente lo
 que pasó con el filtro por nadador.
 
-**Devuelve `TestAerobico` en `por_id()` y filas en el resto.** El test que se
-analiza es una entidad —sabe su base aeróbica, su tendencia y su densidad— pero
-la respuesta del API se valida sobre la fila, que lleva además los agregados ya
+**Devuelve filas, no entidades**, y es el único que no devuelve ninguna. No es
+una omisión: el `TestAerobico` de dominio se construye para *analizar* —base
+aeróbica, tendencia, densidad— y quien lo necesita lo pide a
+`persistencia/mapeo.test_desde_fila` en el momento (`api/v1/tests/service`). La
+respuesta del API se valida sobre la fila, que lleva además los agregados ya
 calculados y guardados (`avg_per100`, `std_dev`, `trend`).
 """
 from __future__ import annotations
@@ -18,8 +20,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.principal import Principal
-from app.dominio.entidades import TestAerobico
-from app.persistencia.mapeo import test_desde_fila
 from app.persistencia.tablas.tests_aerobicos import AerobicTest
 
 
@@ -81,11 +81,6 @@ class RepositorioDeTests:
             incluir_de_baja=True,
         ).where(AerobicTest.id == test_id)
         return (await self.db.execute(stmt)).scalar_one_or_none()
-
-    async def por_id(self, test_id: int) -> TestAerobico | None:
-        """El test como entidad. `None` también si esa fila no lleva parciales."""
-        fila = await self.fila_de(test_id)
-        return test_desde_fila(fila) if fila is not None else None
 
     async def anterior_a(self, fila: AerobicTest) -> AerobicTest | None:
         """Test anterior del mismo atleta, para el gráfico comparativo."""

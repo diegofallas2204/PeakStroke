@@ -7,39 +7,12 @@ rediseño se cumple de hecho y no solo por convención:
 
     api  →  persistencia  →  dominio          dominio → nada
 
-Se migran por agregado, no de golpe.
+Es también lo que hace innecesaria la vieja excepción de «lecturas explícitas de
+modelos»: mientras ninguna tabla se declare fuera de aquí, leer una fila ajena es
+mirar hacia abajo y no de lado. Lo comprueba `tests/test_dependencias_de_capas.py`.
+
+**Sin reexportar nada a propósito.** Cada módulo se importa por su nombre
+(`from app.persistencia.tablas.planes import Plan`), que es lo que hacen todos
+los llamadores y `core/model_registry.py`. Un `__all__` aquí obligaría a añadir
+cada tabla nueva en dos sitios, y el segundo es justo el que se olvida.
 """
-from __future__ import annotations
-
-from .atletas import Swimmer
-from .codigos import LinkCode
-from .equipos import (
-    ROLE_ATHLETE,
-    ROLE_COACH,
-    ROLES,
-    CoachAthlete,
-    Role,
-    Team,
-    TeamMember,
-)
-from .planes import (
-    AthleteEvent,
-    AthletePlan,
-    Competition,
-    Plan,
-    PlanCoach,
-    PlanPhase,
-    WeeklyPlan,
-)
-from .tests_aerobicos import AerobicSplit, AerobicTest
-from .usuarios import User
-
-__all__ = [
-    "User",
-    "LinkCode",
-    "AerobicTest", "AerobicSplit",
-    "Swimmer",
-    "Team", "TeamMember", "CoachAthlete", "Role", "ROLE_COACH", "ROLE_ATHLETE", "ROLES",
-    "Plan", "PlanCoach", "PlanPhase", "Competition",
-    "AthletePlan", "AthleteEvent", "WeeklyPlan",
-]

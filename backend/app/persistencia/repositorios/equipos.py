@@ -76,15 +76,6 @@ class RepositorioDeEquipos:
 
     # ── La pertenencia ───────────────────────────────────────────────────────
 
-    async def agregar_miembro(
-        self, team_id: int, user_id: int, role: str = ROLE_COACH,
-    ) -> TeamMember:
-        miembro = TeamMember(team_id=team_id, user_id=user_id, role=role)
-        self.db.add(miembro)
-        await self.db.commit()
-        await self.db.refresh(miembro)
-        return miembro
-
     async def pertenencia(
         self, user_id: int, *, incluir_inactivas: bool = False,
     ) -> TeamMember | None:
@@ -156,6 +147,3 @@ class RepositorioDeEquipos:
 
         await self.db.commit()
         return sorted(deseados)
-
-    async def confirmar(self) -> None:
-        await self.db.commit()

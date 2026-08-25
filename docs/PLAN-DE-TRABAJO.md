@@ -1612,6 +1612,30 @@ suben. **No queda ninguna.**
 | `ruff check --no-cache` | Limpio, salvo un `I001` **preexistente** en `tools/sim_cli.py` (herramienta muerta: importa `app.engine.curves`, borrado en C4) |
 | `seed.py` | Ejecutado entero contra una base desechable |
 
+**Lo que se borró por muerto, al cerrar el bloque.** `app/modules/` entero, más
+el sandbox de tuning, que C4 había dejado roto sin que nadie lo notara:
+`tools/sim_cli.py` y `tools/tuning_io.py` importaban `app.engine.{curves,
+feasibility, progression, zones}` —los cuatro borrados en la fusión de motores—,
+así que reventaban al arrancar. Con ellos se fueron `tools/tuning.json`,
+`tools/generate_manual.py` y el PDF que generaba: las ocho secciones del manual
+documentan ese CLI y las constantes del motor viejo. De `tools/` quedan
+`create_user.py` y `grafo_de_imports.py`.
+
+Dentro de `app/` se retiraron los métodos de repositorio que nacieron sin
+llamador (`RepositorioDeAtletas.por_id`/`todos`/`confirmar`,
+`RepositorioDeTests.por_id`, `RepositorioDeEquipos.agregar_miembro`, y los
+`confirmar` de equipos, usuarios y códigos), se privatizaron los dos ayudantes
+que solo se usaban desde dentro (`_fila_del_activo`, `_normalizar_codigo`) y
+`persistencia/tablas/__init__.py` dejó de reexportar: cada tabla se importa por
+su módulo, que es lo que ya hacían todos los llamadores. `correos_de` sí se
+cableó —`api/v1/atletas` lo usa y con eso deja de consultar la tabla `users` por
+su cuenta—. `ruff check --no-cache .` queda limpio **sin excepciones**.
+
+Queda **una** función sin llamador que NO se borró:
+`dominio/servicios/kilometraje.banda_de_aviso`. Es de C4, no de C5: R6 decidió
+que la banda de `WEEKLY_VOLUME_KM` fuera un aviso en la tabla del plan, y ese
+aviso todavía no se pintó. Es un cabo suelto de producto, no código olvidado.
+
 Backend: 10.642 líneas. Archivos >300: los tres de `valores/` que ya estaban, más
 `repositorios/macrociclos.py` (309, mitad prosa) — se deja sin partir a propósito,
 porque la división natural (`Inscripcion`/`PruebaObjetivo`/`Semana`) llega con

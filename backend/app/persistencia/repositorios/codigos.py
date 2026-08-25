@@ -25,8 +25,12 @@ from app.persistencia.tablas.atletas import Swimmer
 from app.persistencia.tablas.codigos import LinkCode
 
 
-def normalizar_codigo(crudo: str) -> str:
-    """Mayúsculas, sin guiones ni espacios. El guion es solo presentación."""
+def _normalizar_codigo(crudo: str) -> str:
+    """Mayúsculas, sin guiones ni espacios. El guion es solo presentación.
+
+    Privada: la única forma de buscar un código es `por_codigo()`, que la aplica
+    siempre. Expuesta, sería una segunda puerta por la que buscar sin normalizar.
+    """
     return "".join(c for c in crudo.strip().upper() if c.isalnum())
 
 
@@ -63,7 +67,7 @@ class RepositorioDeCodigos:
 
     # ── Lecturas ─────────────────────────────────────────────────────────────
 
-    def _sin_gastar(self, stmt):  # noqa: ANN202
+    def _sin_gastar(self, stmt):
         """Ni canjeados ni revocados. La caducidad se filtra en Python.
 
         En SQL sería comparar un `datetime` con zona contra una columna que
@@ -102,7 +106,7 @@ class RepositorioDeCodigos:
         )
 
     async def por_codigo(self, crudo: str) -> LinkCode | None:
-        stmt = select(LinkCode).where(LinkCode.code == normalizar_codigo(crudo))
+        stmt = select(LinkCode).where(LinkCode.code == _normalizar_codigo(crudo))
         return (await self.db.execute(stmt)).scalar_one_or_none()
 
     async def del_equipo(self, code_id: int, team_id: int) -> LinkCode | None:
@@ -159,7 +163,4 @@ class RepositorioDeCodigos:
 
     async def revocar(self, code: LinkCode) -> None:
         code.revoked_at = ahora_utc()
-        await self.db.commit()
-
-    async def confirmar(self) -> None:
         await self.db.commit()
