@@ -14,7 +14,7 @@ from fastapi import Depends, HTTPException, status
 
 from app.core.dependencies import get_current_principal
 from app.core.principal import Principal
-from app.modules.teams.models import ROLE_COACH
+from app.persistencia.tablas.equipos import ROLE_COACH
 
 logger = logging.getLogger(__name__)
 

@@ -12,8 +12,8 @@ from dataclasses import dataclass
 from sqlalchemy import false
 
 from app.dominio.roles import AtletaRol, Entrenador, EntrenadorEnJefe, Rol
-from app.modules.auth.models import User
-from app.modules.teams.models import ROLE_ATHLETE, ROLE_COACH, TeamMember
+from app.persistencia.tablas.equipos import ROLE_ATHLETE, ROLE_COACH, TeamMember
+from app.persistencia.tablas.usuarios import User
 
 # Las tres instancias que existen. Un rol no tiene estado —solo contesta—, así
 # que construir uno nuevo por petición no aportaría nada.

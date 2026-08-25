@@ -29,28 +29,33 @@ from sqlalchemy import select
 # sin esto, una tabla de un módulo que el seed no toca —`link_codes` fue la
 # primera— sobrevive al borrado y luego Alembic revienta al intentar crearla.
 import app.core.model_registry  # noqa: F401
-from app.core.config import settings
-from app.core.database import AsyncSessionLocal, Base, engine
-from app.core.dependencies import Principal
-from app.core.security import hash_password
-from app.modules.aerobic_tests.schemas import AerobicTestCreate
-from app.modules.aerobic_tests.service import create_test
-from app.modules.auth.models import User
-from app.modules.auth.schemas import UserCreate
-from app.modules.auth.service import create_user
-from app.modules.plans.models import AthleteEvent, AthletePlan, WeeklyPlan
-from app.modules.plans.schemas import (
+from app.api.v1.auth.schemas import UserCreate
+from app.api.v1.auth.service import create_user
+from app.api.v1.macrociclos.nomina import add_athlete
+from app.api.v1.macrociclos.schemas import (
     AddAthleteRequest,
     CompetitionInput,
     EventInput,
     PlanCreate,
     WeekUpdateRequest,
 )
-from app.modules.plans.service import add_athlete, create_plan, update_week
-from app.modules.swimmers.schemas import SwimmerCreate
-from app.modules.swimmers.service import create_swimmer
-from app.modules.teams.models import CoachAthlete
-from app.modules.teams.service import create_team, get_membership
+from app.api.v1.macrociclos.semanas import update_week
+from app.api.v1.macrociclos.service import create_plan
+from app.api.v1.tests.schemas import AerobicTestCreate
+from app.api.v1.tests.service import create_test
+from app.core.config import settings
+from app.core.database import AsyncSessionLocal, Base, engine
+from app.core.dependencies import Principal
+from app.core.security import hash_password
+from app.persistencia.repositorios import (
+    RepositorioDeAtletas,
+    RepositorioDeEquipos,
+    RepositorioDeMacrociclos,
+    RepositorioDeTests,
+)
+from app.persistencia.tablas.equipos import CoachAthlete
+from app.persistencia.tablas.planes import AthleteEvent, AthletePlan, WeeklyPlan
+from app.persistencia.tablas.usuarios import User
 
 random.seed(7)
 
@@ -166,7 +171,8 @@ def migrate() -> None:
 async def seed() -> None:
     async with AsyncSessionLocal() as db:
         # El equipo primero: todo lo demás cuelga de él.
-        team = await create_team(db, TEAM_NAME)
+        equipos = RepositorioDeEquipos(db)
+        team = await equipos.crear(TEAM_NAME)
 
         accounts = {}
         for email, name, role in DEV_ACCOUNTS:
@@ -187,12 +193,24 @@ async def seed() -> None:
         ))
         await db.commit()
 
+        # Todo lo que sigue pasa por los repositorios acotados que usa el API: el
+        # seed no tiene atajos, así que si el aislamiento se rompiera, fallaría
+        # aquí. `swimmer_id=None` porque el entrenador no es ningún nadador — y
+        # da igual, el filtro por atleta no le aplica.
+        principal = Principal(
+            user=coach, membership=await equipos.pertenencia(coach.id), is_owner=True,  # type: ignore[arg-type]
+        )
+        atletas = RepositorioDeAtletas(db, principal)
+        repo = RepositorioDeMacrociclos(db, principal)
+        tests_repo = RepositorioDeTests(db, principal)
+
         swimmers = []
         for name, birth, gender, specialty, stroke, weight, height in (*SWIMMERS, *SWIMMERS_EXTRA):
-            swimmers.append(await create_swimmer(db, SwimmerCreate(
-                name=name, birth_date=birth, gender=gender, specialty=specialty,
-                main_stroke=stroke, weight_kg=weight, height_cm=height,
-            ), team.id))
+            swimmers.append(await atletas.crear(
+                team_id=team.id, nombre=name, nacimiento=birth, genero=gender,
+                especialidad=specialty, estilo_principal=stroke,
+                peso_kg=weight, altura_cm=height,
+            ))
 
         # Todos los atletas del equipo a cargo del entrenador de desarrollo.
         for swimmer in swimmers:
@@ -217,7 +235,7 @@ async def seed() -> None:
         await db.commit()
 
         start = plan_start_date(date.today())
-        plan = await create_plan(db, PlanCreate(
+        plan = await create_plan(repo, PlanCreate(
             name="Temporada Nacional 2026", start_date=start, total_weeks=12,
             weeks_per_micro=4, total_km=320, progression_curve="science",
             main_event="Nacional Juvenil", notes=(
@@ -229,23 +247,16 @@ async def seed() -> None:
                 CompetitionInput(name="Nacional Juvenil", week_number=12, days=3, is_main=True),
             ],
         ), team.id, coach.id)
+        macro = await repo.recargar(plan.id)
 
         for idx, events, aerobic_base in EVENTS:
-            await add_athlete(db, plan, AddAthleteRequest(
+            await add_athlete(db, repo, macro, AddAthleteRequest(
                 swimmer_id=swimmers[idx].id, aerobic_base=aerobic_base,
                 aerobic_base_source="t30",
                 events=[EventInput(
                     priority=p, distance=d, stroke=s, current_time=c, goal_time=g,
                 ) for p, d, s, c, g in events],
             ))
-
-        # Registrar tiempos y crear tests pasa por el mismo camino acotado que
-        # usa el API: el seed no tiene atajos, así que si el aislamiento se
-        # rompiera, fallaría aquí. `swimmer_id=None` porque el entrenador no es
-        # ningún nadador — y da igual, el filtro por atleta no le aplica.
-        principal = Principal(
-            user=coach, membership=await get_membership(db, coach.id), is_owner=True,  # type: ignore[arg-type]
-        )
 
         # Tiempos reales semanas 1-6 con sesgo por atleta (adelantado/atrasado)
         bias = {0: 1.001, 1: 0.998, 2: 1.0, 3: 1.006, 4: 0.997, 5: 0.996, 6: 1.0, 7: 1.002}
@@ -266,21 +277,21 @@ async def seed() -> None:
                 noise = random.uniform(-0.0015, 0.0015)
                 real = w.expected_time * (bias[swimmer_idx] + noise)
                 await update_week(
-                    db, w.id, WeekUpdateRequest(real_time=round(real, 2)), principal,
+                    db, repo, w.id, WeekUpdateRequest(real_time=round(real, 2)),
                 )
 
         # Tests aeróbicos: T-30 inicial + control reciente para varios atletas
         for idx, _, aerobic_base in EVENTS[:5]:
             base = aerobic_base
             splits_initial = [round(base * random.uniform(0.99, 1.025), 2) for _ in range(30)]
-            await create_test(db, AerobicTestCreate(
+            await create_test(tests_repo, repo, AerobicTestCreate(
                 swimmer_id=swimmers[idx].id, plan_id=plan.id, test_type="T30",
                 test_date=start + timedelta(days=2), splits=splits_initial,
                 notes="Test de inicio de macrociclo",
             ), principal)
             improved = base * 0.985
             splits_control = [round(improved * random.uniform(0.99, 1.02), 2) for _ in range(15)]
-            await create_test(db, AerobicTestCreate(
+            await create_test(tests_repo, repo, AerobicTestCreate(
                 swimmer_id=swimmers[idx].id, plan_id=plan.id, test_type="T15",
                 test_date=start + timedelta(weeks=5, days=2), splits=splits_control,
                 notes="Control de mitad de ciclo",
@@ -288,14 +299,14 @@ async def seed() -> None:
 
         # Test personalizado 12×400 para la fondista de aguas abiertas
         base400 = 75.6 * 4
-        await create_test(db, AerobicTestCreate(
+        await create_test(tests_repo, repo, AerobicTestCreate(
             swimmer_id=swimmers[6].id, plan_id=plan.id, test_type="CUSTOM",
             test_date=start + timedelta(weeks=4, days=3),
             splits=[round(base400 * random.uniform(0.995, 1.015), 1) for _ in range(12)],
             rep_distance=400, notes="12×400 — protocolo del club",
         ), principal)
         # CSS para el velocista
-        await create_test(db, AerobicTestCreate(
+        await create_test(tests_repo, repo, AerobicTestCreate(
             swimmer_id=swimmers[5].id, plan_id=plan.id, test_type="CSS",
             test_date=start + timedelta(weeks=3), t400=292.0, t50=27.9,
             notes="CSS 400/50 según Wakayoshi",

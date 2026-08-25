@@ -51,7 +51,7 @@ async def test_un_atleta_no_puede_ascenderse_a_entrenador(client, db, world: Wor
     """
     from sqlalchemy import select
 
-    from app.modules.auth.models import User
+    from app.persistencia.tablas.usuarios import User
 
     sofia = (await db.execute(
         select(User).where(User.email == world.sofia_email)

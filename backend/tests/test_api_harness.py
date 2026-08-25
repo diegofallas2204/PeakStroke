@@ -40,7 +40,7 @@ async def test_las_claves_foraneas_estan_activas(db):
 
 async def test_el_test_y_la_aplicacion_comparten_la_misma_sesion(client, db, world: World):
     """Lo que escribe una petición se ve desde el test sin `refresh()`."""
-    from app.modules.swimmers.models import Swimmer
+    from app.persistencia.tablas.atletas import Swimmer
 
     r = await client.put(
         f"{API}/swimmers/{world.sofia_swimmer_id}",

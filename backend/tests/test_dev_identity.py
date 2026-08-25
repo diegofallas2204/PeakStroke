@@ -17,7 +17,7 @@ from conftest import API, World, como
 
 from app.core.config import settings
 from app.core.dev_identity import DEV_USER_HEADER
-from app.modules.teams.models import TeamMember
+from app.persistencia.tablas.equipos import TeamMember
 
 
 async def test_la_cabecera_cambia_a_quien_se_atribuye_la_peticion(client, world: World):
@@ -50,7 +50,7 @@ async def test_una_cuenta_inactiva_cae_al_por_defecto(client, db, world: World):
     """
     from sqlalchemy import select
 
-    from app.modules.auth.models import User
+    from app.persistencia.tablas.usuarios import User
 
     user = (await db.execute(
         select(User).where(User.email == world.carlos_email)
@@ -120,7 +120,7 @@ async def test_dev_identities_no_ofrece_cuentas_revocadas(client, db, world: Wor
     """Ofrecer una identidad que `_dev_user` va a rechazar es ofrecer un botón roto."""
     from sqlalchemy import select
 
-    from app.modules.auth.models import User
+    from app.persistencia.tablas.usuarios import User
 
     carlos = (await db.execute(
         select(User).where(User.email == world.carlos_email)

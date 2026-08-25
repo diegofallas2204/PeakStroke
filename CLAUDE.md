@@ -36,16 +36,21 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
 ```
 
 ## Reglas de código (NO negociables)
-- Toda feature backend nueva: `backend/app/modules/<feature>/` con models.py / schemas.py / service.py / router.py
+- **Un agregado se reparte en tres capas, no en una carpeta** (paso 5 del rediseño, 2026-08-25): su tabla en `app/persistencia/tablas/<agregado>.py`, su repositorio en `app/persistencia/repositorios/<agregado>.py`, y su router + schemas + presentación en `app/api/v1/<agregado>/`. **`app/modules/` ya no existe.** Hoy hay seis agregados —`atletas` · `codigos` · `equipos` · `macrociclos` · `tests_aerobicos` · `usuarios`— y ocho rebanadas de API (las seis + `simulador`, que no tiene tabla, + `vistas`)
+- **`app/api/v1/vistas/` son pantallas compuestas, NO agregados**: el tablero, la tabla del equipo y la comparación no tienen modelo, no escriben y no imponen ninguna regla. Leen de los repositorios y dan forma. Cuando el tablero era `modules/dashboard/` parecía un módulo de dominio y se comportaba como tal — importaba `plans.access`, `plans.service` y tres modelos para poder preguntar en qué semana iba un plan
+- **Feature backend nueva:** una tabla, un repositorio y una rebanada de API. Si no tiene tabla propia (como el simulador) es solo la rebanada; si no impone reglas ni escribe, es una vista
 - `router.py` nunca tiene lógica de negocio — recibe, delega al service, retorna
 - **El motor científico es UNO y vive en `backend/app/dominio/servicios/`** (paso 4 del rediseño, 2026-08-17): `MotorCientifico` (fachada) sobre `tablas` · `curvas` · `envolvente` · `kilometraje` · `zonas` · `plan` · `temporada`. Funciones puras que no importan nada de fuera, como el resto de `dominio/`.
   Lo que decía este bullet —«`app/domain/` es la FUENTE DE VERDAD y `app/engine/` lo adapta»— **era falso**: `ScienceEngine.generate_plan()` solo corría en los tests y los planes que se guardaban salían de `app/engine/progression.py`. Dos algoritmos que compartían las tablas pero no el cálculo, y por eso divergieron tres veces. **`app/domain/` ya no existe**, y de `app/engine/` solo quedan `aerobic.py` (análisis del test, que no es motor) y `time_utils.py` (formato)
-- **`backend/app/dominio/` es el rediseño POO y no importa NADA** — ni infraestructura, ni `modules/`, ni `core/`. Lo comprueba `tests/test_entidades.py` al revés: todo import absoluto tiene que ser de la biblioteca estándar. Hoy tiene `valores/` (paso 1, 2026-08-16): `Tiempo`·`Duracion`·`Ritmo`·`Mejora`, `Prueba`·`Estilo`·`Piscina`, `Zona`·`Prescripcion`·`JuegoDeZonas` y las diez escalas, todos `frozen=True, slots=True`; y `entidades/` (paso 2, 2026-08-16): `Atleta`, `Macrociclo`·`FaseDelMacro`·`Competencia`, `TestAerobico`·`Parcial`. Las entidades son mutables y **se comparan por `id`, no por valor** (`base.PorIdentidad`): dos atletas homónimos son dos personas; `roles/` (paso 3, 2026-08-17): `Rol` abstracto con `Administrador`·`EntrenadorEnJefe`·`Entrenador`·`AtletaRol`, objetos **sin estado** que contestan `puede_ver`/`puede_escribir`/`alcance_de_atletas`/`alcance_de_macrociclos`/`secciones_visibles`; y `servicios/` (paso 4, 2026-08-17): el motor científico **único** — `MotorCientifico` de fachada sobre `tablas`·`curvas`·`envolvente`·`kilometraje`·`zonas`·`plan`·`intervalos`·`temporada`
+- **`backend/app/dominio/` es el rediseño POO y no importa NADA** — ni infraestructura, ni `api/`, ni `persistencia/`, ni `core/`. Lo comprueba `tests/test_entidades.py` al revés: todo import absoluto tiene que ser de la biblioteca estándar. Hoy tiene `valores/` (paso 1, 2026-08-16): `Tiempo`·`Duracion`·`Ritmo`·`Mejora`, `Prueba`·`Estilo`·`Piscina`, `Zona`·`Prescripcion`·`JuegoDeZonas` y las diez escalas, todos `frozen=True, slots=True`; y `entidades/` (paso 2, 2026-08-16): `Atleta`, `Macrociclo`·`FaseDelMacro`·`Competencia`, `TestAerobico`·`Parcial`. Las entidades son mutables y **se comparan por `id`, no por valor** (`base.PorIdentidad`): dos atletas homónimos son dos personas; `roles/` (paso 3, 2026-08-17): `Rol` abstracto con `Administrador`·`EntrenadorEnJefe`·`Entrenador`·`AtletaRol`, objetos **sin estado** que contestan `puede_ver`/`puede_escribir`/`alcance_de_atletas`/`alcance_de_macrociclos`/`secciones_visibles`; y `servicios/` (paso 4, 2026-08-17): el motor científico **único** — `MotorCientifico` de fachada sobre `tablas`·`curvas`·`envolvente`·`kilometraje`·`zonas`·`plan`·`intervalos`·`temporada`
 - **La entidad se construye desde la fila; no la envuelve.** La traducción vive en `backend/app/persistencia/mapeo/`, del lado de fuera (`api → persistencia → dominio`, y el dominio no apunta a nada). Un envoltorio con la instancia del ORM dentro escribiría en la sesión al mutarse —dejando sin trabajo a los repositorios del paso 5— y se podría construir alrededor de cualquier fila, que es justo lo que rompe la invariante del `TestAerobico`
-- **Las funciones que las entidades sustituyen se quedan como envoltorio y se vacían después**: `core/dates.age_at` → `Atleta.edad_en()`, `plans/service.current_week_of` y `effective_status` → `Macrociclo`. Ninguna conserva ya su copia de la regla
+- **Las funciones que las entidades sustituyen se quedan como envoltorio y se vacían después**: `core/dates.age_at` → `Atleta.edad_en()`. Ninguna conserva ya su copia de la regla. `plans/service.current_week_of` y `effective_status` **ya no existen**: el paso 5 las borró en vez de dejarlas delegando, porque un envoltorio que delega sigue siendo un import que cruza — y mientras hay un sitio al que importar, alguien importa
 - **`Tiempo` es siempre positivo; lo que puede valer 0 o menos es una `Duracion`** — un nado frente a un instante, un hueco o un descanso. La salida de la primera repetición es 0 y el descanso perdido es negativo, así que mezclarlos hacía inconstruible el primer parcial de cualquier serie. Restar dos `Tiempo` da una `Mejora` (rendimiento); restar dos instantes es `Tiempo.diferencia()` (reloj). Y `Mejora.base` lleva su unidad (`Tiempo | Ritmo`): con un `float`, una mejora de ritmo salía convertida en un tiempo absoluto
 - **La validez de una prueba es del constructor de `Prueba`, no de una función.** `Prueba(50, "combinado")` levanta `ValueError` y ese es el mensaje del 422; `app/engine/events.py` ya no existe. Mientras la regla convivía con las tablas del motor viejo, `tests/test_valores_vs_motor.py` compara cada tabla nueva **contra la fuente viva** — no contra números tecleados. Al retirar una copia vieja, su pin se borra con ella
-- Módulos no se importan entre sí salvo lecturas explícitas de modelos; nunca lógica cruzada
+- **Entre rebanadas del API no se importa NADA.** Ni siquiera modelos: las tablas están en `persistencia/tablas/`, así que leer una fila ajena es mirar hacia abajo y no de lado. **Ya no es una convención**: `tests/test_dependencias_de_capas.py` lo comprueba por AST, y su lista `VIOLACIONES_CONOCIDAS` está **vacía**. `tools/grafo_de_imports.py` imprime el grafo y marca las flechas que suben (hoy: ninguna)
+- **Para preguntarle algo a otro agregado, se pide al repositorio, no se importa al vecino.** `RepositorioDeMacrociclos(db, principal)` devuelve un `Macrociclo` que ya sabe su semana actual y su estado efectivo; `acotar(stmt)` acota cualquier consulta al alcance de quien pregunta. Los repositorios se piden como dependencia de FastAPI desde `app/api/dependencias.py`
+- **Tres repositorios NO llevan `Principal`, y está razonado**: `equipos`, `usuarios` y `codigos`. El equipo *es* la frontera que los demás aplican y `Principal` se construye a partir de lo que devuelve; y la mitad de las lecturas de códigos las hace quien todavía no pertenece a ningún club. Lo que las sostiene es la regla de siempre: **el `team_id` sale de la sesión, nunca del cuerpo de la petición**
+- **Las escrituras todavía arman filas del ORM desde `api/v1/`**, y no es descuido: `Inscripcion`, `PruebaObjetivo` y `Semana` (§5.6-5.8) aún no son entidades, así que no hay nada que `repo.guardar(agregado)` pudiera recibir. Entran con C6-C7, junto con los mutadores (`dar_de_baja`, `inscribir`)
 - Ningún archivo supera ~300 líneas; si crece, extraer submódulo
 - Type hints en todo Python; TypeScript strict en el frontend
 - Frontend: cada página vive en `frontend/src/features/<feature>/`
@@ -102,7 +107,7 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
 - `PEAKSTROKE_AUTH_ENABLED=false` por defecto: **la app no pide login**. Toda
   petición se atribuye a `dev_user_email` (`coach@peakstroke.dev`, contraseña
   `peakstroke`). `config.py` impide que ese modo llegue a producción
-- Módulo `modules/auth/` + `core/security.py` (Argon2id + JWT) + la identidad
+- Rebanada `api/v1/auth/` + repositorio `persistencia/repositorios/usuarios.py` + `core/security.py` (Argon2id + JWT) + la identidad
   repartida en cuatro archivos de `core/` (partidos el 2026-08-14):
   `principal.py` (el dataclass `Principal`, sin FastAPI), `dependencies.py`
   (resolver la petición: `get_current_user`, `get_current_principal`),
@@ -178,7 +183,7 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   quién lo lleva; `plan_coaches` (M:N), qué entrenadores llevan cada macrociclo
 - **Ficha (`Swimmer`) y cuenta (`User`) son la misma persona.** Lo único que las
   separa es si alguien canjeó ya el código. El vínculo lo crea
-  `modules/link_codes/`: lo emite el entrenador sobre una ficha suya y lo canjea
+  `api/v1/codigos/`: lo emite el entrenador sobre una ficha suya y lo canjea
   la persona desde su perfil — caduca a las 72 h, sirve una vez y emitir uno
   nuevo revoca el anterior. **Ningún endpoint liga las dos por sí solo**; el
   desplegable de `MemberCreate.swimmer_id` se retiró el 2026-08-09
@@ -202,7 +207,7 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   equipo todavía): `POST /link-codes/redeem`, `GET /link-codes/mine` y
   `GET /auth/me`. Cualquier otro uso de esa dependencia es un error — sin
   `Principal` no hay `team_id` que aplicar
-- **Un atleta, un macrociclo vivo** (`plans/enrollment.py`). Es una regla de
+- **Un atleta, un macrociclo vivo** (`api/v1/macrociclos/inscripcion.py`). Es una regla de
   dominio, no de permisos: dos macros a la vez son dos planes contradictorios
   para las mismas fechas, así que bloquea **a todos, dueño incluido**. De ahí
   sale, de rebote, que un atleta ya inscrito no le aparezca a otro entrenador
@@ -212,8 +217,9 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   ve ni edita ese macrociclo. **Excepción: el dueño**, que llega a todos — sin eso
   los planes de un entrenador que se va quedarían huérfanos
 - **Toda consulta pasa por `Principal`** (`core/principal.py`): usuario +
-  pertenencia + propiedad. `plans.service.visible_to()` es la única puerta a los
-  macrociclos; nada la esquiva
+  pertenencia + propiedad. `RepositorioDeMacrociclos.acotar()` es la única
+  puerta a los macrociclos; nada la esquiva. El repositorio **se construye con
+  el `Principal`**, así que el alcance no es un argumento que se pueda olvidar
 - `team_id` sale **siempre de la sesión**, nunca del cuerpo de la petición
 - Recurso de otro equipo → **404, nunca 403**: un 403 confirmaría que existe
 - El primer equipo y su dueño se crean con

@@ -48,10 +48,19 @@ class FaseDelMacro(PorIdentidad):
     `nombre` es texto libre de la interfaz y `fase` es la clave de dominio: el
     entrenador puede llamarle "Construcción" a lo que el motor conoce como
     `base_especifica` sin que ninguno de los dos pierda su vocabulario.
+
+    `tipo` es el tercer vocabulario, el que la base guarda hoy
+    (`base|build|peak|taper`) y por el que la interfaz pinta la franja de color.
+    Está aquí porque la entidad tiene que poder reproducir la fila —si no, quien
+    quiera pintar la franja vuelve a necesitar el modelo del ORM, que es
+    exactamente el import cruzado que el paso 5 viene a quitar—, y **no decide
+    nada**: el reparto entre estos cuatro tramos y las cinco claves científicas
+    de `Fase` sigue sin resolverse, y por eso `fase` sigue viajando en `None`.
     """
 
     id: int | None = None
     nombre: str = ""
+    tipo: str = "base"
     fase: Fase | None = None
     semana_inicio: int = 1
     semana_fin: int = 1

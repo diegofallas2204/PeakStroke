@@ -231,32 +231,32 @@ class TestEscalasVsLosSchemas:
     """Los `Literal` de Pydantic son hoy la única barrera; el enum tiene que caber."""
 
     def test_el_genero_y_la_especialidad_son_los_del_formulario(self):
-        from app.modules.swimmers.schemas import Gender, Specialty
+        from app.api.vocabulario import Gender, Specialty
 
         assert {g.value for g in Genero} == set(get_args(Gender))
         assert {e.value for e in Especialidad} == set(get_args(Specialty))
 
     def test_el_estilo_es_el_del_formulario(self):
-        from app.modules.swimmers.schemas import MainStroke
+        from app.api.vocabulario import MainStroke
 
         assert {e.value for e in Estilo} == set(get_args(MainStroke))
 
     def test_el_estado_del_macro_es_el_del_endpoint(self):
-        from app.modules.plans.schemas import PlanUpdate
+        from app.api.v1.macrociclos.schemas import PlanUpdate
 
         assert {e.value for e in EstadoDeMacro} == _literales(
             PlanUpdate.model_fields["status"].annotation
         )
 
     def test_la_piscina_es_la_del_endpoint(self):
-        from app.modules.plans.schemas import PlanCreate
+        from app.api.v1.macrociclos.schemas import PlanCreate
 
         assert {p.value for p in Piscina} == _literales(
             PlanCreate.model_fields["pool"].annotation
         )
 
     def test_el_tipo_de_test_y_el_modo_de_ingreso_son_los_del_endpoint(self):
-        from app.modules.aerobic_tests.schemas import AerobicTestCreate
+        from app.api.v1.tests.schemas import AerobicTestCreate
 
         def _opciones(campo: str) -> set[str]:
             patron = next(

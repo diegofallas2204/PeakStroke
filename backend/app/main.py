@@ -6,20 +6,21 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.v1.atletas.router import router as swimmers_router
+from app.api.v1.auth.router import router as auth_router
+from app.api.v1.codigos.router import router as link_codes_router
+from app.api.v1.equipos.router import router as teams_router
+from app.api.v1.macrociclos.router import router as plans_router
+from app.api.v1.simulador.router import router as simulator_router
+from app.api.v1.tests.router import router as aerobic_router
+from app.api.v1.vistas.router import router as dashboard_router
+
 # Importado por su efecto: registra todos los modelos en Base.metadata para que
 # SQLAlchemy pueda resolver las FKs entre módulos (p. ej. swimmers -> teams).
 from app.core import model_registry  # noqa: F401
 from app.core.config import settings
 from app.core.database import init_db
 from app.core.dev_identity import DEV_BYPASS_HEADER, DEV_USER_HEADER
-from app.modules.aerobic_tests.router import router as aerobic_router
-from app.modules.auth.router import router as auth_router
-from app.modules.dashboard.router import router as dashboard_router
-from app.modules.link_codes.router import router as link_codes_router
-from app.modules.plans.router import router as plans_router
-from app.modules.simulator.router import router as simulator_router
-from app.modules.swimmers.router import router as swimmers_router
-from app.modules.teams.router import router as teams_router
 
 
 @asynccontextmanager

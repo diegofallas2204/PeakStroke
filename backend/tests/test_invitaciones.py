@@ -21,10 +21,10 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.auth.models import User
-from app.modules.link_codes.models import LinkCode
-from app.modules.swimmers.models import Swimmer
-from app.modules.teams.models import TeamMember
+from app.persistencia.tablas.atletas import Swimmer
+from app.persistencia.tablas.codigos import LinkCode
+from app.persistencia.tablas.equipos import TeamMember
+from app.persistencia.tablas.usuarios import User
 
 pytestmark = pytest.mark.asyncio
 

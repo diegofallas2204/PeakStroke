@@ -12,9 +12,9 @@ por tres razones:
 * la traducción `birth_date → nacimiento` tiene que vivir en algún sitio, y ese
   sitio es este, no el dominio.
 
-Los modelos se importan de `app/modules/<feature>/models.py`, que es donde
-todavía viven; el paso 5 los mueve a `persistencia/tablas/` y este archivo deja
-de mirar hacia arriba.
+Todos los modelos viven ya en `persistencia/tablas/` (paso 5, 2026-08-25) y
+este archivo los lee de al lado: `app/modules/` no existe, y con él desapareció
+el último import que miraba hacia arriba.
 
 **Conversión estricta a propósito.** `specialty`, `main_stroke`, `pool`, `status`
 y `gender` son vocabularios cerrados por Pydantic en la entrada, así que un valor
@@ -42,9 +42,9 @@ from app.dominio.valores import (
     Tiempo,
     TipoDeTest,
 )
-from app.modules.aerobic_tests.models import AerobicTest
-from app.modules.plans.models import Competition, Plan, PlanPhase
-from app.modules.swimmers.models import Swimmer
+from app.persistencia.tablas.atletas import Swimmer
+from app.persistencia.tablas.planes import Competition, Plan, PlanPhase
+from app.persistencia.tablas.tests_aerobicos import AerobicTest
 
 
 def _cargado(fila: object, relacion: str) -> bool:
@@ -83,6 +83,7 @@ def _fase_desde_fila(fila: PlanPhase) -> FaseDelMacro:
     return FaseDelMacro(
         id=fila.id,
         nombre=fila.name,
+        tipo=fila.type,
         fase=None,
         semana_inicio=fila.week_start,
         semana_fin=fila.week_end,

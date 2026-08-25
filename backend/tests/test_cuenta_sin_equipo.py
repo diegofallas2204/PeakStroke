@@ -24,8 +24,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.security import hash_password
-from app.modules.auth.models import User
-from app.modules.teams.models import TeamMember
+from app.persistencia.tablas.equipos import TeamMember
+from app.persistencia.tablas.usuarios import User
 
 POOL_EMAIL = "delpool@test.dev"
 

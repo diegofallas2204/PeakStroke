@@ -33,14 +33,14 @@ from app.dominio.roles import (
     Rol,
     Seccion,
 )
-from app.modules.teams.models import ROLE_ATHLETE, ROLE_COACH
+from app.persistencia.tablas.equipos import ROLE_ATHLETE, ROLE_COACH
 
 _TODOS_LOS_ROLES = (Administrador(), EntrenadorEnJefe(), Entrenador(), AtletaRol())
 
 
 async def _principal(db, email: str):
+    from app.api.v1.auth.service import get_by_email
     from app.core.dependencies import _principal_for
-    from app.modules.auth.service import get_by_email
 
     return await _principal_for(db, await get_by_email(db, email))
 
@@ -161,7 +161,7 @@ def test_ninguna_pertenencia_produce_un_administrador(clave, es_dueno):
 
 
 def test_el_administrador_no_esta_en_la_base_de_datos():
-    from app.modules.teams.models import ROLES
+    from app.persistencia.tablas.equipos import ROLES
 
     assert "admin" not in ROLES and "administrador" not in ROLES
 

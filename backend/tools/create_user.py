@@ -28,10 +28,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.auth.schemas import UserCreate
+from app.api.v1.auth.service import create_user, get_by_email
 from app.core.database import AsyncSessionLocal, engine
-from app.modules.auth.schemas import UserCreate
-from app.modules.auth.service import create_user, get_by_email
-from app.modules.teams.models import ROLE_COACH, ROLES, Team
+from app.persistencia.tablas.equipos import ROLE_COACH, ROLES, Team
 
 
 async def _resolve_team(db: AsyncSession, team_id: int | None, new_team: str | None) -> Team | None:

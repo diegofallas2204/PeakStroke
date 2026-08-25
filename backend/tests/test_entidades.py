@@ -44,7 +44,7 @@ class TestElDominioNoImportaNada:
     """La regla no negociable de `CLAUDE.md`, comprobada en vez de recordada.
 
     `app/dominio/` no importa infraestructura: ni SQLAlchemy, ni FastAPI, ni
-    Pydantic, ni `app.modules`, ni `app.core`, ni el motor viejo de `app.domain`.
+    Pydantic, ni `app.api`, ni `app.persistencia`, ni `app.core`.
     Se comprueba al revés —**todo import absoluto tiene que ser de la biblioteca
     estándar**— porque una lista de prohibidos solo caza lo que ya se nos ocurrió
     prohibir, y lo que rompe esto es siempre el import que nadie previó.
@@ -73,7 +73,7 @@ class TestElDominioNoImportaNada:
             for raiz in self._imports_absolutos(archivo):
                 assert raiz in sys.stdlib_module_names, (
                     f"{archivo.relative_to(dominio.parent)} importa {raiz!r}. "
-                    "app/dominio/ no importa NADA: ni infraestructura, ni app.modules, "
+                    "app/dominio/ no importa NADA: ni infraestructura, ni app.api, "
                     "ni app.core, ni app.domain. La traducción va en persistencia/mapeo/."
                 )
 

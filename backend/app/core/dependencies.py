@@ -26,9 +26,9 @@ from app.core.database import get_db
 from app.core.dev_identity import bypass_pedido, dev_user
 from app.core.principal import Principal
 from app.core.security import TokenError, decode_token
-from app.modules.auth.models import User
-from app.modules.swimmers.models import Swimmer
-from app.modules.teams.models import Team, TeamMember
+from app.persistencia.tablas.atletas import Swimmer
+from app.persistencia.tablas.equipos import Team, TeamMember
+from app.persistencia.tablas.usuarios import User
 
 __all__ = [
     "Principal",
@@ -101,7 +101,7 @@ async def get_current_user(
     ningún endpoint debería usarla: sin `Principal` no hay `team_id`, y sin
     `team_id` no hay frontera que aplicar. Existe para el único caso en que
     pedir pertenencia sería absurdo — canjear un código de vinculación, que es
-    justo lo que la crea (`modules/link_codes/router.py`).
+    justo lo que la crea (`api/v1/codigos/router.py`).
 
     Antes de usarla en un endpoint nuevo, la pregunta es: ¿qué datos de equipo
     toca? Si la respuesta no es "ninguno", la dependencia correcta es la otra.

@@ -24,7 +24,7 @@ import pytest
 from conftest import API, World, como
 from sqlalchemy import select
 
-from app.modules.plans.models import WeeklyPlan
+from app.persistencia.tablas.planes import WeeklyPlan
 
 
 async def semana_de(db, event_id: int, numero: int = 2) -> WeeklyPlan:
@@ -62,7 +62,7 @@ async def test_no_puede_leer_la_semana_de_otro(client, world: World):
 
 
 async def test_no_puede_crear_un_test_a_nombre_de_otro(client, db, world: World):
-    from app.modules.aerobic_tests.models import AerobicTest
+    from app.persistencia.tablas.tests_aerobicos import AerobicTest
 
     r = await client.post(f"{API}/aerobic-tests/", json={
         "swimmer_id": world.carlos_swimmer_id, "plan_id": world.plan_id,
@@ -77,7 +77,7 @@ async def test_no_puede_crear_un_test_a_nombre_de_otro(client, db, world: World)
 
 
 async def test_no_puede_borrar_el_test_de_otro(client, db, world: World):
-    from app.modules.aerobic_tests.models import AerobicTest
+    from app.persistencia.tablas.tests_aerobicos import AerobicTest
 
     r = await client.delete(
         f"{API}/aerobic-tests/{world.carlos_test_id}", headers=como(world.sofia_email),
@@ -366,7 +366,7 @@ async def test_dar_de_baja_la_ficha_no_le_quita_su_historico(client, db, world: 
     scoping mirase también `swimmers.is_active`, un atleta dado de baja no
     podría ni consultar sus propios tiempos de las temporadas que sí nadó.
     """
-    from app.modules.swimmers.models import Swimmer
+    from app.persistencia.tablas.atletas import Swimmer
 
     sofia_sw = await db.get(Swimmer, world.sofia_swimmer_id)
     sofia_sw.is_active = False

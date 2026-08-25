@@ -48,6 +48,37 @@
 > del tipo, con una red (`tests/test_valores_vs_motor.py`) que las compara contra
 > la fuente viva hasta que el paso 4 retire la copia vieja.
 >
+> **Actualización 2026-08-25 — el paso 5 está construido, y con él el §2 entero.**
+> `app/modules/` **ya no existe**. Seis agregados, cada uno con su tabla en
+> `persistencia/tablas/`, su repositorio en `persistencia/repositorios/` y su
+> rebanada en `api/v1/`: `atletas` · `codigos` · `equipos` · `macrociclos` ·
+> `tests_aerobicos` · `usuarios`; más `api/v1/simulador/` (sin tabla) y
+> `api/v1/vistas/` (el tablero y la tabla del equipo, que **no son agregados**).
+> Línea base ahora: **834 tests en verde** (822 + 12 de
+> `tests/test_dependencias_de_capas.py`). Detalle y decisiones en el bloque C5
+> de `docs/PLAN-DE-TRABAJO.md`.
+>
+> **La dirección de dependencias dejó de ser una convención.** El §2 la enuncia;
+> desde hoy hay un test que falla cuando se viola, y el grafo
+> (`tools/grafo_de_imports.py`) no tiene ninguna flecha que suba. P5 del §0 está
+> **cerrado**: las tres violaciones que la auditoría contó ya no se pueden
+> escribir.
+>
+> **Construirlo enmendó el §5.5 en un punto.** `FaseDelMacro` necesitaba
+> **`tipo`** —el `base|build|peak|taper` que la base guarda— porque sin él, quien
+> quisiera pintar la franja de fases volvía a necesitar el modelo del ORM, que es
+> justo el import que este paso viene a quitar. **No decide el reparto 4↔5**:
+> `fase` sigue viajando en `None` y P3 sigue siendo el único hallazgo del §0 sin
+> bloque asignado.
+>
+> Una decisión de construcción que este documento no fijaba: **tres repositorios
+> no llevan `Principal`** (equipos, usuarios y códigos). El equipo *es* la
+> frontera que los demás aplican y `Principal` se construye a partir de lo que
+> devuelve; y la mitad de las lecturas de códigos las hace quien todavía no
+> pertenece a ningún club. Acotarlos por lo que ellos mismos resuelven sería
+> circular. Lo que sostiene la frontera ahí sigue siendo que **el `team_id` sale
+> de la sesión, nunca del cuerpo de la petición**.
+>
 > **Lo que sigue sin decidirse** no son decisiones de modelo sino de producto, y
 > viven en §10.3.
 
@@ -168,6 +199,16 @@ dominio  →  nada
 Esto es lo que mata P5: `vistas/dashboard` deja de importar
 `plans.service.current_week_of` porque pregunta al repositorio y le llega un
 `Macrociclo` que ya sabe su semana actual.
+
+> **CONSTRUIDO el 2026-08-25** (bloque C5). El árbol de arriba es el que hay,
+> con dos ajustes que se decidieron al construirlo: los códigos de vinculación
+> van en `api/v1/codigos/` (el §2 no los nombraba) y `api/dependencias.py`
+> entrega los repositorios como dependencia de FastAPI. `current_week_of` y
+> `effective_status` **se borraron**, no se dejaron delegando: un envoltorio que
+> delega sigue siendo un import que cruza. Lo comprueba
+> `tests/test_dependencias_de_capas.py`, que además prohíbe declarar una tabla
+> fuera de `persistencia/tablas/` — que es la condición que hace innecesaria la
+> vieja excepción de «lecturas explícitas de modelos».
 
 ---
 

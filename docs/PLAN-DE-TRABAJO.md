@@ -45,34 +45,38 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 
 ---
 
-## Dónde estamos y qué sigue — medido el 2026-08-17
+## Dónde estamos y qué sigue — medido el 2026-08-25
 
-**Los pasos 1 a 4 del rediseño son código.** `app/dominio/` tiene `valores/`,
-`entidades/`, `roles/` y `servicios/`, y el motor científico es **uno**:
-`app/domain/` se borró y `app/engine/` quedó en dos módulos que nunca fueron
-motor. Todo en la rama `feat/salida-y-alta-por-correo`.
+**Los pasos 1 a 5 del rediseño son código.** `app/dominio/` tiene `valores/`,
+`entidades/`, `roles/` y `servicios/`; el motor científico es **uno**
+(`app/domain/` borrado, `app/engine/` en dos módulos que nunca fueron motor); y
+desde C5 la estructura es la del §2: `app/modules/` **ya no existe** y en su
+lugar están `app/api/v1/` (ocho rebanadas), `app/persistencia/tablas/` (seis
+tablas) y `app/persistencia/repositorios/` (seis repositorios). Todo en la rama
+`feat/salida-y-alta-por-correo`.
 
 | | |
 |---|---|
-| Tests backend | **822 en verde** (95 s) · `ruff check .` limpio |
-| Backend | 9.983 líneas · 15 modelos · **3 archivos >300** (`valores/tiempo.py` 354, `valores/escalas.py` 315, `valores/zona.py` 312) |
+| Tests backend | **834 en verde** (88 s) · `ruff check .` limpio |
+| Backend | 10.642 líneas · 15 modelos · **4 archivos >300** (`valores/tiempo.py` 354, `valores/escalas.py` 318, `valores/zona.py` 312, `repositorios/macrociclos.py` 309) |
 | Frontend | 8.586 líneas · **0 archivos >300** |
 | Snapshot del motor | 3 caminos · 92 casos · **sin regenerar desde A0** |
+| Dirección de dependencias | `api → persistencia → dominio`, comprobada por `tests/test_dependencias_de_capas.py`; **cero flechas que suban** |
 
-Los tres archivos que pasan de 300 son de `valores/` y crecieron con la fusión;
-partirlos es barato y no bloquea nada, pero conviene hacerlo antes de que se
-vuelvan cinco.
+Los tres archivos de `valores/` que pasan de 300 crecieron con la fusión;
+partirlos es barato y no bloquea nada. El cuarto es el repositorio de
+macrociclos, y ese se deja: su división natural llega con C6-C7.
 
 ### El orden de lo que queda
 
 | # | Bloque | Riesgo | Por qué va ahí |
 |---|---|---|---|
-| 1 | **C5 · Repositorios** | medio | Es el que desbloquea a los demás: sin repositorio no hay dónde poner los mutadores que C2 dejó fuera (`dar_de_baja`, `inscribir`), y `dashboard` sigue importando lógica de `plans` |
-| 2 | **P3 · Las tres fases** | bajo-medio | **Sigue abierto y ya no tiene dueño** (ver abajo). Barato ahora, caro después de C6 |
-| 3 | **C6 · `Resultado`** | medio | Cierra el agujero de `delete_plan`, que hoy puede llevarse todos los tiempos reales de un equipo |
-| 4 | **R7 · La curva sale de `plans`** | bajo | Migración + `PlanCreate`/`PlanResponse` + el desplegable del wizard |
-| 5 | **C7 · `Sesion`** | medio | Necesita C6 hecho |
-| 6 | **C8 · `CargaDiaria` + Banister** | bajo | Necesita C7 |
+| ~~1~~ | ~~**C5 · Repositorios**~~ | — | ✅ **HECHO el 2026-08-25.** Ver el bloque |
+| 1 | **P3 · Las tres fases** | bajo-medio | **Sigue abierto y ya no tiene dueño** (ver abajo). Barato ahora, caro después de C6. C5 lo rozó —`FaseDelMacro.tipo` ya lleva el `base\|build\|peak\|taper` de la base— pero **no** decidió el reparto 4↔5 |
+| 2 | **C6 · `Resultado`** | medio | Cierra el agujero de `delete_plan`, que hoy puede llevarse todos los tiempos reales de un equipo. Se lleva además el estilo crudo (`"crol"`), que C5 le reasignó por ser migración de datos |
+| 3 | **R7 · La curva sale de `plans`** | bajo | Migración + `PlanCreate`/`PlanResponse` + el desplegable del wizard |
+| 4 | **C7 · `Sesion`** | medio | Necesita C6 hecho. Trae consigo los mutadores de las entidades (`dar_de_baja`, `inscribir`), que C5 dejó fuera porque las escrituras siguen armando filas del ORM |
+| 5 | **C8 · `CargaDiaria` + Banister** | bajo | Necesita C7 |
 
 ### Cinco cabos sueltos concretos
 
@@ -89,8 +93,9 @@ vuelvan cinco.
    recibe la curva por firma, que es lo que R7 pide de verdad; sacarla de la
    tabla toca migración, dos schemas y el wizard.
 3. **El estilo se sigue guardando crudo** (`"crol"` en vez de `"libre"`).
-   Canonizarlo toca filas existentes: es migración de datos, y por eso se
-   reasignó a C5.
+   Canonizarlo toca filas existentes: es migración de datos, y C5 —que fue un
+   refactor de estructura sin tocar ni una fila— se lo pasó a **C6**, que ya
+   migra datos de todas formas.
 4. **El snapshot no cubre el camino nuevo.** Sus casos no llevan
    `base_aerobica`, así que recorren la estimación del nivel y no el test.
    Tampoco cubren `factibilidad`, `generar_extension`, `km_por_zona`,
@@ -1497,9 +1502,9 @@ AL TERMINAR
 
 ---
 
-## C5 · Repositorios
+## C5 · Repositorios — ✅ HECHO (2026-08-25)
 
-### Qué pasa
+### Qué pasaba
 
 La regla del proyecto dice que los módulos no se importan entre sí. **Ya está
 rota**, y no por descuido sino por presión del dominio real:
@@ -1525,7 +1530,101 @@ repositorio y le llega un `Macrociclo` que **ya sabe** su semana actual.
 
 **Medio.** Mueve mucho código, pero sin cambiar comportamiento.
 
-### Prompt
+### Cómo quedó
+
+**Seis agregados, seis repositorios, y `app/modules/` borrado entero.** La
+estructura es la del §2 de `REDISENO.md`:
+
+```
+app/persistencia/tablas/        atletas · codigos · equipos · planes ·
+                                tests_aerobicos · usuarios
+app/persistencia/repositorios/  RepositorioDeAtletas · …DeCodigos · …DeEquipos ·
+                                …DeMacrociclos · …DeTests · …DeUsuarios
+app/api/v1/                     atletas · auth · codigos · equipos · macrociclos ·
+                                simulador · tests · vistas
+```
+
+Se hizo **de un agregado cada vez**, con la suite entera en verde después de
+cada uno, empezando por **Macrociclo**: no es el más pequeño (es el más grande)
+sino aquel al que *apuntaban* las violaciones. `dashboard` y
+`aerobic_tests/intervals` importaban los dos de `plans`, así que migrarlo cerró
+dos de las tres de una vez; empezar por Atleta habría obligado a tocar el
+tablero dos veces.
+
+**El efecto que se pedía, literal.** `api/v1/vistas/tablero.py` ya no sabe que
+existe `plans`:
+
+```python
+current = macro.semana_actual()          # antes: current_week_of(plan)
+events  = await repo.pruebas_de(macro.id)
+```
+
+Nueve decisiones que conviene no reabrir:
+
+1. **Los envoltorios se borran, no se dejan delegando.** `current_week_of` y
+   `effective_status` desaparecieron en vez de quedarse llamando a
+   `Macrociclo`: mientras exista el sitio al que importar, alguien importa.
+2. **El repositorio se construye con el `Principal`**, no lo recibe por método.
+   Un parámetro que se puede omitir se acaba omitiendo, y así fue como el filtro
+   por nadador tardó en llegar a la mitad de las consultas.
+3. **Tres repositorios NO llevan `Principal`, y está razonado**: equipos,
+   usuarios y códigos. El equipo *es* la frontera que los demás aplican y
+   `Principal` se construye a partir de lo que devuelve; y la mitad de las
+   lecturas de códigos las hace quien todavía no pertenece a ningún club
+   (`/link-codes/mine`, `/redeem`). Lo que las sostiene es la regla de siempre:
+   **el `team_id` sale de la sesión, nunca del cuerpo de la petición.**
+4. **`acotar(stmt)` es público** en los repositorios acotados: `api/v1/tests`
+   pasa su propio `select` por el de macrociclos en vez de duplicar el filtro.
+5. **La excepción de "lecturas explícitas de modelos" ya no hace falta.** Con
+   todas las tablas en `persistencia/tablas/`, leer una fila ajena es mirar
+   hacia abajo y no de lado. Entre rebanadas del API hoy no se importa **nada**.
+6. **`normalize_email` bajó a `persistencia/repositorios/usuarios.py`** como
+   `normalizar_correo`. Era la última lógica cruzada (`link_codes → auth`), y
+   normalizar el correo es una regla de almacenamiento —`users.email` es UNIQUE
+   y SQLite y PostgreSQL no comparan cadenas igual—, no de negocio.
+7. **`inscripciones_vivas()` devuelve pares, no un diccionario.** Colapsar por
+   nadador dentro del repositorio daría por buena justo la invariante que el
+   llamador viene a comprobar.
+8. **Hubo que añadir `FaseDelMacro.tipo`** (el `base|build|peak|taper` que
+   guarda la base). Sin él, quien pinte la franja de fases vuelve a necesitar el
+   modelo del ORM. **No decide el reparto 4↔5**: `fase` sigue viajando en `None`
+   y P3 sigue abierto.
+9. **`seed.py` estaba roto desde antes** (`ImportError` sobre
+   `plans.service.add_athlete`) y quedó arreglado de paso: se verificó
+   ejecutándolo entero contra una base desechable.
+
+**La regla dejó de ser una convención.** `tests/test_dependencias_de_capas.py`
+(12 casos) comprueba por AST que ninguna rebanada importe de otra, que ninguna
+capa de dentro conozca `app.api`, que el dominio no importe hacia fuera, que
+`app/modules/` no exista y que **ninguna tabla se declare fuera de
+`persistencia/tablas/`** —que es la condición que hace innecesaria la excepción
+del punto 5—. `VIOLACIONES_CONOCIDAS` está **vacía**. Detecta también
+`from app.x import service`, que es la forma con la que se le escapaba.
+
+`tools/grafo_de_imports.py` imprime el grafo por capas y marca las flechas que
+suben. **No queda ninguna.**
+
+| Verificación | Resultado |
+|---|---|
+| Suite | **834 en verde** (88 s). Base antes de empezar: 822 |
+| Contrato del API | `app.openapi()` antes vs. después, ignorando docstrings: **idéntico** |
+| Producto cartesiano | Sigue en `error` en `pyproject.toml`; `test_scope_helper.py` verde sin tocar la forma de sus cinco consultas |
+| `ruff check --no-cache` | Limpio, salvo un `I001` **preexistente** en `tools/sim_cli.py` (herramienta muerta: importa `app.engine.curves`, borrado en C4) |
+| `seed.py` | Ejecutado entero contra una base desechable |
+
+Backend: 10.642 líneas. Archivos >300: los tres de `valores/` que ya estaban, más
+`repositorios/macrociclos.py` (309, mitad prosa) — se deja sin partir a propósito,
+porque la división natural (`Inscripcion`/`PruebaObjetivo`/`Semana`) llega con
+C6-C7 y forzarla ahora crearía una frontera falsa.
+
+**Lo que C5 NO hizo**, y sigue pendiente: el estilo se sigue guardando crudo
+(`"crol"` en vez de `"libre"`) — es migración de datos y se reasigna a C6, que
+ya toca filas—; los mutadores de las entidades (`dar_de_baja`, `inscribir`)
+siguen sin construirse, porque las escrituras todavía arman filas del ORM
+mientras `Inscripcion` y `Semana` (§5.6-5.8) no sean entidades; y `app/engine/`
+se dejó intacto (`aerobic.py` y `time_utils.py`) para no tocar el snapshot.
+
+### Prompt (ejecutado el 2026-08-25)
 
 ```text
 Trabajo en PeakStroke, en C:\Users\diego\OneDrive\Desktop\PeakStroke\PeakStroke\peakstroke.

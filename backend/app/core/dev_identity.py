@@ -13,7 +13,7 @@ from fastapi import HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.modules.auth.models import User
+from app.persistencia.tablas.usuarios import User
 
 logger = logging.getLogger(__name__)
 
@@ -66,12 +66,12 @@ async def dev_user(db: AsyncSession, request: Request) -> User:
     conmutador del frontend debería no ofrecerla, y por eso
     `service.dev_identities` filtra las dos banderas.
     """
-    from app.modules.auth import service as auth_service
+    from app.persistencia.repositorios import RepositorioDeUsuarios
 
     if settings.dev_identity_enabled:
         pedido = request.headers.get(DEV_USER_HEADER)
         if pedido:
-            user = await auth_service.get_by_email(db, pedido)
+            user = await RepositorioDeUsuarios(db).por_correo(pedido)
             if user is not None and user.is_active:
                 return user
             logger.warning(
@@ -79,7 +79,7 @@ async def dev_user(db: AsyncSession, request: Request) -> User:
                 DEV_USER_HEADER, pedido, settings.dev_user_email,
             )
 
-    user = await auth_service.get_by_email(db, settings.dev_user_email)
+    user = await RepositorioDeUsuarios(db).por_correo(settings.dev_user_email)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

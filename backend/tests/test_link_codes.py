@@ -16,10 +16,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password
-from app.modules.auth.models import User
-from app.modules.link_codes.models import LinkCode
-from app.modules.swimmers.models import Swimmer
-from app.modules.teams.models import TeamMember
+from app.persistencia.tablas.atletas import Swimmer
+from app.persistencia.tablas.codigos import LinkCode
+from app.persistencia.tablas.equipos import TeamMember
+from app.persistencia.tablas.usuarios import User
 
 pytestmark = pytest.mark.asyncio
 
@@ -210,22 +210,25 @@ async def test_no_se_emite_codigo_para_una_ficha_de_otro_equipo(
     client: AsyncClient, db: AsyncSession, world: World,
 ):
     """404 y no 403: un 403 confirmaría que esa ficha existe en algún sitio."""
-    from app.modules.auth.schemas import UserCreate
-    from app.modules.auth.service import create_user
-    from app.modules.swimmers.schemas import SwimmerCreate
-    from app.modules.swimmers.service import create_swimmer
-    from app.modules.teams.service import create_team
+    from app.api.v1.auth.schemas import UserCreate
+    from app.api.v1.auth.service import create_user
+    from app.core.principal import Principal
+    from app.persistencia.repositorios import (
+        RepositorioDeAtletas,
+        RepositorioDeEquipos,
+    )
 
-    otro = await create_team(db, "Otro Club")
+    equipos = RepositorioDeEquipos(db)
+    otro = await equipos.crear("Otro Club")
     ajeno = await create_user(db, UserCreate(
         email="ajeno@test.dev", name="Entrenador Ajeno",
         password="peakstroke-test", role="coach",
     ), otro.id)
     otro.owner_id = ajeno.id
     await db.commit()
-    ficha_ajena = await create_swimmer(
-        db, SwimmerCreate(name="Nadador Ajeno"), otro.id,
-    )
+    ficha_ajena = await RepositorioDeAtletas(db, Principal(
+        user=ajeno, membership=await equipos.pertenencia(ajeno.id), is_owner=True,
+    )).crear(team_id=otro.id, nombre="Nadador Ajeno")
 
     r = await client.post(
         CODES + "/", json={"swimmer_id": ficha_ajena.id}, headers=como(world.owner_email),

@@ -47,26 +47,29 @@ from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
-from app.core.config import settings  # noqa: E402
-from app.core.database import AsyncSessionLocal, Base, engine, get_db  # noqa: E402
-from app.core.dependencies import Principal  # noqa: E402
-from app.main import app  # noqa: E402
-from app.modules.aerobic_tests.schemas import AerobicTestCreate  # noqa: E402
-from app.modules.aerobic_tests.service import create_test  # noqa: E402
-from app.modules.auth.schemas import UserCreate  # noqa: E402
-from app.modules.auth.service import create_user  # noqa: E402
-from app.modules.plans.models import AthleteEvent  # noqa: E402
-from app.modules.plans.roster import add_athlete  # noqa: E402
-from app.modules.plans.schemas import (  # noqa: E402
+from app.api.v1.auth.schemas import UserCreate  # noqa: E402
+from app.api.v1.auth.service import create_user  # noqa: E402
+from app.api.v1.macrociclos.nomina import add_athlete  # noqa: E402
+from app.api.v1.macrociclos.schemas import (  # noqa: E402
     AddAthleteRequest,
     CompetitionInput,
     EventInput,
     PlanCreate,
 )
-from app.modules.plans.service import create_plan  # noqa: E402
-from app.modules.swimmers.schemas import SwimmerCreate  # noqa: E402
-from app.modules.swimmers.service import create_swimmer  # noqa: E402
-from app.modules.teams.service import create_team, get_membership  # noqa: E402
+from app.api.v1.macrociclos.service import create_plan  # noqa: E402
+from app.api.v1.tests.schemas import AerobicTestCreate  # noqa: E402
+from app.api.v1.tests.service import create_test  # noqa: E402
+from app.core.config import settings  # noqa: E402
+from app.core.database import AsyncSessionLocal, Base, engine, get_db  # noqa: E402
+from app.core.dependencies import Principal  # noqa: E402
+from app.main import app  # noqa: E402
+from app.persistencia.repositorios import (  # noqa: E402
+    RepositorioDeAtletas,
+    RepositorioDeEquipos,
+    RepositorioDeMacrociclos,
+    RepositorioDeTests,
+)
+from app.persistencia.tablas.planes import AthleteEvent  # noqa: E402
 
 PASSWORD = "peakstroke-test"
 API = "/api/v1"
@@ -125,7 +128,7 @@ def _hash_cache() -> None:
     verdad; lo único que se pierde es que las cuentas de prueba comparten salt,
     que a nadie le importa.
     """
-    from app.modules.auth import service as auth_service
+    from app.api.v1.auth import service as auth_service
 
     real = auth_service.hash_password
     cache: dict[str, str] = {}
@@ -213,7 +216,8 @@ async def world(db: AsyncSession) -> World:
     Todo se crea por los mismos servicios que usa el API. Si el aislamiento se
     rompiera al construirlo, fallaría aquí antes que en el test.
     """
-    team = await create_team(db, "Club de Prueba")
+    equipos = RepositorioDeEquipos(db)
+    team = await equipos.crear("Club de Prueba")
 
     async def cuenta(email: str, nombre: str, rol: str):
         return await create_user(
@@ -229,11 +233,21 @@ async def world(db: AsyncSession) -> World:
     team.owner_id = owner.id
     await db.commit()
 
+    # Todo lo que sigue pasa por los mismos repositorios acotados que usa el API:
+    # el mundo de pruebas no tiene atajos, así que si el aislamiento se rompiera,
+    # fallaría aquí antes que en ningún test.
+    como_owner = Principal(
+        user=owner, membership=await equipos.pertenencia(owner.id), is_owner=True,
+    )
+    atletas = RepositorioDeAtletas(db, como_owner)
+    repo = RepositorioDeMacrociclos(db, como_owner)
+    tests_repo = RepositorioDeTests(db, como_owner)
+
     async def nadador(nombre: str, user_id: int | None):
-        s = await create_swimmer(db, SwimmerCreate(
-            name=nombre, birth_date=date(2008, 5, 1), gender="F",
-            specialty="medio_fondo", main_stroke="libre",
-        ), team.id)
+        s = await atletas.crear(
+            team_id=team.id, nombre=nombre, nacimiento=date(2008, 5, 1),
+            genero="F", especialidad="medio_fondo", estilo_principal="libre",
+        )
         if user_id is not None:
             s.user_id = user_id
             await db.commit()
@@ -244,15 +258,16 @@ async def world(db: AsyncSession) -> World:
     sin_cuenta_sw = await nadador("Nadador Sin Cuenta", None)
 
     lunes = date.today() - timedelta(days=date.today().weekday()) - timedelta(weeks=3)
-    plan = await create_plan(db, PlanCreate(
+    plan = await create_plan(repo, PlanCreate(
         name="Macrociclo de Prueba", start_date=lunes, total_weeks=12,
         weeks_per_micro=4, total_km=300, progression_curve="science",
         competitions=[CompetitionInput(name="Nacional", week_number=12, days=2, is_main=True)],
     ), team.id, owner.id)
+    macro = await repo.recargar(plan.id)
 
     eventos = {}
     for swimmer in (sofia_sw, carlos_sw, sin_cuenta_sw):
-        ap = await add_athlete(db, plan, AddAthleteRequest(
+        ap = await add_athlete(db, repo, macro, AddAthleteRequest(
             swimmer_id=swimmer.id, aerobic_base=75.0, aerobic_base_source="t30",
             events=[EventInput(
                 priority=1, distance=200, stroke="libre",
@@ -266,13 +281,10 @@ async def world(db: AsyncSession) -> World:
         )).scalar_one()
 
     # Los tests aeróbicos se crean como el entrenador dueño, por el mismo camino
-    # acotado que usa el API. Si el aislamiento se rompiera, fallaría aquí.
-    como_owner = Principal(
-        user=owner, membership=await get_membership(db, owner.id), is_owner=True,
-    )
+    # acotado que usa el API.
     tests = {}
     for swimmer in (sofia_sw, carlos_sw):
-        t = await create_test(db, AerobicTestCreate(
+        t = await create_test(tests_repo, repo, AerobicTestCreate(
             swimmer_id=swimmer.id, plan_id=plan.id, test_type="DIRECT",
             test_date=lunes, direct_per100=75.0, notes="Base de partida",
         ), como_owner)

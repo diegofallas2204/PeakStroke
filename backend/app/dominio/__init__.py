@@ -1,6 +1,6 @@
 """Dominio POO de PeakStroke — no importa NADA.
 
-Ni SQLAlchemy, ni FastAPI, ni Pydantic, ni `app.modules`, ni `app.core`, ni el
+Ni SQLAlchemy, ni FastAPI, ni Pydantic, ni `app.api`, ni `app.persistencia`, ni `app.core`, ni el
 motor viejo de `app.domain`. Se puede probar, empaquetar y portar sin la
 aplicación alrededor (principio 6 de `docs/REDISENO.md` §1).
 
