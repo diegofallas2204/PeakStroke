@@ -197,7 +197,8 @@ class TestElTechoYElVeredicto:
             INICIO, 15, 20.0,
         )
         assert extension[0].numero == 16
-        assert all(s.fase == Fase.EXTENSION.etiqueta for s in extension)
+        assert all(s.fase is Fase.EXTENSION for s in extension)
+        assert all(s.nombre_fase == Fase.EXTENSION.etiqueta for s in extension)
 
 
 # ── Degradación por macrociclo (§4.3) ───────────────────────────────────────

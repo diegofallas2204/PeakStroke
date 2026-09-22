@@ -31,6 +31,7 @@ from app.dominio.valores import (
     Especialidad,
     EstadoDeMacro,
     Estilo,
+    Fase,
     ModoDeIngreso,
     Perfil,
     Prueba,
@@ -97,7 +98,7 @@ class TestIdentidadDeEntidad:
         assert uno == uno
 
     def test_entidades_de_distinta_clase_nunca_son_iguales(self):
-        assert Atleta(id=3) != FaseDelMacro(id=3)
+        assert Atleta(id=3) != FaseDelMacro(fase=Fase.TAPER, id=3)
 
     def test_sirven_de_clave_en_un_conjunto(self):
         assert len({Atleta(id=1), Atleta(id=1), Atleta(id=2)}) == 2
@@ -189,9 +190,9 @@ class TestMacrociclo:
 
     def test_la_fase_de_una_semana_es_el_tramo_que_la_cubre(self):
         macro = self._macro(fases=[
-            FaseDelMacro(nombre="Base", semana_inicio=1, semana_fin=4),
-            FaseDelMacro(nombre="Construcción", semana_inicio=5, semana_fin=10),
-            FaseDelMacro(nombre="Descenso", semana_inicio=11, semana_fin=12),
+            FaseDelMacro(Fase.BASE_GENERAL, nombre="Base", semana_inicio=1, semana_fin=4),
+            FaseDelMacro(Fase.UMBRAL_CSS, nombre="Construcción", semana_inicio=5, semana_fin=10),
+            FaseDelMacro(Fase.TAPER, nombre="Descenso", semana_inicio=11, semana_fin=12),
         ])
         assert macro.fase_de(1).nombre == "Base"
         assert macro.fase_de(7).nombre == "Construcción"
@@ -202,12 +203,23 @@ class TestMacrociclo:
     def test_sin_fases_no_se_inventa_ninguna(self):
         assert self._macro().fase_de(3) is None
 
-    def test_la_fase_de_dominio_viaja_vacia_hasta_el_paso_4(self):
-        # La base guarda cuatro tramos y `Fase` tiene cinco claves científicas:
-        # ese reparto sigue abierto: la fusión de motores pasó sin cerrarlo.
-        tramo = FaseDelMacro(nombre="Construcción", semana_inicio=5, semana_fin=10)
-        assert tramo.fase is None
+    def test_el_tramo_lleva_su_fase_y_el_nombre_es_aparte(self):
+        # P3: el entrenador puede llamarle "Construcción" a lo que la ciencia
+        # conoce como umbral_css; ninguno de los dos pierde su vocabulario.
+        tramo = FaseDelMacro(Fase.UMBRAL_CSS, nombre="Construcción", semana_inicio=5, semana_fin=10)
+        assert tramo.fase is Fase.UMBRAL_CSS
+        assert tramo.nombre == "Construcción"
         assert tramo.duracion_en_semanas() == 6
+
+    def test_un_tramo_sin_fase_de_dominio_no_se_construye(self):
+        with pytest.raises(TypeError):
+            FaseDelMacro(nombre="Construcción")          # type: ignore[call-arg]
+        with pytest.raises(TypeError):
+            FaseDelMacro("umbral_css", nombre="Construcción")   # texto, no Fase
+
+    def test_la_extension_no_es_un_tramo_del_macro(self):
+        with pytest.raises(ValueError, match="extensión"):
+            FaseDelMacro(Fase.EXTENSION, nombre="Extra")
 
     def test_la_competencia_principal_es_una_pregunta_del_macro(self):
         macro = self._macro(competencias=[

@@ -4,8 +4,9 @@
 > partes. Cada bloque trae una explicación para leer y un **prompt listo para
 > copiar** en una sesión nueva de Claude Code.
 >
-> **Estado: A0 y A1 hechos** (2026-08-13 y 2026-08-14, ver cada bloque). El resto
-> sigue sin empezar y la beta sigue intacta. Este documento es el mapa.
+> **Estado al 2026-09-22: A, B, C0–C5 y P3 hechos.** Sigue C6. El estado vivo
+> está en «Dónde estamos y qué sigue», justo abajo; el resto del documento
+> conserva cada bloque como se planeó y cómo quedó.
 
 ---
 
@@ -45,7 +46,7 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 
 ---
 
-## Dónde estamos y qué sigue — medido el 2026-08-25
+## Dónde estamos y qué sigue — medido el 2026-09-22
 
 **Los pasos 1 a 5 del rediseño son código.** `app/dominio/` tiene `valores/`,
 `entidades/`, `roles/` y `servicios/`; el motor científico es **uno**
@@ -53,14 +54,16 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 desde C5 la estructura es la del §2: `app/modules/` **ya no existe** y en su
 lugar están `app/api/v1/` (ocho rebanadas), `app/persistencia/tablas/` (seis
 tablas) y `app/persistencia/repositorios/` (seis repositorios). Todo en la rama
-`feat/salida-y-alta-por-correo`.
+`feat/salida-y-alta-por-correo`. **Y desde el 2026-09-22 P3 también está
+cerrado**: las fases del macro son las cinco de la ciencia y la base guarda su
+clave (ver el bloque P3 más abajo).
 
 | | |
 |---|---|
-| Tests backend | **834 en verde** (88 s) · `ruff check .` limpio |
-| Backend | 10.642 líneas · 15 modelos · **4 archivos >300** (`valores/tiempo.py` 354, `valores/escalas.py` 318, `valores/zona.py` 312, `repositorios/macrociclos.py` 309) |
-| Frontend | 8.586 líneas · **0 archivos >300** |
-| Snapshot del motor | 3 caminos · 92 casos · **sin regenerar desde A0** |
+| Tests backend | **938 en verde** (118 s) · `ruff check .` limpio |
+| Backend | 10.695 líneas · 15 modelos · **4 archivos >300** (`valores/tiempo.py` 354, `valores/escalas.py` 340, `valores/zona.py` 312, `repositorios/macrociclos.py` 307) |
+| Frontend | 8.995 líneas (incluye la exportación a PDF, sin commitear) · **0 archivos >300** · `tsc -b` y `eslint .` limpios |
+| Snapshot del motor | 3 caminos · 92 casos · **regenerado una sola vez (P3) y solo por la etiqueta de fase**: ningún número se movió desde A0 |
 | Dirección de dependencias | `api → persistencia → dominio`, comprobada por `tests/test_dependencias_de_capas.py`; **cero flechas que suban** |
 
 Los tres archivos de `valores/` que pasan de 300 crecieron con la fusión;
@@ -72,23 +75,21 @@ macrociclos, y ese se deja: su división natural llega con C6-C7.
 | # | Bloque | Riesgo | Por qué va ahí |
 |---|---|---|---|
 | ~~1~~ | ~~**C5 · Repositorios**~~ | — | ✅ **HECHO el 2026-08-25.** Ver el bloque |
-| 1 | **P3 · Las tres fases** | bajo-medio | **Sigue abierto y ya no tiene dueño** (ver abajo). Barato ahora, caro después de C6. C5 lo rozó —`FaseDelMacro.tipo` ya lleva el `base\|build\|peak\|taper` de la base— pero **no** decidió el reparto 4↔5 |
-| 2 | **C6 · `Resultado`** | medio | Cierra el agujero de `delete_plan`, que hoy puede llevarse todos los tiempos reales de un equipo. Se lleva además el estilo crudo (`"crol"`), que C5 le reasignó por ser migración de datos |
-| 3 | **R7 · La curva sale de `plans`** | bajo | Migración + `PlanCreate`/`PlanResponse` + el desplegable del wizard |
-| 4 | **C7 · `Sesion`** | medio | Necesita C6 hecho. Trae consigo los mutadores de las entidades (`dar_de_baja`, `inscribir`), que C5 dejó fuera porque las escrituras siguen armando filas del ORM |
-| 5 | **C8 · `CargaDiaria` + Banister** | bajo | Necesita C7 |
+| ~~1~~ | ~~**P3 · Las tres fases**~~ | — | ✅ **HECHO el 2026-09-22.** Ver el bloque P3 |
+| 1 | **C6 · `Resultado`** | medio | Cierra el agujero de `delete_plan`, que hoy puede llevarse todos los tiempos reales de un equipo. Se lleva además el estilo crudo (`"crol"`), que C5 le reasignó por ser migración de datos |
+| 2 | **R7 · La curva sale de `plans`** | bajo | Migración + `PlanCreate`/`PlanResponse` + el desplegable del wizard |
+| 3 | **C7 · `Sesion`** | medio | Necesita C6 hecho. Trae consigo los mutadores de las entidades (`dar_de_baja`, `inscribir`), que C5 dejó fuera porque las escrituras siguen armando filas del ORM |
+| 4 | **C8 · `CargaDiaria` + Banister** | bajo | Necesita C7 |
 
 ### Cinco cabos sueltos concretos
 
-1. **P3 — las tres fases siguen sin unificar, y C4 no lo decidió.** Varios
-   docstrings prometían que *«el reparto lo decide la fusión de motores»*; la
-   fusión pasó y no lo decidió, porque no le hacía falta para no mover números.
-   Hoy conviven: las **cinco** claves científicas de `Fase` (que gobiernan la
-   curva), los **cuatro** tramos que el entrenador ve (`Base/Construcción/
-   Pico/Descenso`, que son los que `SemanaGenerada.fase` escribe y la base
-   guarda) y los **cuatro** de `PlanPhase.type`. La ciencia sigue sin poder leer
-   lo que la aplicación persiste. **Es el último resto de P3 y necesita bloque
-   propio.**
+1. ~~**P3 — las tres fases siguen sin unificar, y C4 no lo decidió.**~~
+   ✅ **Cerrado el 2026-09-22** en bloque propio (ver P3 más abajo). Lo que
+   queda de él son dos consecuencias que ahora **se pueden** construir y no se
+   hicieron, a propósito: que la curva científica siga las fases *del macro* en
+   vez de la forma fija de 15 semanas (movería números: pide su propia
+   decisión), y pintar el aviso de `banda_de_aviso` en la tabla del plan (R6),
+   que ya tiene la `Fase` de cada semana en la base.
 2. **R7 — `progression_curve` sigue siendo columna de `plans`.** El motor ya
    recibe la curva por firma, que es lo que R7 pide de verdad; sacarla de la
    tabla toca migración, dos schemas y el wizard.
@@ -1697,6 +1698,91 @@ cruzada, solo lecturas a través de repositorios.
 
 ---
 
+## P3 · Las tres fases — ✅ HECHO (2026-09-22)
+
+### Qué pasaba
+
+Convivían tres vocabularios de fase: las **cinco** claves de `Fase` (las que
+indexan `F_FASE` y la banda de volumen), los **cuatro** tramos que veía el
+entrenador (`Base/Construcción/Pico/Descenso`, 30/40/20/10 %) y los **cuatro**
+de `PlanPhase.type` (`base|build|peak|taper`). La base guardaba en
+`weekly_plans.phase` el **nombre** del tramo, así que la ciencia no podía leer lo
+que la aplicación persistía, y ninguna regla decía cómo se repartían cuatro
+tramos sobre cinco fases. C1, C2, C4 y C5 lo dejaron abierto, cada uno por una
+buena razón, y por eso se quedó sin dueño.
+
+Y un síntoma que no estaba en ningún documento: el asistente del frontend tenía
+**su propia copia** del reparto por defecto, y los colores ya se habían separado
+de los del motor (`build` era azul en uno y violeta en el otro).
+
+### La decisión
+
+**Quitar el vocabulario de cuatro, no traducirlo.** Una tabla viva de
+traducción 4↔5 habría sido la segunda copia de la regla que `Fase` existe para
+tener una sola vez (A3 lo advertía). Así que:
+
+- **Las fases de un macrociclo son las cinco de `Fase`.** El entrenador elige
+  entre ellas en el desplegable y las nombra como quiera: `nombre` es suyo,
+  `type` es de la ciencia.
+- **Las fases por defecto son la forma de la curva científica**
+  (`servicios/plan.fases_por_defecto`): salen de `MACRO_15_FASES` y cada frontera
+  cae en la semana más cercana a `fin × semanas / 15`, que es donde
+  `curvas.Cientifica` cambia de pendiente. Con 15 semanas da exactamente
+  3/4/4/2/2. Así la franja que ve el entrenador y la curva que sigue el atleta
+  cambian de fase en las mismas semanas — con los cuatro tramos, no.
+- **La base guarda la clave.** `plan_phases.type` y `weekly_plans.phase` con un
+  `CHECK` sobre las cinco claves. Lo que la tabla semanal enseña es el nombre del
+  tramo que cubre la semana, leído de `plan_phases` (antes era una copia).
+- **El asistente pide las fases al backend** (`GET /plans/default-phases?weeks=N`)
+  en vez de calcularlas. El desplegable sale de esa misma respuesta.
+
+### Cómo quedó
+
+| Pieza | Cambio |
+|---|---|
+| `valores/escalas.py` | `Fase.del_macro()` (rechaza la extensión); etiquetas completas («Base específica», no «Base especif.»), porque son el nombre con el que nace cada fase |
+| `servicios/plan.py` | `fases_por_defecto` desde `MACRO_15_FASES`; `COLOR_DE_FASE`; `SemanaGenerada` lleva `fase: Fase` **y** `nombre_fase` |
+| `entidades/macrociclo.py` | `FaseDelMacro.fase` obligatoria (y nunca extensión); **`tipo` desaparece** |
+| `persistencia/` | `CHECK` en las dos columnas; el mapeo lee la clave sin traducir; `_EVENT_LOAD` carga las fases |
+| `api/v1/macrociclos` | `PhaseInput.type` **sin valor por defecto** y validado (los tipos viejos dan 422); endpoint `default-phases` (solo entrenador) |
+| Migración `a3f1c2d4e5b6` | Convierte cada tramo a la fase con la que más se solapa en la forma de 15 semanas (base→base_general, build→umbral_css, peak→pre_competitivo, taper→taper; lo que no era ninguno de los cuatro, por posición) y cada semana a la clave de su tramo |
+| Frontend | `ClaveDeFase` en `lib/types/plans.ts` (fijado por test contra `Fase`); el asistente usa `default-phases`; fuera `PHASE_COLORS` |
+
+**Verificado, no razonado:**
+
+- **Ningún número del motor se movió.** Antes de regenerar los snapshots se
+  comparó campo a campo: los únicos cambios eran `phase` (la etiqueta) y
+  `phase_key` (nuevo). El diff de git de los dos JSON son solo líneas de
+  `phase`. `motor_temporada.json` no se tocó.
+- **La migración, ida y vuelta, sobre una copia de la base de desarrollo:**
+  upgrade → downgrade deja las 16 tablas idénticas fila a fila; el `CHECK`
+  rechaza `build`; `alembic check` no ve diferencias entre modelos y esquema. Y
+  un test (`test_fases_del_macro.py`) la ejecuta de verdad en las dos
+  direcciones sobre una base desechable con los casos incómodos (tipos
+  inventados, plan sin tramos).
+- **En el navegador:** el asistente muestra las cinco fases (1-3, 4-7, 8-11,
+  12-13, 14-15 con 15 semanas), cambiar las semanas las recalcula, cambiar el
+  tipo recolorea, y el macro que ya existía conserva sus nombres
+  («Construcción» sigue diciendo «Construcción», ahora sobre `umbral_css`).
+
+Tests: **834 → 938** (+102 en `test_fases_del_macro.py`, +2 en
+`test_entidades.py`). La base de desarrollo quedó migrada; la copia de antes
+está en `PeakStroke/peakstroke.antes-p3.db`, fuera del repo.
+
+### Lo que P3 hace posible y NO hizo
+
+1. **Que la curva científica siga las fases del macro.** Hoy sigue la forma fija
+   de 15 semanas escalada, que para las fases por defecto coincide pero para
+   unas fases personalizadas no. Leerlas movería números de planes con fases a
+   medida: es una decisión, no un refactor.
+2. **El aviso de volumen de R6** (`kilometraje.banda_de_aviso`) en la tabla del
+   plan: la `Fase` de cada semana ya está en la base.
+3. **Los planes que ya existían conservan sus cuatro tramos** (con claves
+   nuevas). No se reescriben a cinco: son el plan que el entrenador ya está
+   siguiendo.
+
+---
+
 ## C6 · `Resultado` y la migración de los tiempos
 
 ### Qué pasa
@@ -2400,7 +2486,7 @@ Para releer rápido de qué iba todo esto.
 |---|---|---|---|
 | P1 | Hay dos motores y el "oficial" solo corre en tests | `ScienceEngine` solo se llama en tests; los planes salen de `progression.py` | **C4** |
 | P2 | Ya divergieron, y son **más de tres**: quedan **6 abiertas** | ✅ cerradas en A1 (2026-08-13): ~~50 m combinado~~ · ~~`MAX_EXTENSION_WEEKS` 30/26~~. **Abiertas:** fases (5/4/4) · clasificación de nivel · techo I_max · factibilidad · ritmo /100 del sprint · `ZONE_LABELS`. De las seis, **dos están medidas** (ver C0): el nivel salta de banda por una décima (`2:10.40` → elite, `2:10.50` → competitive: **45 % más volumen**), y `ScienceEngine` sube el volumen la semana de competencia mientras `distribute_km` lo baja | **A1** ✅ las dos primeras · **C1 + C4** las seis restantes |
-| P3 | `WeeklyPlan.phase` guarda etiqueta, no clave de dominio | la DB tiene `"Construcción"`; `F_FASE` indexa `base_especifica` | **C1 + C2** |
+| P3 | `WeeklyPlan.phase` guarda etiqueta, no clave de dominio | la DB tiene `"Construcción"`; `F_FASE` indexa `base_especifica` | ~~**C1 + C2**~~ **P3**, bloque propio — ✅ 2026-09-22 |
 | P4 | Modelo anémico: 14 modelos, 1 con comportamiento | `age_at`, `current_week_of`, `effective_status` huérfanas | **C2** |
 | P5 | El corte es por endpoint, no por concepto | `dashboard`, `aerobic_tests`, `link_codes` importan lógica ajena | **C5** |
 | P6 | Obsesión por primitivos | 8 columnas `float` con dos unidades; solo `role` tiene `CheckConstraint` | **C1** |

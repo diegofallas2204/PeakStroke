@@ -20,29 +20,36 @@ from ..valores import Fase
 from .curvas import Curva
 from .envolvente import envolvente_de
 from .kilometraje import reparto_de_km
+from .tablas import MACRO_15_FASES
 from .zonas import zonas_de
 
-# Fases por defecto del macrociclo tal y como las ve el entrenador: cuatro
-# tramos con su color. NO son las cinco fases científicas de `Fase` — el reparto
-# entre los dos vocabularios sigue sin decidirse (ver `Fase.desde_texto`).
-FASES_POR_DEFECTO: list[tuple[str, str, float, str]] = [
-    ("Base", "base", 0.30, "#22d3ee"),
-    ("Construcción", "build", 0.40, "#8b5cf6"),
-    ("Pico", "peak", 0.20, "#fbbf24"),
-    ("Descenso", "taper", 0.10, "#34d399"),
-]
+# Color con el que nace cada fase en la franja del macrociclo. El entrenador lo
+# puede cambiar: es de la interfaz, no de la ciencia, y por eso no vive en `Fase`.
+COLOR_DE_FASE: dict[Fase, str] = {
+    Fase.BASE_GENERAL: "#22d3ee",
+    Fase.BASE_ESPECIFICA: "#3b82f6",
+    Fase.UMBRAL_CSS: "#8b5cf6",
+    Fase.PRE_COMPETITIVO: "#fbbf24",
+    Fase.TAPER: "#34d399",
+}
 
 
 @dataclass
 class SemanaGenerada:
-    """Una fila del plan: qué se espera nadar esa semana y a qué ritmos."""
+    """Una fila del plan: qué se espera nadar esa semana y a qué ritmos.
+
+    La fase va dos veces y no es redundancia: `fase` es la clave de dominio —la
+    que se guarda y la que la ciencia puede leer— y `nombre_fase` es como el
+    entrenador llamó a ese tramo, que es lo que se enseña.
+    """
 
     numero: int
     fecha: date
     tiempo_esperado: float
     ritmo_100: float
     km: float
-    fase: str
+    fase: Fase
+    nombre_fase: str
     mejora_vs_anterior: float
     mejora_acumulada: float
     zonas: dict = field(default_factory=dict)
@@ -50,30 +57,53 @@ class SemanaGenerada:
 
 
 def fases_por_defecto(semanas: int) -> list[dict]:
-    """Base / Construcción / Pico / Descenso repartidas sobre las semanas."""
+    """Las cinco fases de la ciencia, repartidas como el macro de 15 semanas.
+
+    Es la misma forma que dibuja `curvas.Cientifica`, así que la franja que ve el
+    entrenador y la curva que sigue el atleta cambian de fase en las mismas
+    semanas: cada frontera cae en la semana **más cercana** a donde la curva
+    cambia de pendiente (`fin × semanas / 15`, redondeado). Con 15 semanas sale
+    exactamente `MACRO_15_FASES`.
+
+    Redondear cada frontera, y no cada largo por separado, es lo que lo
+    garantiza: sumar largos redondeados acumula el error hacia el final. Con
+    menos de cinco semanas no caben todas y la que queda sin semanas se cae;
+    desde cinco, cada fase tiene al menos una.
+    """
+    total = MACRO_15_FASES[-1][1]
+    n_fases = len(MACRO_15_FASES)
+    fronteras: list[int] = []
+    anterior = 0
+    for i, (_, fin, _) in enumerate(MACRO_15_FASES):
+        # Redondeo al entero más cercano en aritmética entera: sin flotantes que
+        # decidan un empate (y con 15 en el denominador no hay ninguno).
+        frontera = (2 * fin * semanas + total) // (2 * total)
+        if semanas >= n_fases:
+            frontera = max(frontera, anterior + 1)
+            frontera = min(frontera, semanas - (n_fases - 1 - i))
+        fronteras.append(frontera)
+        anterior = frontera
+
     rangos: list[dict] = []
     inicio = 1
-    quedan = semanas
-    for i, (nombre, tipo, fraccion, color) in enumerate(FASES_POR_DEFECTO):
-        if i == len(FASES_POR_DEFECTO) - 1:
-            largo = quedan
-        else:
-            largo = max(1, round(semanas * fraccion))
-            largo = min(largo, quedan - (len(FASES_POR_DEFECTO) - 1 - i))
+    for (_, _, clave), fin in zip(MACRO_15_FASES, fronteras, strict=True):
+        if fin < inicio:
+            continue
+        fase = Fase.desde_texto(clave)
         rangos.append({
-            "name": nombre, "type": tipo, "color": color,
-            "week_start": inicio, "week_end": inicio + largo - 1, "sort": i,
+            "name": fase.etiqueta, "type": fase.value, "color": COLOR_DE_FASE[fase],
+            "week_start": inicio, "week_end": fin, "sort": len(rangos),
         })
-        inicio += largo
-        quedan -= largo
+        inicio = fin + 1
     return rangos
 
 
-def _fase_de_la_semana(semana: int, fases: list[dict]) -> str:
-    for f in fases:
-        if f["week_start"] <= semana <= f["week_end"]:
-            return f["name"]
-    return fases[-1]["name"] if fases else "—"
+def _fase_de_la_semana(semana: int, fases: list[dict]) -> tuple[Fase, str]:
+    """(clave, nombre) del tramo que cubre la semana; fuera de rango, el último."""
+    tramo = next(
+        (f for f in fases if f["week_start"] <= semana <= f["week_end"]), fases[-1],
+    )
+    return Fase.del_macro(tramo["type"]), tramo["name"]
 
 
 def acotar_ritmo_semanal(
@@ -146,13 +176,15 @@ def generar(
     for i in range(semanas):
         esperado = acotado[i]
         ritmo = esperado / (distancia / 100)
+        fase, nombre_fase = _fase_de_la_semana(i + 1, fases)
         plan.append(SemanaGenerada(
             numero=i + 1,
             fecha=lunes_de(inicio, i + 1),
             tiempo_esperado=round(esperado, 2),
             ritmo_100=round(ritmo, 2),
             km=km[i],
-            fase=_fase_de_la_semana(i + 1, fases),
+            fase=fase,
+            nombre_fase=nombre_fase,
             mejora_vs_anterior=round(esperado - anterior, 2),
             mejora_acumulada=round(tiempo_actual - esperado, 2),
             zonas=zonas_de(ritmo, distancia, estilo, piscina),
@@ -192,7 +224,8 @@ def extender(
             tiempo_esperado=round(esperado, 2),
             ritmo_100=round(ritmo, 2),
             km=km_semanales,
-            fase=Fase.EXTENSION.etiqueta,
+            fase=Fase.EXTENSION,
+            nombre_fase=Fase.EXTENSION.etiqueta,
             mejora_vs_anterior=round(esperado - anterior, 2),
             mejora_acumulada=round(tiempo_actual - esperado, 2),
             zonas=zonas_de(ritmo, distancia, estilo, piscina),

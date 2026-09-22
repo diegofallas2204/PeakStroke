@@ -12,6 +12,7 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Float,
@@ -26,6 +27,12 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.dominio.valores import Fase
+
+# Lo único que las columnas de fase admiten: la clave de `Fase`, nunca la
+# etiqueta (P3). La extensión no entra porque no es un tramo del macro y ninguna
+# semana persistida la lleva: solo existe en el simulador.
+FASES_DEL_MACRO: tuple[str, ...] = tuple(f.value for f in Fase.secuencia())
 
 
 class Plan(Base):
@@ -99,13 +106,17 @@ class PlanCoach(Base):
 
 class PlanPhase(Base):
     __tablename__ = "plan_phases"
+    __table_args__ = (
+        CheckConstraint(f"type IN {FASES_DEL_MACRO!r}", name="ck_plan_phases_type"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     plan_id: Mapped[int] = mapped_column(
         ForeignKey("plans.id", ondelete="CASCADE"), index=True,
     )
+    # El nombre es del entrenador; el tipo, de la ciencia (clave de `Fase`).
     name: Mapped[str] = mapped_column(String(60))
-    type: Mapped[str] = mapped_column(String(12), default="base")  # base|build|peak|taper
+    type: Mapped[str] = mapped_column(String(20))
     week_start: Mapped[int] = mapped_column(Integer)
     week_end: Mapped[int] = mapped_column(Integer)
     color: Mapped[str] = mapped_column(String(12), default="#8b5cf6")
@@ -196,6 +207,7 @@ class WeeklyPlan(Base):
     __tablename__ = "weekly_plans"
     __table_args__ = (
         UniqueConstraint("athlete_event_id", "week_number", name="uq_weekly_plans_event_week"),
+        CheckConstraint(f"phase IN {FASES_DEL_MACRO!r}", name="ck_weekly_plans_phase"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -208,7 +220,9 @@ class WeeklyPlan(Base):
     expected_time: Mapped[float] = mapped_column(Float)      # curva ideal original
     recalc_time: Mapped[float | None] = mapped_column(Float)  # curva recalculada
     real_time: Mapped[float | None] = mapped_column(Float)
-    phase: Mapped[str] = mapped_column(String(60), default="")
+    # Clave de `Fase` de esa semana, la que la ciencia puede leer. El nombre que
+    # se enseña es el del tramo que la cubre (`plan_phases.name`) y no se copia.
+    phase: Mapped[str] = mapped_column(String(20))
     disabled: Mapped[bool] = mapped_column(Boolean, default=False)
     disable_reason: Mapped[str | None] = mapped_column(String(200))
 

@@ -26,7 +26,7 @@ def _to_simweek(s: SemanaGenerada, specialty: str, distance: int) -> SimWeek:
     return SimWeek(
         week_number=s.numero, date_label=s.fecha.strftime("%d/%m"),
         expected_time=s.tiempo_esperado, pace_100m=s.ritmo_100,
-        planned_km=s.km, phase=s.fase,
+        planned_km=s.km, phase=s.nombre_fase,
         improvement_vs_prev=s.mejora_vs_anterior,
         cumulative_improvement=s.mejora_acumulada,
         zones=s.zonas,

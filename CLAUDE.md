@@ -99,6 +99,14 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
   mismo nado sale `AHEAD` con la científica y `BEHIND` con la exponencial—. La mejora
   por MACROCICLO (`I_max × N/5`) ≠ la anual: la temporada son ~3 macros encadenados
   con degradación `MACROCYCLE_DEGRADATION = 0.60`. Validado en notas 16/17 del vault
+- **Las fases del macrociclo son las cinco de `Fase`** (P3, 2026-09-22):
+  `base_general` · `base_especifica` · `umbral_css` · `pre_competitivo` · `taper`.
+  `plan_phases.type` y `weekly_plans.phase` guardan la **clave** (un CHECK lo
+  impone), nunca la etiqueta; el nombre del tramo es texto libre del entrenador y
+  es lo que se enseña. Los cuatro tramos de antes (`base|build|peak|taper`) ya no
+  existen: dan 422. Las fases por defecto las da el motor
+  (`servicios/plan.fases_por_defecto`, la forma de `MACRO_15_FASES` escalada) y el
+  asistente las pide a `GET /plans/default-phases` — no hay copia en el frontend
 - **Proyección anual**: `MOTOR.proyectar_temporada()` (3 macros) → `POST
   /api/v1/simulator/season`. Estilo y piscina no entran: solo lee el techo
   realista de cada macro, que es de la distancia y el nivel

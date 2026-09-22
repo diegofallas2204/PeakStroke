@@ -132,7 +132,7 @@ async def build_summary(
         statuses=statuses,
         phases=[
             PhaseStrip(
-                name=f.nombre, type=f.tipo, color=f.color,
+                name=f.nombre, type=f.fase.value, color=f.color,
                 week_start=f.semana_inicio, week_end=f.semana_fin,
                 is_current=bool(current and f.contiene(current)),
             )

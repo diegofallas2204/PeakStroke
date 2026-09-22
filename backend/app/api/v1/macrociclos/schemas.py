@@ -4,18 +4,31 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.dominio.valores import Prueba
+from app.dominio.valores import Fase, Prueba
 
 
 # ── Fases y competencias ─────────────────────────────────────────────
 class PhaseInput(BaseModel):
+    """Un tramo del macrociclo: el nombre es del entrenador, el tipo de la ciencia.
+
+    `type` es la clave de una de las cinco `Fase` y no tiene valor por defecto:
+    un tramo que no dice qué fase es no le sirve de nada a la ciencia, y adivinar
+    cuál es fue justo lo que dejó P3 abierto. Los tipos de antes de P3
+    (`base|build|peak|taper`) dan 422.
+    """
+
     name: str
-    type: str = "base"
+    type: str
     week_start: int = Field(ge=1)
     week_end: int = Field(ge=1)
     color: str = "#8b5cf6"
+
+    @field_validator("type")
+    @classmethod
+    def _una_fase_del_macro(cls, valor: str) -> str:
+        return Fase.del_macro(valor).value
 
 
 class PhaseResponse(PhaseInput):

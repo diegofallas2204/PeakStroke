@@ -3,7 +3,7 @@ import { getDevBypass, getDevIdentity } from '../hooks/useDevIdentity'
 import type {
   AerobicPreview, AerobicTest, AssignableAthlete, AuthConfig, DashboardSummary,
   DevIdentity, InputMode, InviteResult, JoinRequest, LinkCode, Member,
-  MemberCreated, Plan, SeasonResult, SimulationResult, Swimmer, Team, TeamWeek,
+  MemberCreated, PhaseInput, Plan, SeasonResult, SimulationResult, Swimmer, Team, TeamWeek,
   TrainingIntervals, Week,
 } from './types'
 
@@ -122,6 +122,10 @@ export const api = {
     list: () => get<Plan[]>('/plans/'),
     getOne: (id: number) => get<Plan>(`/plans/${id}`),
     create: (data: unknown) => post<Plan>('/plans/', data),
+    // Las fases con las que nace un macro de N semanas. Las decide el motor: son
+    // la forma de la curva científica, y la copia que tenía el asistente ya se
+    // había separado del backend en los colores.
+    defaultPhases: (weeks: number) => get<PhaseInput[]>(`/plans/default-phases?weeks=${weeks}`),
     update: (id: number, data: unknown) => patch<Plan>(`/plans/${id}`, data),
     remove: (id: number) => del(`/plans/${id}`),
     // Los que HOY pueden entrar en ese macrociclo: ni los que ya están dentro

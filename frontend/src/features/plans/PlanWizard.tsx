@@ -1,28 +1,15 @@
 // Asistente de creación de macrociclo en 3 pasos:
 // 1) configuración general · 2) fases y competencias · 3) resumen.
 import { useMemo, useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ArrowRight, Check, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
-import { CURVES, PHASE_COLORS, POOLS } from '../../lib/constants'
+import { CURVES, POOLS } from '../../lib/constants'
+import type { ClaveDeFase, PhaseInput } from '../../lib/types'
 import { Field, Modal } from '../../components/ui/primitives'
 
-interface PhaseDraft { name: string; type: string; week_start: number; week_end: number; color: string }
+type PhaseDraft = PhaseInput
 interface CompDraft { name: string; week_number: number; days: number; is_main: boolean }
-
-function defaultPhases(weeks: number): PhaseDraft[] {
-  const base = Math.max(1, Math.round(weeks * 0.3))
-  const build = Math.max(1, Math.round(weeks * 0.4))
-  const peak = Math.max(1, Math.round(weeks * 0.2))
-  const taper = Math.max(1, weeks - base - build - peak)
-  let s = 1
-  const mk = (name: string, type: string, len: number): PhaseDraft => {
-    const phase = { name, type, week_start: s, week_end: s + len - 1, color: PHASE_COLORS[type] }
-    s += len
-    return phase
-  }
-  return [mk('Base', 'base', base), mk('Construcción', 'build', build), mk('Pico', 'peak', peak), mk('Descenso', 'taper', taper)]
-}
 
 const STEPS = ['Configuración', 'Fases y competencias', 'Resumen']
 
@@ -33,22 +20,34 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
     name: '', start_date: '', total_weeks: 12, weeks_per_micro: 4,
     total_km: 320, progression_curve: 'science', pool: '50', n_mac: 1, main_event: '', notes: '',
   })
-  const [phases, setPhases] = useState<PhaseDraft[]>(defaultPhases(12))
+  const [phases, setPhases] = useState<PhaseDraft[]>([])
   const [comps, setComps] = useState<CompDraft[]>([])
   const queryClient = useQueryClient()
 
+  // Las fases por defecto son del motor: las cinco de la ciencia, con las
+  // fronteras en las mismas semanas que la curva científica. Son también el
+  // catálogo del desplegable — con cinco semanas o más están las cinco.
+  const { data: porDefecto } = useQuery({
+    queryKey: ['fases-por-defecto', form.total_weeks],
+    queryFn: () => api.plans.defaultPhases(form.total_weeks),
+    enabled: open,
+    staleTime: Infinity,
+  })
+  const opciones = porDefecto ?? []
+  const colorDe = (type: ClaveDeFase) => opciones.find((o) => o.type === type)?.color
+
   // Ajustes de estado durante el render (patrón oficial de React) en vez de efectos:
-  // al abrir el asistente se vuelve al primer paso; al cambiar el total de semanas
-  // se regeneran las fases por defecto.
+  // al abrir el asistente se vuelve al primer paso; al llegar las fases por
+  // defecto de otro total de semanas, reemplazan a las que había.
   const [prevOpen, setPrevOpen] = useState(open)
   if (open !== prevOpen) {
     setPrevOpen(open)
     if (open) { setStep(0); setError('') }
   }
-  const [prevWeeks, setPrevWeeks] = useState(form.total_weeks)
-  if (form.total_weeks !== prevWeeks) {
-    setPrevWeeks(form.total_weeks)
-    setPhases(defaultPhases(form.total_weeks))
+  const [prevPorDefecto, setPrevPorDefecto] = useState(porDefecto)
+  if (porDefecto !== prevPorDefecto) {
+    setPrevPorDefecto(porDefecto)
+    if (porDefecto) setPhases(porDefecto)
   }
 
   const mutation = useMutation({
@@ -157,14 +156,14 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
               <span className="card-title">Fases ({form.total_weeks} semanas)</span>
               <button
                 className="btn btn-ghost !px-2.5 !py-1.5 text-[11px]"
-                onClick={() => setPhases((p) => [...p, { name: 'Nueva fase', type: 'build', week_start: 1, week_end: 1, color: '#3b82f6' }])}
+                onClick={() => setPhases((p) => [...p, { name: 'Nueva fase', type: 'umbral_css', week_start: 1, week_end: 1, color: colorDe('umbral_css') ?? '#8b5cf6' }])}
               >
                 <Plus size={12} /> Fase
               </button>
             </div>
             <div className="flex flex-col gap-2">
               {phases.map((phase, i) => (
-                <div key={i} className="grid grid-cols-[18px_1fr_110px_90px_90px_34px] items-center gap-2.5 rounded-xl border border-line bg-surface-2 px-3 py-2">
+                <div key={i} className="grid grid-cols-[18px_1fr_150px_80px_80px_34px] items-center gap-2.5 rounded-xl border border-line bg-surface-2 px-3 py-2">
                   <input
                     type="color" value={phase.color}
                     onChange={(e) => setPhases((p) => p.map((x, j) => j === i ? { ...x, color: e.target.value } : x))}
@@ -174,9 +173,11 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
                   <input className="field !py-1.5" value={phase.name}
                     onChange={(e) => setPhases((p) => p.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
                   <select className="field !py-1.5" value={phase.type}
-                    onChange={(e) => setPhases((p) => p.map((x, j) => j === i ? { ...x, type: e.target.value, color: PHASE_COLORS[e.target.value] ?? x.color } : x))}>
-                    <option value="base">Base</option><option value="build">Construcción</option>
-                    <option value="peak">Pico</option><option value="taper">Descenso</option>
+                    onChange={(e) => {
+                      const type = e.target.value as ClaveDeFase
+                      setPhases((p) => p.map((x, j) => j === i ? { ...x, type, color: colorDe(type) ?? x.color } : x))
+                    }}>
+                    {opciones.map((o) => <option key={o.type} value={o.type}>{o.name}</option>)}
                   </select>
                   <input type="number" className="field !py-1.5 text-center" value={phase.week_start} min={1} max={form.total_weeks}
                     onChange={(e) => setPhases((p) => p.map((x, j) => j === i ? { ...x, week_start: Number(e.target.value) } : x))} />

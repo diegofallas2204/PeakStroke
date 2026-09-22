@@ -5,13 +5,11 @@ base de datos (`current_week_of`, `effective_status`). Eran el ejemplo de P5: el
 dashboard importaba `plans.service` para poder preguntar en qué semana va un
 plan. Con la semana dentro del objeto, quien tenga el macrociclo ya lo sabe.
 
-**`fase_de()` devuelve la `FaseDelMacro`, no una `Fase`.** El desdoble de §5.5
-es a propósito y aquí solo está la mitad de arriba: la base guarda cuatro tramos
-(`base|build|peak|taper`) y `Fase` tiene cinco claves científicas. Ese reparto no
-está decidido —la fusión de motores pasó sin cerrarlo— y `escalas.Fase.desde_texto`
-se niega expresamente a adivinarlo. Traducirlo aquí sería inventar la sexta
-versión de la regla que `Fase` existe para cerrar, así que `FaseDelMacro.fase`
-viaja en `None` hasta que el paso 4 diga cómo se reparten.
+**`fase_de()` devuelve la `FaseDelMacro`, no una `Fase`**, porque quien pregunta
+casi siempre quiere las dos mitades del desdoble de §5.5: el nombre que el
+entrenador le puso al tramo, para enseñarlo, y su `Fase`, para calcular. La
+segunda es `fase_de(n).fase` y desde P3 (2026-09-22) siempre está: la base
+guarda la clave de la fase, no la etiqueta.
 """
 from __future__ import annotations
 
@@ -49,23 +47,28 @@ class FaseDelMacro(PorIdentidad):
     entrenador puede llamarle "Construcción" a lo que el motor conoce como
     `base_especifica` sin que ninguno de los dos pierda su vocabulario.
 
-    `tipo` es el tercer vocabulario, el que la base guarda hoy
-    (`base|build|peak|taper`) y por el que la interfaz pinta la franja de color.
-    Está aquí porque la entidad tiene que poder reproducir la fila —si no, quien
-    quiera pintar la franja vuelve a necesitar el modelo del ORM, que es
-    exactamente el import cruzado que el paso 5 viene a quitar—, y **no decide
-    nada**: el reparto entre estos cuatro tramos y las cinco claves científicas
-    de `Fase` sigue sin resolverse, y por eso `fase` sigue viajando en `None`.
+    Hasta P3 había un tercero, `tipo` (`base|build|peak|taper`), que era lo que la
+    base guardaba de verdad mientras `fase` viajaba en `None`. Se fue con la
+    migración que convirtió esas filas: hoy la columna guarda la clave de `Fase`.
+
+    `fase` es obligatoria y no admite la extensión: un tramo del plan sin fase
+    no le dice nada a la ciencia, y la extensión es lo que viene después del
+    macro, no una parte de él.
     """
 
+    fase: Fase
     id: int | None = None
     nombre: str = ""
-    tipo: str = "base"
-    fase: Fase | None = None
     semana_inicio: int = 1
     semana_fin: int = 1
     color: str = "#8b5cf6"
     orden: int = 0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.fase, Fase):
+            raise TypeError("La fase de un tramo del macrociclo es una Fase, no un texto")
+        if self.fase.es_extension:
+            raise ValueError("La extensión no es una fase del macrociclo")
 
     def contiene(self, semana: int) -> bool:
         return self.semana_inicio <= semana <= self.semana_fin

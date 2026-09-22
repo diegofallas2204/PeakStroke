@@ -52,6 +52,10 @@ _EVENT_LOAD = (
     selectinload(AthleteEvent.weeks),
     selectinload(AthleteEvent.athlete_plan).selectinload(AthletePlan.plan)
     .selectinload(Plan.competitions),
+    # Las fases, porque la semana guarda la clave y la tabla enseña el nombre
+    # que el entrenador le puso al tramo.
+    selectinload(AthleteEvent.athlete_plan).selectinload(AthletePlan.plan)
+    .selectinload(Plan.phases),
 )
 
 

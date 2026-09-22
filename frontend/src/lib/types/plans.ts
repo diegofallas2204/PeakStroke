@@ -11,9 +11,16 @@ export interface AssignableAthlete {
   main_stroke: string
 }
 
+/**
+ * Las cinco fases del macrociclo, por su clave de dominio (`Fase` en el backend).
+ * El nombre que se enseña es aparte (`name`): el entrenador lo elige.
+ * `backend/tests/test_fases_del_macro.py` lee esta línea y falla si se separan.
+ */
+export type ClaveDeFase = 'base_general' | 'base_especifica' | 'umbral_css' | 'pre_competitivo' | 'taper'
+
 export interface PhaseInput {
   name: string
-  type: string
+  type: ClaveDeFase
   week_start: number
   week_end: number
   color: string

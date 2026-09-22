@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dates import age_at
 from app.dominio.servicios.kilometraje import km_por_zona
 from app.dominio.servicios.motor import MOTOR, SemanaGenerada
+from app.dominio.valores import Fase
 from app.persistencia.mapeo import macrociclo_desde_fila
 from app.persistencia.repositorios import RepositorioDeMacrociclos
 from app.persistencia.tablas.atletas import Swimmer
@@ -35,6 +36,10 @@ async def event_weeks_response(db: AsyncSession, event: AthleteEvent) -> list[We
     comp_weeks = {c.semana for c in macro.competencias}
     result = []
     for w in sorted(event.weeks, key=lambda x: x.week_number):
+        # La semana guarda la clave de la fase; lo que se enseña es cómo llamó el
+        # entrenador al tramo que la cubre, que es lo que la tabla pintó siempre.
+        tramo = macro.fase_de(w.week_number)
+        phase = tramo.nombre if tramo is not None else Fase.desde_texto(w.phase).etiqueta
         effective = w.recalc_time if w.recalc_time is not None else w.expected_time
         pace = effective / (event.distance / 100)
         status = diff_s = diff_p = None
@@ -51,7 +56,7 @@ async def event_weeks_response(db: AsyncSession, event: AthleteEvent) -> list[We
             zone_km=km_por_zona(w.planned_km, distancia=event.distance, especialidad=specialty),
             real_time=w.real_time, status=status,
             diff_seconds=diff_s, diff_percent=diff_p,
-            phase=w.phase, disabled=w.disabled, disable_reason=w.disable_reason,
+            phase=phase, disabled=w.disabled, disable_reason=w.disable_reason,
             is_competition=w.week_number in comp_weeks,
         ))
     return result
@@ -115,11 +120,14 @@ async def _recalculate_event(
     macro = macrociclo_desde_fila(event.athlete_plan.plan)
     swimmer = await db.get(Swimmer, event.athlete_plan.swimmer_id)
     age = age_at(swimmer.birth_date, macro.inicio) if swimmer else None
+    # El recálculo solo mueve tiempos: la fase entra porque la semana la lleva,
+    # y el nombre del tramo no lo lee nadie en este camino.
     entradas = [
         SemanaGenerada(
             numero=w.week_number, fecha=w.week_date,
             tiempo_esperado=w.expected_time, ritmo_100=0.0, km=w.planned_km,
-            fase=w.phase, mejora_vs_anterior=0.0, mejora_acumulada=0.0,
+            fase=Fase.desde_texto(w.phase), nombre_fase="",
+            mejora_vs_anterior=0.0, mejora_acumulada=0.0,
         )
         for w in weeks
     ]

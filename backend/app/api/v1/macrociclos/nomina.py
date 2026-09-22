@@ -33,7 +33,8 @@ async def add_athlete(
         aerobic_base=data.aerobic_base, aerobic_base_source=data.aerobic_base_source,
     )
     phases = [
-        {"name": f.nombre, "week_start": f.semana_inicio, "week_end": f.semana_fin}
+        {"name": f.nombre, "type": f.fase.value,
+         "week_start": f.semana_inicio, "week_end": f.semana_fin}
         for f in macro.fases
     ]
     # Edad al inicio del macro: ajusta al alza el techo I_max de menores (juventud).
@@ -57,7 +58,7 @@ async def add_athlete(
         for s in semanas:
             event.weeks.append(WeeklyPlan(
                 week_number=s.numero, week_date=s.fecha,
-                planned_km=s.km, expected_time=s.tiempo_esperado, phase=s.fase,
+                planned_km=s.km, expected_time=s.tiempo_esperado, phase=s.fase.value,
             ))
         athlete_plan.events.append(event)
     await repo.guardar(athlete_plan)

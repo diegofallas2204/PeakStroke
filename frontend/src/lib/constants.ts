@@ -165,13 +165,6 @@ export const STATUS_META: Record<string, { label: string; color: string; bg: str
   pending: { label: 'Sin datos', color: '#8b93b8', bg: 'rgba(139,147,184,.12)' },
 }
 
-export const PHASE_COLORS: Record<string, string> = {
-  base: '#22d3ee',
-  build: '#3b82f6',
-  peak: '#fbbf24',
-  taper: '#34d399',
-}
-
 // Estado de ciclo de vida del macrociclo (valor crudo en BD -> etiqueta + color).
 export const PLAN_STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   active: { label: 'Activo', color: '#34d399', bg: 'rgba(52,211,153,.12)' },

@@ -33,7 +33,7 @@ from datetime import date
 from . import plan as _plan
 from . import temporada as _temporada
 from .envolvente import Envolvente, Factibilidad, envolvente_de, factibilidad
-from .plan import FASES_POR_DEFECTO, SemanaGenerada, fases_por_defecto
+from .plan import COLOR_DE_FASE, SemanaGenerada, fases_por_defecto
 from .tablas import PROYECCION_SPRINT_A_100, TOLERANCIA_DE_ESTADO, margen_de_confianza
 from .temporada import MacroProyectado, ProyeccionAnual
 from .zonas import zonas_de
@@ -100,7 +100,11 @@ class MotorCientifico:
         edad: int | None = None,
         base_aerobica: float | None = None,
     ) -> list[SemanaGenerada]:
-        """El plan completo, semana a semana."""
+        """El plan completo, semana a semana.
+
+        Cada tramo de `fases` lleva `name` (el del entrenador), `type` (la clave
+        de `Fase`) y su rango de semanas. Sin fases, las cinco por defecto.
+        """
         return _plan.generar(
             distancia, tiempo_actual, tiempo_meta, semanas, km_totales, curva, inicio,
             semanas_por_micro=semanas_por_micro, fases=fases, estilo=estilo,
@@ -189,7 +193,7 @@ class MotorCientifico:
 MOTOR = MotorCientifico()
 
 __all__ = [
-    "FASES_POR_DEFECTO",
+    "COLOR_DE_FASE",
     "MOTOR",
     "Envolvente",
     "Factibilidad",

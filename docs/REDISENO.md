@@ -79,6 +79,23 @@
 > circular. Lo que sostiene la frontera ahí sigue siendo que **el `team_id` sale
 > de la sesión, nunca del cuerpo de la petición**.
 >
+> **Actualización 2026-09-22 — P3 cerrado.** El reparto 4↔5 que tres pasos
+> seguidos dejaron abierto se decidió **quitando el vocabulario de cuatro**, no
+> traduciéndolo: las fases de un macrociclo **son** las cinco de `Fase`. Las
+> fases por defecto (`servicios/plan.fases_por_defecto`) salen de
+> `MACRO_15_FASES` con cada frontera en la semana más cercana a donde cambia la
+> curva científica, así que la franja que ve el entrenador y la curva que sigue
+> el atleta cambian de fase en las mismas semanas. `plan_phases.type` y
+> `weekly_plans.phase` guardan la **clave**, con un `CHECK` que lo impone; el
+> nombre del tramo es texto libre del entrenador y es lo que se enseña.
+> `FaseDelMacro.tipo` —el tercer vocabulario que añadió el paso 5— se fue, y
+> `FaseDelMacro.fase` pasó a ser obligatoria. La migración `a3f1c2d4e5b6`
+> convirtió las filas que había (cada tramo a la fase con la que más se solapa
+> en la forma de 15 semanas: base→base_general, build→umbral_css,
+> peak→pre_competitivo, taper→taper) y su downgrade las devuelve. **Ningún
+> número del motor se movió**: los snapshots se regeneraron solo por la etiqueta
+> de fase y su diff son solo líneas de `phase`. Línea base: **938 tests**.
+>
 > **Lo que sigue sin decidirse** no son decisiones de modelo sino de producto, y
 > viven en §10.3.
 
@@ -92,8 +109,8 @@ vive el comportamiento. Seis hallazgos de la auditoría, en orden de gravedad:
 | # | Hallazgo | Evidencia |
 |---|---|---|
 | P1 | **Hay dos motores.** El que declara ser la fuente de verdad no corre en producción | `ScienceEngine.generate_plan()` solo se llama en tests; los planes reales salen de `engine/progression.py` |
-| P2 | **Ya divergieron.** Y son más de tres | ~~50 m combinado~~ y ~~`MAX_EXTENSION_WEEKS` (30/26)~~ cerradas en A1 el 2026-08-13; **siguen abiertas**: fases (5/4/4), clasificación de nivel, techo I_max, factibilidad, ritmo /100 del sprint, `ZONE_LABELS` |
-| P3 | **`Semana.phase` guarda una etiqueta de interfaz**, no una fase de dominio | la DB tiene `"Construcción"`; `F_FASE` se indexa por `base_especifica`. No se pueden cruzar. **SIGUE ABIERTO tras C4**: se esperaba que lo cerrara la fusión de motores y la fusión pasó sin tocarlo, porque no le hacía falta para conservar los números. Es el único hallazgo de §0 sin bloque asignado |
+| P2 | **Ya divergieron.** Y son más de tres | ~~50 m combinado~~ y ~~`MAX_EXTENSION_WEEKS` (30/26)~~ cerradas en A1 el 2026-08-13; **siguen abiertas**: ~~fases (5/4/4)~~ (cerrada con P3, 2026-09-22), clasificación de nivel, techo I_max, factibilidad, ritmo /100 del sprint, `ZONE_LABELS` |
+| P3 | **`Semana.phase` guarda una etiqueta de interfaz**, no una fase de dominio | la DB tiene `"Construcción"`; `F_FASE` se indexa por `base_especifica`. No se pueden cruzar. **✅ CERRADO el 2026-09-22** en bloque propio (C4 pasó sin tocarlo): la base guarda la clave de `Fase` y las fases del macro son las cinco de la ciencia — ver la actualización de arriba |
 | P4 | **Modelo anémico.** 14 modelos, 1 con comportamiento | reglas puras (`edad_at`, `current_week_of`, `effective_status`) huérfanas en `service.py` |
 | P5 | **El corte es por endpoint, no por concepto.** La regla "los módulos no se importan" ya está rota | `dashboard`, `aerobic_tests` y `link_codes` importan lógica de otros módulos |
 | P6 | **Obsesión por primitivos.** `(distancia, estilo, piscina)` viaja suelto; 8 columnas de tiempos son `float` mezclando dos unidades | de todo el esquema, solo `role` tiene `CheckConstraint` |
@@ -326,6 +343,11 @@ datos guarda la etiqueta humana, así que la ciencia no puede leer lo que la
 aplicación persiste. Con un solo enum: se guarda la clave, y `FaseDelMacro.nombre`
 queda como texto libre solo para la interfaz.
 
+> **Construido el 2026-09-22.** Tal cual, con una precisión: el entrenador no
+> elige entre cuatro tramos sino entre las cinco fases, y las que nacen por
+> defecto son la forma de 15 semanas escalada a su macro. `Fase.del_macro()`
+> rechaza la extensión, que no es un tramo sino lo que viene después.
+
 ---
 
 ## 4. Los roles
@@ -530,6 +552,11 @@ Raíz del agregado de planificación. Absorbe las funciones sueltas de
 > exigido inventar la traducción — la sexta versión de la regla que este tipo
 > existe para cerrar. `FaseDelMacro.fase` viaja en `None` hasta el paso 4; el
 > desdoble nombre (UI) / clave de dominio ya está construido y esperándola.
+>
+> **Resuelto el 2026-09-22 (P3):** `FaseDelMacro.fase` es obligatoria y viene de
+> la base; `fase_de()` sigue devolviendo el tramo porque quien pregunta casi
+> siempre quiere las dos mitades — el nombre para enseñarlo y la `Fase` para
+> calcular.
 
 ### 5.5 `FaseDelMacro` (PlanPhase) y `Competencia` (Competition)
 
@@ -901,8 +928,8 @@ El resto son renombres de columna y `CheckConstraint` añadidos.
 | 1 | `dominio/valores/` completo — **✅ HECHO 2026-08-16** | bajo | P6, P2 | sí |
 | 2 | Entidades ricas (`Atleta`, `Macrociclo`, `TestAerobico`) — **✅ HECHO 2026-08-16** | bajo | P4 | sí |
 | 3 | `Rol` + subclases; `Principal` compone — **✅ HECHO 2026-08-17** | bajo | — | sí |
-| 4 | **Fusión de los dos motores** — **✅ HECHO 2026-08-17** (rama `refactor/motor-unico`) | **medio-alto** | P1, P3 | rama propia |
-| 5 | `persistencia/repositorios/` + recorte de imports cruzados | medio | P5 | sí |
+| 4 | **Fusión de los dos motores** — **✅ HECHO 2026-08-17** (rama `refactor/motor-unico`) | **medio-alto** | P1 (P3 no: se cerró aparte el 2026-09-22) | rama propia |
+| 5 | `persistencia/repositorios/` + recorte de imports cruzados — **✅ HECHO 2026-08-25** | medio | P5 | sí |
 | 6 | `Resultado` + migración de `real_time` | medio | §5.10 | sí |
 | 7 | `Sesion` (R1: **`Serie` fuera**) | medio | el hueco de fondo | sí |
 | 8 | `CargaDiaria` + Banister (R1) | bajo | nota 05 | — |

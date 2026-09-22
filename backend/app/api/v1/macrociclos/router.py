@@ -11,7 +11,7 @@ falta para pintar la respuesta mientras `Inscripcion` no sea una entidad.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencias import repo_de_macrociclos
@@ -21,6 +21,7 @@ from app.core.guards import exigir_o_bypass, require_coach
 from app.core.principal import Principal
 from app.dominio.entidades import Macrociclo
 from app.dominio.roles import Recurso
+from app.dominio.servicios.motor import fases_por_defecto
 from app.persistencia.repositorios import RepositorioDeMacrociclos
 from app.persistencia.tablas.planes import Plan
 
@@ -28,6 +29,7 @@ from . import inscripcion, nomina, semanas, service
 from .schemas import (
     AddAthleteRequest,
     AssignableAthlete,
+    PhaseInput,
     PlanCreate,
     PlanResponse,
     PlanUpdate,
@@ -74,6 +76,20 @@ async def create_plan(
     # que su propio autor no podría ver.
     fila = await service.create_plan(repo, data, coach.team_id, coach.id)
     return await service.to_plan_response(db, fila, coach)
+
+
+@router.get("/default-phases", response_model=list[PhaseInput])
+async def default_phases(
+    weeks: int = Query(ge=4, le=30),
+    _coach: Principal = Depends(require_coach),
+):
+    """Las fases con las que nace un macrociclo de `weeks` semanas.
+
+    El asistente las pide aquí en vez de calcularlas: tenía su propia copia del
+    reparto y de los colores, y los colores ya se habían separado de los del
+    motor. Va antes de `/{plan_id}` porque si no esa ruta se la come.
+    """
+    return fases_por_defecto(weeks)
 
 
 @router.get("/{plan_id}", response_model=PlanResponse)

@@ -4,12 +4,14 @@ Diez enums que hoy son cadenas sueltas repartidas entre columnas `String(12)`,
 `Literal[...]` de Pydantic y claves de diccionarios científicos. Dos cosas
 cambian al convertirlos en tipos:
 
-* **`Fase` cierra P3.** Hoy hay tres vocabularios de fase vivos a la vez: las
-  cinco claves científicas de `F_FASE`, las cuatro etiquetas de `DEFAULT_PHASES`
-  (`Base/Construcción/Pico/Descenso`) y las cuatro de `PlanPhase.type`
-  (`base|build|peak|taper`). La base de datos guarda la etiqueta humana, así que
-  la ciencia no puede leer lo que la aplicación persiste. Este enum es la única
-  fuente, y lleva su `F_FASE` y su banda de volumen **dentro**.
+* **`Fase` cerró P3** (2026-09-22). Convivían tres vocabularios de fase: las
+  cinco claves científicas de `F_FASE`, los cuatro tramos que veía el
+  entrenador (`Base/Construcción/Pico/Descenso`) y los cuatro de
+  `PlanPhase.type` (`base|build|peak|taper`), y la base guardaba la etiqueta
+  humana, así que la ciencia no podía leer lo que la aplicación persistía. Hoy
+  este enum es el único: las fases del macrociclo **son** estas cinco, la base
+  guarda su clave y el nombre que el entrenador le pone es texto libre aparte.
+  Lleva su `F_FASE` y su banda de volumen **dentro**.
 * **`Nivel` se deriva siempre**, nunca se escribe a mano ni se guarda.
 
 El `value` de cada miembro es la clave que ya usan las tablas científicas o la
@@ -153,11 +155,13 @@ _VOLUMEN_SEMANAL_KM: dict[Nivel, dict[str, tuple[float, float]]] = {
                          "umbral_css": (55, 85), "taper": (20, 40)},
 }
 
+# Es el nombre con el que nace cada fase de un macrociclo nuevo, así que va
+# entero: abreviarlo para que quepa en una columna es cosa de quien la pinta.
 _ETIQUETAS_DE_FASE: dict[str, str] = {
     "base_general": "Base general",
-    "base_especifica": "Base especif.",
+    "base_especifica": "Base específica",
     "umbral_css": "Umbral CSS",
-    "pre_competitivo": "Pre-comp.",
+    "pre_competitivo": "Pre-competitivo",
     "taper": "Taper",
     "extension": "Extensión",
 }
@@ -166,14 +170,17 @@ _ETIQUETAS_DE_FASE: dict[str, str] = {
 class Fase(_EscalaTextual):
     """Fase del macrociclo, con su multiplicador de mejora y su banda de volumen.
 
-    `desde_texto` acepta **solo** estas seis claves. No traduce
-    `Base/Construcción/Pico/Descenso` ni `base|build|peak|taper`: son cuatro
-    tramos contra cinco fases y **el reparto sigue sin decidirse**. Se esperaba
-    que lo cerrara la fusión de motores (paso 4, 2026-08-17); la fusión pasó sin
-    tocarlo porque no le hacía falta para conservar los números, así que hoy es
-    el último resto de P3 y **no tiene bloque asignado** — ver «cinco cabos
-    sueltos» en `docs/PLAN-DE-TRABAJO.md`. Adivinarlo aquí sería inventar la
-    sexta versión de la regla que este tipo existe para cerrar.
+    **Las fases de un macrociclo son estas cinco** (P3, cerrado el 2026-09-22).
+    Los cuatro tramos que la interfaz enseñaba antes (`Base/Construcción/Pico/
+    Descenso`, guardados como `base|build|peak|taper`) no eran una versión
+    gruesa de estas: eran otro vocabulario, y ninguna regla decía cómo se
+    repartían cuatro sobre cinco. Se resolvió quitando el de cuatro, no
+    traduciéndolo: la migración `a3f1c2d4e5b6` convirtió una sola vez las filas
+    que había, y desde entonces la base solo conoce estas claves.
+
+    Por eso `desde_texto` acepta **solo** las seis claves y rechaza
+    `"Construcción"` o `"build"`: una traducción viva sería la segunda copia de
+    la regla que este tipo existe para tener una sola vez.
     """
 
     BASE_GENERAL = "base_general"
@@ -209,16 +216,31 @@ class Fase(_EscalaTextual):
         viene después cuando la meta supera el techo.
 
         Existe por la misma razón que `Zona.ordenadas()`: este orden ya vive en
-        `MACRO_15_PHASES` del motor, y sin exponerlo aquí el primero que reparta
-        fases sobre semanas escribirá una `FASE_ORDER` suelta al lado. Esto **no**
-        es el reparto de los cuatro tramos de la interfaz sobre estas cinco, que
-        sigue sin decidirse (ver `desde_texto`): el orden cronológico de las cinco
-        no está en disputa en ninguno de los tres vocabularios.
+        `MACRO_15_FASES` del motor, y sin exponerlo aquí el primero que reparta
+        fases sobre semanas escribirá una `FASE_ORDER` suelta al lado.
         """
         return (
             cls.BASE_GENERAL, cls.BASE_ESPECIFICA, cls.UMBRAL_CSS,
             cls.PRE_COMPETITIVO, cls.TAPER,
         )
+
+    @classmethod
+    def del_macro(cls, valor: str) -> Fase:
+        """La fase de un tramo del macrociclo: cualquiera menos la extensión.
+
+        La extensión no es un tramo que el entrenador pueda poner en su plan:
+        es lo que el motor enseña **después** del macro cuando la meta supera el
+        techo. Una fase del macro marcada como extensión no tiene `f_fase` que
+        signifique nada dentro de las semanas del plan.
+        """
+        fase = cls.desde_texto(valor)
+        if fase.es_extension:
+            raise ValueError(
+                "La extensión no es una fase del macrociclo: es lo que viene después "
+                "cuando la meta supera el techo. Elige una de "
+                + ", ".join(f.value for f in cls.secuencia())
+            )
+        return fase
 
     @property
     def orden(self) -> int:

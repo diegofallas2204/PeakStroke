@@ -19,6 +19,13 @@ motores viejos, y por eso el `_en_ingles` de abajo traduce las claves del
 dataclass nuevo. Un snapshot regenerado no demuestra nada; uno que sobrevive a
 la reescritura del motor, sí.
 
+**Se regeneraron una vez, en P3 (2026-09-22), y solo por la fase.** Las fases
+por defecto pasaron de los cuatro tramos de interfaz a las cinco de la ciencia,
+así que `phase` cambió de texto en todas las semanas y apareció `phase_key` (la
+clave que se guarda). Antes de regenerar se comprobó que no se movía **ningún
+otro campo** de ningún caso, y el diff de git lo confirma: todas sus líneas son
+de `phase`. Los números siguen siendo los que dieron los motores de antes de C4.
+
 El cuarto camino era `ScienceEngine.generate_plan` (`motor_science.json`) y se
 retiró **con su algoritmo**: la fusión lo absorbió, así que congelaba una salida
 que ya no puede producirse. Lo que de él sobrevive —la forma F_FASE, la
@@ -57,6 +64,7 @@ import os
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from datetime import date
+from enum import Enum
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -90,7 +98,10 @@ MAX_DIFF_LINES = 12     # diferencias que se enseñan antes de resumir
 # demuestre algo.
 _CLAVES_EN_INGLES = {
     "numero": "week_number", "fecha": "week_date", "tiempo_esperado": "expected_time",
-    "ritmo_100": "pace_100m", "km": "planned_km", "fase": "phase",
+    "ritmo_100": "pace_100m", "km": "planned_km",
+    # P3: la fase se desdobló en su clave y en el nombre que se enseña; `phase`
+    # sigue siendo lo que se enseña y `phase_key` es lo que se guarda.
+    "fase": "phase_key", "nombre_fase": "phase",
     "mejora_vs_anterior": "improvement_vs_prev",
     "mejora_acumulada": "cumulative_improvement",
     "zonas": "zones", "deshabilitada": "disabled",
@@ -188,6 +199,8 @@ def _normalize(value: Any) -> Any:
         return [_normalize(v) for v in value]
     if isinstance(value, date):
         return value.isoformat()
+    if isinstance(value, Enum):
+        return value.value
     if isinstance(value, bool) or value is None:
         return value
     if isinstance(value, float):

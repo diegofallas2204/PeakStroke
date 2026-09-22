@@ -36,6 +36,7 @@ from app.dominio.valores import (
     Especialidad,
     EstadoDeMacro,
     Estilo,
+    Fase,
     Genero,
     ModoDeIngreso,
     Piscina,
@@ -77,14 +78,12 @@ def atleta_desde_fila(fila: Swimmer) -> Atleta:
 
 
 def _fase_desde_fila(fila: PlanPhase) -> FaseDelMacro:
-    # `fase` viaja en None: la base guarda cuatro tramos (`base|build|peak|taper`)
-    # y `Fase` tiene cinco claves científicas. Ese reparto lo decide el paso 4;
-    # adivinarlo aquí sería inventar la sexta versión de la regla.
+    # La columna guarda la clave de `Fase` desde P3 (y un CHECK lo impone), así
+    # que aquí no se traduce nada: una fila con otro texto es un error, no un caso.
     return FaseDelMacro(
+        fase=Fase.desde_texto(fila.type),
         id=fila.id,
         nombre=fila.name,
-        tipo=fila.type,
-        fase=None,
         semana_inicio=fila.week_start,
         semana_fin=fila.week_end,
         color=fila.color,

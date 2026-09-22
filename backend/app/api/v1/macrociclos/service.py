@@ -86,7 +86,7 @@ async def create_plan(
         fases_por_defecto(data.total_weeks)
     for i, p in enumerate(phases):
         fila.phases.append(PlanPhase(
-            name=p["name"], type=p.get("type", "base"), color=p.get("color", "#8b5cf6"),
+            name=p["name"], type=p["type"], color=p["color"],
             week_start=p["week_start"], week_end=p["week_end"], sort=i,
         ))
     for c in data.competitions:
