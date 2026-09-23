@@ -1,7 +1,15 @@
 // Registro de test aeróbico con 4 modos de ingreso y análisis en vivo.
+//
+// **El intervalo de salida.** Un test se nada sobre un intervalo y el entrenador
+// lee en el reloj la LLEGADA de cada repetición, no el tiempo nadado. Hasta el
+// 2026-08-10 este formulario solo aceptaba tiempos nadados sin decirlo, así que
+// quien apuntaba lo que el reloj marcaba —lo normal— guardaba una base aeróbica
+// acumulada y disparatada. De ahí las dos cosas nuevas de aquí: el campo de
+// salida y el conmutador de cómo hay que leer los números.
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../lib/api'
+import type { InputMode } from '../../lib/types'
 import { tryToSeconds, toClock } from '../../lib/format'
 import { Field, Modal } from '../../components/ui/primitives'
 
@@ -20,6 +28,8 @@ export function TestForm({
   const [date, setDate] = useState('')
   const [splitsText, setSplitsText] = useState('')
   const [repDistance, setRepDistance] = useState(400)
+  const [sendOffText, setSendOffText] = useState('')
+  const [inputMode, setInputMode] = useState<InputMode>('rep')
   const [direct, setDirect] = useState('')
   const [t400, setT400] = useState('')
   const [t50, setT50] = useState('')
@@ -34,6 +44,7 @@ export function TestForm({
     setPrevOpen(open)
     if (open) {
       setError(''); setSplitsText(''); setDirect(''); setT400(''); setT50(''); setNotes('')
+      setSendOffText(''); setInputMode('rep')
       setDate(new Date().toISOString().slice(0, 10))
     }
   }
@@ -45,13 +56,22 @@ export function TestForm({
   )
   const expectedReps = mode === 'T30' ? 30 : mode === 'T15' ? 15 : null
   const effectiveRepDist = mode === 'CUSTOM' ? repDistance : 100
+  const sendOff = tryToSeconds(sendOffText)
+  // Sin salida no hay forma de despejar el tiempo nadado de una llegada, así que
+  // el modo de reloj no se manda a medio configurar: se cae a `rep` hasta que la
+  // haya. Es lo mismo que hace el backend, dicho antes de la petición.
+  const effectiveInputMode: InputMode = sendOff == null ? 'rep' : inputMode
 
   // Análisis en vivo con debounce contra el motor.
   const { data: preview } = useQuery({
-    queryKey: ['analyze', splits.join(','), effectiveRepDist],
-    queryFn: () => api.aerobic.analyze(splits, effectiveRepDist),
+    queryKey: ['analyze', splits.join(','), effectiveRepDist, sendOff, effectiveInputMode],
+    queryFn: () => api.aerobic.analyze(splits, effectiveRepDist, sendOff, effectiveInputMode),
     enabled: ['T30', 'T15', 'CUSTOM'].includes(mode) && splits.length >= 2,
     staleTime: Infinity,
+    // Unas llegadas a medio teclear son incoherentes casi siempre y el backend
+    // responde 422: reintentarlas solo multiplica peticiones que ya se sabe que
+    // van a fallar.
+    retry: false,
   })
 
   const mutation = useMutation({
@@ -61,6 +81,8 @@ export function TestForm({
       test_date: date,
       splits: ['T30', 'T15', 'CUSTOM'].includes(mode) ? splits : [],
       rep_distance: effectiveRepDist,
+      send_off: sendOff,
+      input_mode: effectiveInputMode,
       direct_per100: mode === 'DIRECT' ? tryToSeconds(direct) : null,
       t400: mode === 'CSS' ? tryToSeconds(t400) : null,
       t50: mode === 'CSS' ? tryToSeconds(t50) : null,
@@ -82,6 +104,10 @@ export function TestForm({
         setError(`El ${mode === 'T30' ? 'T-30' : 'T-15'} requiere exactamente ${expectedReps} parciales (llevas ${splits.length}).`)
         return
       }
+    }
+    if (['T30', 'T15', 'CUSTOM'].includes(mode) && inputMode === 'clock' && sendOff == null) {
+      setError('Para ingresar llegadas de reloj hace falta el intervalo de salida.')
+      return
     }
     if (mode === 'DIRECT' && tryToSeconds(direct) == null) { setError('Ingresa el parcial aeróbico.'); return }
     if (mode === 'CSS' && (tryToSeconds(t400) == null || tryToSeconds(t50) == null)) {
@@ -135,17 +161,68 @@ export function TestForm({
         )}
 
         {['T30', 'T15', 'CUSTOM'].includes(mode) && (
-          <Field
-            label={`Parciales (${splits.length}${expectedReps ? `/${expectedReps}` : ''}) — separados por coma o salto de línea`}
-            className="col-span-2"
-          >
-            <textarea
-              className="field mono min-h-28 resize-y"
-              placeholder={mode === 'CUSTOM' ? '5:02.0, 5:04.5, 5:01.2, …' : '1:18.2, 1:18.9, 1:17.8, …'}
-              value={splitsText}
-              onChange={(e) => setSplitsText(e.target.value)}
-            />
-          </Field>
+          <>
+            <Field label="Salida (intervalo)">
+              <input
+                className="field mono"
+                placeholder="1:30 — opcional"
+                value={sendOffText}
+                onChange={(e) => setSendOffText(e.target.value)}
+              />
+              <p className="mt-1.5 text-[10.5px] leading-relaxed text-text-faint">
+                Cada cuánto sale la repetición. Es lo que falta para prescribir
+                los tiempos de entrenamiento: el ritmo dice a qué nadar, la
+                salida cada cuánto.
+              </p>
+            </Field>
+
+            <Field label="Qué estás apuntando">
+              <div className="flex gap-2">
+                {([
+                  ['rep', 'Tiempo de nado', 'Lo que tardó cada repetición'],
+                  ['clock', 'Llegada en el reloj', 'El reloj sigue corriendo entre salidas'],
+                ] as const).map(([value, label, hint]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    disabled={value === 'clock' && sendOff == null}
+                    className={`btn flex-1 flex-col !items-start !gap-0.5 !py-2 ${
+                      effectiveInputMode === value ? 'btn-primary' : 'btn-ghost'
+                    } disabled:opacity-40`}
+                    onClick={() => setInputMode(value)}
+                  >
+                    <span className="text-[11px]">{label}</span>
+                    <span className={`text-[9px] font-normal leading-tight ${
+                      effectiveInputMode === value ? 'text-white/70' : 'text-text-faint'
+                    }`}>
+                      {hint}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {sendOff == null && (
+                <p className="mt-1.5 text-[10.5px] text-text-faint">
+                  Las llegadas necesitan la salida para despejar el tiempo nadado.
+                </p>
+              )}
+            </Field>
+
+            <Field
+              label={`Parciales (${splits.length}${expectedReps ? `/${expectedReps}` : ''}) — separados por coma o salto de línea`}
+              className="col-span-2"
+            >
+              <textarea
+                className="field mono min-h-28 resize-y"
+                placeholder={
+                  effectiveInputMode === 'clock'
+                    ? '1:18.2, 2:49.0, 4:20.1, … (acumuladas)'
+                    : mode === 'CUSTOM' ? '5:02.0, 5:04.5, 5:01.2, …' : '1:18.2, 1:18.9, 1:17.8, …'
+                }
+                value={splitsText}
+                onChange={(e) => setSplitsText(e.target.value)}
+              />
+            </Field>
+          </>
         )}
 
         <Field label="Notas" className="col-span-2">
@@ -154,21 +231,48 @@ export function TestForm({
       </div>
 
       {preview && (
-        <div className="mt-4 grid grid-cols-3 gap-3 rounded-xl border border-line bg-surface-2 p-3.5">
-          <div>
-            <p className="card-title !text-[9px]">Base aeróbica</p>
-            <p className="mono mt-0.5 text-lg font-bold text-accent-soft">{toClock(preview.avg_per100)} <span className="text-[10px] text-text-faint">/100m</span></p>
+        <div className="mt-4 rounded-xl border border-line bg-surface-2 p-3.5">
+          <div className={`grid gap-3 ${preview.avg_rest != null ? 'grid-cols-5' : 'grid-cols-3'}`}>
+            <div>
+              <p className="card-title !text-[9px]">Base aeróbica</p>
+              <p className="mono mt-0.5 text-lg font-bold text-accent-soft">{toClock(preview.avg_per100)} <span className="text-[10px] text-text-faint">/100m</span></p>
+            </div>
+            <div>
+              <p className="card-title !text-[9px]">Consistencia</p>
+              <p className="mono mt-0.5 text-lg font-bold text-cyan">±{preview.std_dev.toFixed(2)}s</p>
+            </div>
+            <div>
+              <p className="card-title !text-[9px]">Tendencia</p>
+              <p className="mt-0.5 text-lg font-bold" style={{ color: preview.trend === 'improving' ? '#34d399' : preview.trend === 'declining' ? '#fb7185' : '#22d3ee' }}>
+                {preview.trend === 'improving' ? 'En mejora' : preview.trend === 'declining' ? 'Se cae' : 'Estable'}
+              </p>
+            </div>
+            {preview.avg_rest != null && (
+              <>
+                <div>
+                  <p className="card-title !text-[9px]">Descanso medio</p>
+                  <p className="mono mt-0.5 text-lg font-bold text-mint">{preview.avg_rest.toFixed(1)}s</p>
+                </div>
+                <div>
+                  <p className="card-title !text-[9px]">Densidad</p>
+                  <p className="mono mt-0.5 text-lg font-bold text-amber">
+                    {preview.density != null ? `${(preview.density * 100).toFixed(0)}%` : '—'}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
-          <div>
-            <p className="card-title !text-[9px]">Consistencia</p>
-            <p className="mono mt-0.5 text-lg font-bold text-cyan">±{preview.std_dev.toFixed(2)}s</p>
-          </div>
-          <div>
-            <p className="card-title !text-[9px]">Tendencia</p>
-            <p className="mt-0.5 text-lg font-bold" style={{ color: preview.trend === 'improving' ? '#34d399' : preview.trend === 'declining' ? '#fb7185' : '#22d3ee' }}>
-              {preview.trend === 'improving' ? 'En mejora' : preview.trend === 'declining' ? 'Se cae' : 'Estable'}
+
+          {/* No aguantar el intervalo es un dato del test, no un error de
+              captura: se enseña y se guarda igual. */}
+          {preview.missed_intervals.length > 0 && (
+            <p className="mt-3 border-t border-line pt-2.5 text-[11px] leading-relaxed text-amber">
+              No llegó antes de la salida en {preview.missed_intervals.length}{' '}
+              {preview.missed_intervals.length === 1 ? 'repetición' : 'repeticiones'}
+              {' '}(nº {preview.missed_intervals.join(', ')}). El test se guarda igual:
+              es información sobre el intervalo, no un error de captura.
             </p>
-          </div>
+          )}
         </div>
       )}
 

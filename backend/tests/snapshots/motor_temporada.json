@@ -1,0 +1,787 @@
+{
+  "100-advanced-libre-p50-adulto-auto-n3": {
+    "entrada": {
+      "distancia": 100,
+      "edad": null,
+      "estilo": "libre",
+      "n_macros": 3,
+      "nivel_esperado": "advanced",
+      "perfil": null,
+      "piscina": "50",
+      "tiempo_actual": 91.61
+    },
+    "temporada": {
+      "annual_high_pct": 6.0,
+      "annual_low_pct": 3.0,
+      "level": "advanced",
+      "macros": [
+        {
+          "end_time": 88.04,
+          "improvement_pct": 3.9,
+          "improvement_s": 3.57,
+          "n_mac": 1,
+          "start_time": 91.61
+        },
+        {
+          "end_time": 85.98,
+          "improvement_pct": 2.34,
+          "improvement_s": 2.06,
+          "n_mac": 2,
+          "start_time": 88.04
+        },
+        {
+          "end_time": 84.77,
+          "improvement_pct": 1.4,
+          "improvement_s": 1.21,
+          "n_mac": 3,
+          "start_time": 85.98
+        }
+      ],
+      "message": "Optimista — el techo de temporada (7.47%) supera el rango típico 3.0–6.0% (advanced). Es el máximo de 3 macros perfectos, no la media esperada.",
+      "n_macros": 3,
+      "season_end": 84.77,
+      "season_improvement_pct": 7.47,
+      "season_improvement_s": 6.84,
+      "season_start": 91.61,
+      "verdict": "optimistic"
+    }
+  },
+  "100-advanced-pecho-p25-adulto-auto-n3": {
+    "entrada": {
+      "distancia": 100,
+      "edad": null,
+      "estilo": "pecho",
+      "n_macros": 3,
+      "nivel_esperado": "advanced",
+      "perfil": null,
+      "piscina": "25",
+      "tiempo_actual": 91.61
+    },
+    "temporada": {
+      "annual_high_pct": 6.0,
+      "annual_low_pct": 3.0,
+      "level": "advanced",
+      "macros": [
+        {
+          "end_time": 88.04,
+          "improvement_pct": 3.9,
+          "improvement_s": 3.57,
+          "n_mac": 1,
+          "start_time": 91.61
+        },
+        {
+          "end_time": 85.98,
+          "improvement_pct": 2.34,
+          "improvement_s": 2.06,
+          "n_mac": 2,
+          "start_time": 88.04
+        },
+        {
+          "end_time": 84.77,
+          "improvement_pct": 1.4,
+          "improvement_s": 1.21,
+          "n_mac": 3,
+          "start_time": 85.98
+        }
+      ],
+      "message": "Optimista — el techo de temporada (7.47%) supera el rango típico 3.0–6.0% (advanced). Es el máximo de 3 macros perfectos, no la media esperada.",
+      "n_macros": 3,
+      "season_end": 84.77,
+      "season_improvement_pct": 7.47,
+      "season_improvement_s": 6.84,
+      "season_start": 91.61,
+      "verdict": "optimistic"
+    }
+  },
+  "100-competitive-libre-p50-adulto-auto-n1": {
+    "entrada": {
+      "distancia": 100,
+      "edad": null,
+      "estilo": "libre",
+      "n_macros": 1,
+      "nivel_esperado": "competitive",
+      "perfil": null,
+      "piscina": "50",
+      "tiempo_actual": 70.21
+    },
+    "temporada": {
+      "annual_high_pct": 3.5,
+      "annual_low_pct": 2.0,
+      "level": "competitive",
+      "macros": [
+        {
+          "end_time": 68.74,
+          "improvement_pct": 2.1,
+          "improvement_s": 1.47,
+          "n_mac": 1,
+          "start_time": 70.21
+        }
+      ],
+      "message": "Realista — el techo de temporada proyecta 2.10%, dentro del rango típico 2.0–3.5% para competitive.",
+      "n_macros": 1,
+      "season_end": 68.74,
+      "season_improvement_pct": 2.1,
+      "season_improvement_s": 1.47,
+      "season_start": 70.21,
+      "verdict": "ok"
+    }
+  },
+  "100-competitive-libre-p50-adulto-auto-n2": {
+    "entrada": {
+      "distancia": 100,
+      "edad": null,
+      "estilo": "libre",
+      "n_macros": 2,
+      "nivel_esperado": "competitive",
+      "perfil": null,
+      "piscina": "50",
+      "tiempo_actual": 70.21
+    },
+    "temporada": {
+      "annual_high_pct": 3.5,
+      "annual_low_pct": 2.0,
+      "level": "competitive",
+      "macros": [
+        {
+          "end_time": 68.74,
+          "improvement_pct": 2.1,
+          "improvement_s": 1.47,
+          "n_mac": 1,
+          "start_time": 70.21
+        },
+        {
+          "end_time": 67.87,
+          "improvement_pct": 1.26,
+          "improvement_s": 0.87,
+          "n_mac": 2,
+          "start_time": 68.74
+        }
+      ],
+      "message": "Realista — el techo de temporada proyecta 3.33%, dentro del rango típico 2.0–3.5% para competitive.",
+      "n_macros": 2,
+      "season_end": 67.87,
+      "season_improvement_pct": 3.33,
+      "season_improvement_s": 2.34,
+      "season_start": 70.21,
+      "verdict": "ok"
+    }
+  },
+  "100-competitive-libre-p50-adulto-auto-n4": {
+    "entrada": {
+      "distancia": 100,
+      "edad": null,
+      "estilo": "libre",
+      "n_macros": 4,
+      "nivel_esperado": "competitive",
+      "perfil": null,
+      "piscina": "50",
+      "tiempo_actual": 70.21
+    },
+    "temporada": {
+      "annual_high_pct": 3.5,
+      "annual_low_pct": 2.0,
+      "level": "competitive",
+      "macros": [
+        {
+          "end_time": 68.74,
+          "improvement_pct": 2.1,
+          "improvement_s": 1.47,
+          "n_mac": 1,
+          "start_time": 70.21
+        },
+        {
+          "end_time": 67.87,
+          "improvement_pct": 1.26,
+          "improvement_s": 0.87,
+          "n_mac": 2,
+          "start_time": 68.74
+        },
+        {
+          "end_time": 67.36,
+          "improvement_pct": 0.76,
+          "improvement_s": 0.51,
+          "n_mac": 3,
+          "start_time": 67.87
+        },
+        {
+          "end_time": 67.05,
+          "improvement_pct": 0.45,
+          "improvement_s": 0.31,
+          "n_mac": 4,
+          "start_time": 67.36
+        }
+      ],
+      "message": "Optimista — el techo de temporada (4.50%) supera el rango típico 2.0–3.5% (competitive). Es el máximo de 4 macros perfectos, no la media esperada.",
+      "n_macros": 4,
+      "season_end": 67.05,
+      "season_improvement_pct": 4.5,
+      "season_improvement_s": 3.16,
+      "season_start": 70.21,
+      "verdict": "optimistic"
+    }
+  },
+  "1500-advanced-libre-p50-adulto-auto-n3": {
+    "entrada": {
+      "distancia": 1500,
+      "edad": null,
+      "estilo": "libre",
+      "n_macros": 3,
+      "nivel_esperado": "advanced",
+      "perfil": null,
+      "piscina": "50",
+      "tiempo_actual": 1685.92
+    },
+    "temporada": {
+      "annual_high_pct": 6.0,
+      "annual_low_pct": 3.0,
+      "level": "advanced",
+      "macros": [
+        {
+          "end_time": 1579.71,
+          "improvement_pct": 6.3,
+          "improvement_s": 106.21,
+          "n_mac": 1,
+          "start_time": 1685.92
+        },
+        {
+          "end_time": 1519.99,
+          "improvement_pct": 3.78,
+          "improvement_s": 59.71,
+          "n_mac": 2,
+          "start_time": 1579.71
+        },
+        {
+          "end_time": 1485.52,
+          "improvement_pct": 2.27,
+          "improvement_s": 34.47,
+          "n_mac": 3,
+          "start_time": 1519.99
+        }
+      ],
+      "message": "Poco realista — 11.89% excede con mucho el techo típico 3.0–6.0% (advanced). Revisa el tiempo actual o reparte la meta en más temporadas.",
+      "n_macros": 3,
+      "season_end": 1485.52,
+      "season_improvement_pct": 11.89,
+      "season_improvement_s": 200.4,
+      "season_start": 1685.92,
+      "verdict": "unrealistic"
+    }
+  },
+  "200-advanced-libre-p50-adulto-auto-n3": {
+    "entrada": {
+      "distancia": 200,
+      "edad": null,
+      "estilo": "libre",
+      "n_macros": 3,
+      "nivel_esperado": "advanced",
+      "perfil": null,
+      "piscina": "50",
+      "tiempo_actual": 199.44
+    },
+    "temporada": {
+      "annual_high_pct": 6.0,
+      "annual_low_pct": 3.0,
+      "level": "advanced",
+      "macros": [
+        {
+          "end_time": 190.47,
+          "improvement_pct": 4.5,
+          "improvement_s": 8.97,
+          "n_mac": 1,
+          "start_time": 199.44
+        },
+        {
+          "end_time": 185.32,
+          "improvement_pct": 2.7,
+          "improvement_s": 5.14,
+          "n_mac": 2,
+          "start_time": 190.47
+        },
+        {
+          "end_time": 182.32,
+          "improvement_pct": 1.62,
+          "improvement_s": 3.0,
+          "n_mac": 3,
+          "start_time": 185.32
+        }
+      ],
+      "message": "Optimista — el techo de temporada (8.58%) supera el rango típico 3.0–6.0% (advanced). Es el máximo de 3 macros perfectos, no la media esperada.",
+      "n_macros": 3,
+      "season_end": 182.32,
+      "season_improvement_pct": 8.58,
+      "season_improvement_s": 17.12,
+      "season_start": 199.44,
+      "verdict": "optimistic"
+    }
+  },
+  "200-recreational-libre-p50-e14-auto-n3": {
+    "entrada": {
+      "distancia": 200,
+      "edad": 14,
+      "estilo": "libre",
+      "n_macros": 3,
+      "nivel_esperado": "recreational",
+      "perfil": null,
+      "piscina": "50",
+      "tiempo_actual": 251.63
+    },
+    "temporada": {
+      "annual_high_pct": 20.0,
+      "annual_low_pct": 10.0,
+      "level": "recreational",
+      "macros": [
+        {
+          "end_time": 215.4,
+          "improvement_pct": 14.4,
+          "improvement_s": 36.23,
+          "n_mac": 1,
+          "start_time": 251.63
+        },
+        {
+          "end_time": 203.76,
+          "improvement_pct": 5.4,
+          "improvement_s": 11.63,
+          "n_mac": 2,
+          "start_time": 215.4
+        },
+        {
+          "end_time": 197.16,
+          "improvement_pct": 3.24,
+          "improvement_s": 6.6,
+          "n_mac": 3,
+          "start_time": 203.76
+        }
+      ],
+      "message": "Optimista — el techo de temporada (21.65%) supera el rango típico 10.0–20.0% (recreational). Es el máximo de 3 macros perfectos, no la media esperada.",
+      "n_macros": 3,
+      "season_end": 197.16,
+      "season_improvement_pct": 21.65,
+      "season_improvement_s": 54.47,
+      "season_start": 251.63,
+      "verdict": "optimistic"
+    }
+  },
+  "200-recreational-libre-p50-e16-auto-n3": {
+    "entrada": {
+      "distancia": 200,
+      "edad": 16,
+      "estilo": "libre",
+      "n_macros": 3,
+      "nivel_esperado": "recreational",
+      "perfil": null,
+      "piscina": "50",
+      "tiempo_actual": 251.63
+    },
+    "temporada": {
+      "annual_high_pct": 15.0,
+      "annual_low_pct": 7.5,
+      "level": "recreational",
+      "macros": [
+        {
+          "end_time": 224.45,
+          "improvement_pct": 10.8,
+          "improvement_s": 27.18,
+          "n_mac": 1,
+          "start_time": 251.63
+        },
+        {
+          "end_time": 209.91,
+          "improvement_pct": 6.48,
+          "improvement_s": 14.54,
+          "n_mac": 2,
+          "start_time": 224.45
+        },
+        {
+          "end_time": 204.81,
+          "improvement_pct": 2.43,
+          "improvement_s": 5.1,
+          "n_mac": 3,
+          "start_time": 209.91
+        }
+      ],
+      "message": "Optimista — el techo de temporada (18.61%) supera el rango típico 7.5–15.0% (recreational). Es el máximo de 3 macros perfectos, no la media esperada.",
+      "n_macros": 3,
+      "season_end": 204.81,
+      "season_improvement_pct": 18.61,
+      "season_improvement_s": 46.82,
+      "season_start": 251.63,
+      "verdict": "optimistic"
+    }
+  },
+  "400-advanced-libre-p50-adulto-auto-n3": {
+    "entrada": {
+      "distancia": 400,
+      "edad": null,
+      "estilo": "libre",
+      "n_macros": 3,
+      "nivel_esperado": "advanced",
+      "perfil": null,
+      "piscina": "50",
+      "tiempo_actual": 419.61
+    },
+    "temporada": {
+      "annual_high_pct": 6.0,
+      "annual_low_pct": 3.0,
+      "level": "advanced",
+      "macros": [
+        {
+          "end_time": 398.21,
+          "improvement_pct": 5.1,
+          "improvement_s": 21.4,
+          "n_mac": 1,
+          "start_time": 419.61
+        },
+        {
+          "end_time": 386.02,
+          "improvement_pct": 3.06,
+          "improvement_s": 12.19,
+          "n_mac": 2,
+          "start_time": 398.21
+        },
+        {
+          "end_time": 378.94,
+          "improvement_pct": 1.84,
+          "improvement_s": 7.09,
+          "n_mac": 3,
+          "start_time": 386.02
+        }
+      ],
+      "message": "Optimista — el techo de temporada (9.69%) supera el rango típico 3.0–6.0% (advanced). Es el máximo de 3 macros perfectos, no la media esperada.",
+      "n_macros": 3,
+      "season_end": 378.94,
+      "season_improvement_pct": 9.69,
+      "season_improvement_s": 40.67,
+      "season_start": 419.61,
+      "verdict": "optimistic"
+    }
+  },
+  "400-advanced-libre-p50-adulto-fondo-n3": {
+    "entrada": {
+      "distancia": 400,
+      "edad": null,
+      "estilo": "libre",
+      "n_macros": 3,
+      "nivel_esperado": "advanced",
+      "perfil": "fondo",
+      "piscina": "50",
+      "tiempo_actual": 419.61
+    },
+    "temporada": {
+      "annual_high_pct": 6.0,
+      "annual_low_pct": 3.0,
+      "level": "advanced",
+      "macros": [
+        {
+          "end_time": 398.21,
+          "improvement_pct": 5.1,
+          "improvement_s": 21.4,
+          "n_mac": 1,
+          "start_time": 419.61
+        },
+        {
+          "end_time": 386.02,
+          "improvement_pct": 3.06,
+          "improvement_s": 12.19,
+          "n_mac": 2,
+          "start_time": 398.21
+        },
+        {
+          "end_time": 382.27,
+          "improvement_pct": 0.97,
+          "improvement_s": 3.75,
+          "n_mac": 3,
+          "start_time": 386.02
+        }
+      ],
+      "message": "Optimista — el techo de temporada (8.90%) supera el rango típico 3.0–6.0% (advanced). Es el máximo de 3 macros perfectos, no la media esperada.",
+      "n_macros": 3,
+      "season_end": 382.27,
+      "season_improvement_pct": 8.9,
+      "season_improvement_s": 37.34,
+      "season_start": 419.61,
+      "verdict": "optimistic"
+    }
+  },
+  "400-beginner-libre-p50-adulto-auto-n3": {
+    "entrada": {
+      "distancia": 400,
+      "edad": null,
+      "estilo": "libre",
+      "n_macros": 3,
+      "nivel_esperado": "beginner",
+      "perfil": null,
+      "piscina": "50",
+      "tiempo_actual": 666.67
+    },
+    "temporada": {
+      "annual_high_pct": 15.0,
+      "annual_low_pct": 8.0,
+      "level": "beginner",
+      "macros": [
+        {
+          "end_time": 596.67,
+          "improvement_pct": 10.5,
+          "improvement_s": 70.0,
+          "n_mac": 1,
+          "start_time": 666.67
+        },
+        {
+          "end_time": 559.08,
+          "improvement_pct": 6.3,
+          "improvement_s": 37.59,
+          "n_mac": 2,
+          "start_time": 596.67
+        },
+        {
+          "end_time": 543.38,
+          "improvement_pct": 2.81,
+          "improvement_s": 15.7,
+          "n_mac": 3,
+          "start_time": 559.08
+        }
+      ],
+      "message": "Optimista — el techo de temporada (18.49%) supera el rango típico 8.0–15.0% (beginner). Es el máximo de 3 macros perfectos, no la media esperada.",
+      "n_macros": 3,
+      "season_end": 543.38,
+      "season_improvement_pct": 18.49,
+      "season_improvement_s": 123.29,
+      "season_start": 666.67,
+      "verdict": "optimistic"
+    }
+  },
+  "400-competitive-libre-p50-adulto-auto-n3": {
+    "entrada": {
+      "distancia": 400,
+      "edad": null,
+      "estilo": "libre",
+      "n_macros": 3,
+      "nivel_esperado": "competitive",
+      "perfil": null,
+      "piscina": "50",
+      "tiempo_actual": 321.57
+    },
+    "temporada": {
+      "annual_high_pct": 3.5,
+      "annual_low_pct": 2.0,
+      "level": "competitive",
+      "macros": [
+        {
+          "end_time": 312.89,
+          "improvement_pct": 2.7,
+          "improvement_s": 8.68,
+          "n_mac": 1,
+          "start_time": 321.57
+        },
+        {
+          "end_time": 307.82,
+          "improvement_pct": 1.62,
+          "improvement_s": 5.07,
+          "n_mac": 2,
+          "start_time": 312.89
+        },
+        {
+          "end_time": 304.83,
+          "improvement_pct": 0.97,
+          "improvement_s": 2.99,
+          "n_mac": 3,
+          "start_time": 307.82
+        }
+      ],
+      "message": "Optimista — el techo de temporada (5.21%) supera el rango típico 2.0–3.5% (competitive). Es el máximo de 3 macros perfectos, no la media esperada.",
+      "n_macros": 3,
+      "season_end": 304.83,
+      "season_improvement_pct": 5.21,
+      "season_improvement_s": 16.74,
+      "season_start": 321.57,
+      "verdict": "optimistic"
+    }
+  },
+  "400-elite-libre-p50-adulto-auto-n3": {
+    "entrada": {
+      "distancia": 400,
+      "edad": null,
+      "estilo": "libre",
+      "n_macros": 3,
+      "nivel_esperado": "elite",
+      "perfil": null,
+      "piscina": "50",
+      "tiempo_actual": 243.14
+    },
+    "temporada": {
+      "annual_high_pct": 1.5,
+      "annual_low_pct": 0.5,
+      "level": "elite",
+      "macros": [
+        {
+          "end_time": 240.59,
+          "improvement_pct": 1.05,
+          "improvement_s": 2.55,
+          "n_mac": 1,
+          "start_time": 243.14
+        },
+        {
+          "end_time": 239.07,
+          "improvement_pct": 0.63,
+          "improvement_s": 1.52,
+          "n_mac": 2,
+          "start_time": 240.59
+        },
+        {
+          "end_time": 238.17,
+          "improvement_pct": 0.38,
+          "improvement_s": 0.9,
+          "n_mac": 3,
+          "start_time": 239.07
+        }
+      ],
+      "message": "Optimista — el techo de temporada (2.05%) supera el rango típico 0.5–1.5% (elite). Es el máximo de 3 macros perfectos, no la media esperada.",
+      "n_macros": 3,
+      "season_end": 238.17,
+      "season_improvement_pct": 2.05,
+      "season_improvement_s": 4.97,
+      "season_start": 243.14,
+      "verdict": "optimistic"
+    }
+  },
+  "400-recreational-libre-p50-adulto-auto-n3": {
+    "entrada": {
+      "distancia": 400,
+      "edad": null,
+      "estilo": "libre",
+      "n_macros": 3,
+      "nivel_esperado": "recreational",
+      "perfil": null,
+      "piscina": "50",
+      "tiempo_actual": 529.41
+    },
+    "temporada": {
+      "annual_high_pct": 10.0,
+      "annual_low_pct": 5.0,
+      "level": "recreational",
+      "macros": [
+        {
+          "end_time": 488.12,
+          "improvement_pct": 7.8,
+          "improvement_s": 41.29,
+          "n_mac": 1,
+          "start_time": 529.41
+        },
+        {
+          "end_time": 465.27,
+          "improvement_pct": 4.68,
+          "improvement_s": 22.84,
+          "n_mac": 2,
+          "start_time": 488.12
+        },
+        {
+          "end_time": 456.73,
+          "improvement_pct": 1.84,
+          "improvement_s": 8.54,
+          "n_mac": 3,
+          "start_time": 465.27
+        }
+      ],
+      "message": "Optimista — el techo de temporada (13.73%) supera el rango típico 5.0–10.0% (recreational). Es el máximo de 3 macros perfectos, no la media esperada.",
+      "n_macros": 3,
+      "season_end": 456.73,
+      "season_improvement_pct": 13.73,
+      "season_improvement_s": 72.68,
+      "season_start": 529.41,
+      "verdict": "optimistic"
+    }
+  },
+  "50-advanced-libre-p50-adulto-auto-n3": {
+    "entrada": {
+      "distancia": 50,
+      "edad": null,
+      "estilo": "libre",
+      "n_macros": 3,
+      "nivel_esperado": "advanced",
+      "perfil": null,
+      "piscina": "50",
+      "tiempo_actual": 41.63
+    },
+    "temporada": {
+      "annual_high_pct": 6.0,
+      "annual_low_pct": 3.0,
+      "level": "advanced",
+      "macros": [
+        {
+          "end_time": 39.76,
+          "improvement_pct": 4.5,
+          "improvement_s": 1.87,
+          "n_mac": 1,
+          "start_time": 41.63
+        },
+        {
+          "end_time": 38.68,
+          "improvement_pct": 2.7,
+          "improvement_s": 1.07,
+          "n_mac": 2,
+          "start_time": 39.76
+        },
+        {
+          "end_time": 38.06,
+          "improvement_pct": 1.62,
+          "improvement_s": 0.63,
+          "n_mac": 3,
+          "start_time": 38.68
+        }
+      ],
+      "message": "Optimista — el techo de temporada (8.58%) supera el rango típico 3.0–6.0% (advanced). Es el máximo de 3 macros perfectos, no la media esperada.",
+      "n_macros": 3,
+      "season_end": 38.06,
+      "season_improvement_pct": 8.58,
+      "season_improvement_s": 3.57,
+      "season_start": 41.63,
+      "verdict": "optimistic"
+    }
+  },
+  "800-advanced-libre-p50-adulto-auto-n3": {
+    "entrada": {
+      "distancia": 800,
+      "edad": null,
+      "estilo": "libre",
+      "n_macros": 3,
+      "nivel_esperado": "advanced",
+      "perfil": null,
+      "piscina": "50",
+      "tiempo_actual": 876.15
+    },
+    "temporada": {
+      "annual_high_pct": 6.0,
+      "annual_low_pct": 3.0,
+      "level": "advanced",
+      "macros": [
+        {
+          "end_time": 826.21,
+          "improvement_pct": 5.7,
+          "improvement_s": 49.94,
+          "n_mac": 1,
+          "start_time": 876.15
+        },
+        {
+          "end_time": 797.95,
+          "improvement_pct": 3.42,
+          "improvement_s": 28.26,
+          "n_mac": 2,
+          "start_time": 826.21
+        },
+        {
+          "end_time": 781.58,
+          "improvement_pct": 2.05,
+          "improvement_s": 16.37,
+          "n_mac": 3,
+          "start_time": 797.95
+        }
+      ],
+      "message": "Optimista — el techo de temporada (10.79%) supera el rango típico 3.0–6.0% (advanced). Es el máximo de 3 macros perfectos, no la media esperada.",
+      "n_macros": 3,
+      "season_end": 781.58,
+      "season_improvement_pct": 10.79,
+      "season_improvement_s": 94.57,
+      "season_start": 876.15,
+      "verdict": "optimistic"
+    }
+  }
+}

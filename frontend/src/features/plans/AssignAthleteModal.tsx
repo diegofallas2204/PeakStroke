@@ -1,6 +1,6 @@
 // Asignar atleta a un macrociclo: pruebas objetivo + verificación de
 // factibilidad en vivo contra el motor de predicción.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, UserPlus, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -44,17 +44,20 @@ export function AssignAthleteModal({ plan, onClose }: { plan: Plan | null; onClo
   const [error, setError] = useState('')
   const queryClient = useQueryClient()
 
-  const { data: swimmers } = useQuery({ queryKey: ['swimmers', ''], queryFn: () => api.swimmers.list() })
+  // La lista la decide el backend, no un filtro local: además de los que ya
+  // están en este macrociclo, quedan fuera los comprometidos con otro que sigue
+  // vivo. Un atleta, un macrociclo (`plans/enrollment.py`); el POST rechaza lo
+  // mismo, así que esto no es una restricción de la interfaz.
+  const { data: available = [] } = useQuery({
+    queryKey: ['assignable-athletes', plan?.id],
+    queryFn: () => api.plans.assignableAthletes(plan!.id),
+    enabled: plan != null,
+  })
   const { data: tests } = useQuery({
     queryKey: ['aerobic', swimmerId],
     queryFn: () => api.aerobic.list(swimmerId as number),
     enabled: swimmerId !== '',
   })
-
-  const available = useMemo(
-    () => swimmers?.filter((s) => !plan?.athletes.some((a) => a.swimmer_id === s.id)) ?? [],
-    [swimmers, plan],
-  )
 
   // Ajustes de estado durante el render (patrón oficial de React) en vez de efectos:
   // al abrir con un macrociclo se limpia el formulario; al llegar los tests del
@@ -83,7 +86,7 @@ export function AssignAthleteModal({ plan, onClose }: { plan: Plan | null; onClo
         const goal = tryToSeconds(ev.goal)
         if (current == null || goal == null) return null
         try {
-          const selectedSwimmer = swimmerId !== '' ? available.find((s) => s.id === swimmerId) : undefined
+          const selectedSwimmer = available.find((s) => s.id === swimmerId)
           const sim = await api.simulator.run({
             distance: ev.distance, stroke: ev.stroke, current_time: current,
             goal_time: goal, total_weeks: plan.total_weeks,
@@ -98,7 +101,7 @@ export function AssignAthleteModal({ plan, onClose }: { plan: Plan | null; onClo
       setFeasibilities(results)
     }, 350)
     return () => clearTimeout(timer)
-  }, [events, plan])
+  }, [events, plan, available, swimmerId])
 
   const mutation = useMutation({
     mutationFn: () => api.plans.addAthlete(plan!.id, {
@@ -136,10 +139,16 @@ export function AssignAthleteModal({ plan, onClose }: { plan: Plan | null; onClo
     <Modal open={plan !== null} onClose={onClose} title={`Agregar atleta · ${plan?.name ?? ''}`} wide>
       <div className="grid grid-cols-2 gap-4">
         <Field label="Atleta">
-          <select className="field" value={swimmerId} onChange={(e) => setSwimmerId(e.target.value ? Number(e.target.value) : '')}>
+          <select className="field" value={swimmerId} disabled={!available.length}
+            onChange={(e) => setSwimmerId(e.target.value ? Number(e.target.value) : '')}>
             <option value="">Seleccionar…</option>
             {available.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
+          {!available.length && (
+            <p className="mt-1.5 text-[10.5px] text-text-faint">
+              Nadie libre: el resto del equipo ya está en este u otro macrociclo en curso.
+            </p>
+          )}
         </Field>
         <Field label="Base aeróbica (s/100m)">
           <input

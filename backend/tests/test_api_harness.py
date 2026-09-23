@@ -6,9 +6,8 @@ tests de aislamiento darían verde sin comprobar nada. Estos cuatro los fijan.
 """
 from __future__ import annotations
 
-from sqlalchemy import text
-
 from conftest import API, World, como
+from sqlalchemy import text
 
 
 async def test_la_app_responde_y_se_atribuye_al_usuario_pedido(client, world: World):
@@ -41,7 +40,7 @@ async def test_las_claves_foraneas_estan_activas(db):
 
 async def test_el_test_y_la_aplicacion_comparten_la_misma_sesion(client, db, world: World):
     """Lo que escribe una petición se ve desde el test sin `refresh()`."""
-    from app.modules.swimmers.models import Swimmer
+    from app.persistencia.tablas.atletas import Swimmer
 
     r = await client.put(
         f"{API}/swimmers/{world.sofia_swimmer_id}",

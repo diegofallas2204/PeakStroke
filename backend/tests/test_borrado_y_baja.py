@@ -17,11 +17,10 @@ los tests se dan de baja en vez de borrarse, sus filas **nunca** salen de
 """
 from __future__ import annotations
 
+from conftest import API, World, como
 from sqlalchemy import func, select
 
-from app.modules.aerobic_tests.models import AerobicSplit, AerobicTest
-from conftest import API, World, como
-
+from app.persistencia.tablas.tests_aerobicos import AerobicSplit, AerobicTest
 
 # ── Dar de baja conserva el dato ─────────────────────────────────────────────
 
@@ -133,7 +132,7 @@ async def test_borrar_un_macrociclo_con_tests_lo_explica(client, world: World):
 
 
 async def test_un_macrociclo_sin_tests_se_borra(client, db, world: World):
-    from app.modules.plans.models import Plan
+    from app.persistencia.tablas.planes import Plan
 
     nuevo = await client.post(f"{API}/plans/", json={
         "name": "Macrociclo Vacío", "start_date": "2026-09-07",
@@ -162,7 +161,7 @@ async def test_dar_de_baja_los_tests_no_desbloquea_el_borrado(client, world: Wor
 # ── Sacar a un atleta del macrociclo conserva su histórico ───────────────────
 
 async def _inscripcion_de(db, plan_id: int, swimmer_id: int) -> int:
-    from app.modules.plans.models import AthletePlan
+    from app.persistencia.tablas.planes import AthletePlan
 
     return (await db.execute(
         select(AthletePlan.id).where(
@@ -177,7 +176,7 @@ async def test_sacar_a_un_atleta_no_borra_sus_semanas(client, db, world: World):
     Antes: `weekly_plans` pasaba de 36 filas a 24 y el evento del atleta
     desaparecía, con el tiempo real que acababa de registrar dentro.
     """
-    from app.modules.plans.models import AthleteEvent, WeeklyPlan
+    from app.persistencia.tablas.planes import AthleteEvent, WeeklyPlan
 
     semana = (await db.execute(
         select(WeeklyPlan).where(
@@ -243,7 +242,7 @@ async def test_el_atleta_dado_de_baja_deja_de_ver_el_macrociclo(client, db, worl
 
 async def test_volver_a_inscribirlo_recupera_todo(client, db, world: World):
     """Sacar a alguien de un macrociclo es la clase de clic que se da por error."""
-    from app.modules.plans.models import WeeklyPlan
+    from app.persistencia.tablas.planes import WeeklyPlan
 
     semana = (await db.execute(
         select(WeeklyPlan).where(

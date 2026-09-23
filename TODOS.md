@@ -14,6 +14,29 @@ Prioridad: P1 = bloquea trabajo en curso · P2 = debería caer pronto · P3 = de
 > hallazgo de la escritura ajena.
 > **TODO-2 sigue abierto y ahora tiene harness**: ver TODO-2 más abajo.
 >
+> **Cerrado el 2026-08-09**: ~~TODO-4~~ — `SimulatorPage.tsx` bajó de 458 a 100
+> líneas; ver abajo. En la misma pasada se borró `components/ui/ZoneTag.tsx`, que
+> no importaba nadie.
+>
+> **Abierto el 2026-08-09**: TODO-16 — cuatro archivos pasan de 300 líneas; dos
+> de ellos crecieron con el código de vinculación. Ver abajo.
+>
+> **Backend de TODO-16 cerrado el 2026-08-14** (**478 tests en verde**): los
+> cuatro archivos grandes del backend partidos en submódulos y la edad duplicada
+> unificada en `core/dates.py`. Solo movimiento de código: cero cambios de
+> comportamiento y ninguna URL alterada.
+>
+> **TODO-16 cerrado del todo el 2026-08-16**: `frontend/src/lib/types.ts` (446)
+> partido en `lib/types/` por módulo, con barril. Ningún archivo del proyecto
+> pasa ya de 300 líneas: `domain/engine.py`, la última excepción, se disolvió en C4 (2026-08-17).
+>
+> **Abierto el 2026-08-10** (sesión de salida del test + alta por correo, **307
+> tests en verde**): TODO-17 y TODO-18, los dos aplazados a sabiendas por la
+> auditoría de seguridad de esa sesión. El hallazgo grave de esa auditoría —una
+> pertenencia revocada podía iniciar sesión como cuenta del pool— se introdujo y
+> se cerró dentro de la misma sesión, con `tests/test_cuenta_sin_equipo.py`
+> fijándolo; no llegó a ninguna rama compartida.
+>
 > **Frontend cerrado el 2026-08-07**: conmutador de identidad y modo
 > desarrollador en Ajustes, navegación filtrada por rol con guardas de ruta,
 > versión de atleta de las 4 páginas y estados vacíos por rol (T12–T18 del plan).
@@ -145,6 +168,133 @@ Ver la nota del principio del archivo.
 ---
 
 
+## ~~TODO-16 — Archivos por encima del límite de ~300 líneas~~ — CERRADO 2026-08-16
+
+**Backend cerrado el 2026-08-14** (478 tests en verde después de cada corte) y
+**frontend el 2026-08-16** (`tsc --noEmit`, `eslint` y `vite build` en verde).
+Ningún archivo del proyecto pasa ya de 300 líneas salvo la excepción declarada
+(`domain/engine.py`). El archivo más largo que queda es
+`features/aerobic/TestForm.tsx`, con 289.
+
+### Lo que se partió
+
+| origen | líneas | queda en | sale a |
+|---|---:|---|---|
+| `core/dependencies.py` | 386 | 138 — resolución de la petición (`_principal_for`, `get_current_user`, `get_current_principal`) | `core/principal.py` 117 (el dataclass, sin FastAPI) · `core/dev_identity.py` 103 (las dos cabeceras, `dev_user`, `bypass_pedido`) · `core/guards.py` 88 (`require_role`, `require_owner`, `exigir_o_bypass` + atajos) |
+| `modules/link_codes/service.py` | 413 | 275 — las dos operaciones y sus reglas (`issue`, `invite`, `redeem`) | `codes.py` 65 (alfabeto, formato, caducidad, `LinkCodeError`) · `queries.py` 123 (lecturas) |
+| `modules/plans/service.py` | 345 | 147 — el plan como objeto (CRUD + estado + presentación) | `roster.py` 88 (inscribir, sacar, restaurar) · `weeks.py` 131 (semanas y recálculo) |
+| `modules/auth/router.py` | 320 | 120 — `/config`, `/dev-identities`, `/me`, `/me/password` + los `include_router` | `sessions.py` 152 (login/refresh/logout + `_issue_session`) · `members.py` 72 (`/members`) |
+
+Las URLs no cambian: los sub-routers de `auth` se montan sin prefijo.
+
+**La edad estaba duplicada** y se unificó en el mismo pase: `plans.service.age_at`
+(con fecha de referencia) y `swimmers.service._age` (con hoy) calculaban lo mismo
+con dos firmas. Ahora es `core/dates.py::age_at(birth_date, ref=None)` — en
+`core/` porque la usan dos módulos y las reglas prohíben que un módulo importe
+lógica de otro; no en `engine/` porque el motor *consume* la edad, pero pasar de
+fecha de nacimiento a años es calendario, no ciencia. La única diferencia de
+comportamiento es que la versión unificada acota a 0 la edad de una fecha de
+nacimiento futura, inalcanzable por la API (`_not_future` en `swimmers/schemas.py`).
+
+**Lo que cambió fuera de esos archivos** (mecánico, sin lógica): 7 routers pasan a
+importar `require_coach`/`require_team_owner` de `core.guards` — no se pueden
+reexportar desde `dependencies.py` sin ciclo, porque `guards` necesita
+`get_current_principal`—, y `main.py` + dos tests importan las cabeceras de
+`core.dev_identity`. `Principal` se sigue importando de `core.dependencies`
+(reexportado), así que sus 8 call sites no se tocaron, y `_principal_for` sigue
+donde estaba para `test_scope_helper.py`. La deuda de anotaciones de
+`scope_to_own_swimmer` viajó con el código: `pyproject.toml` ignora ahora
+`core/principal.py` en vez de `core/dependencies.py`.
+
+### El frontend (2026-08-16)
+
+`frontend/src/lib/types.ts` (446) pasa a ser el directorio `lib/types/`, partido
+por módulo del backend, con un barril que reexporta los siete:
+
+| archivo | líneas | qué se lleva |
+|---|---:|---|
+| `index.ts` | 12 | solo `export * from` |
+| `swimmers.ts` | 62 | `Swimmer`, `LinkCode`, `InviteResult`, `JoinRequest` |
+| `identity.ts` | 65 | `Role`, `Member`, `Team`, `MemberCreated`, `AuthConfig`, `DevIdentity` |
+| `plans.ts` | 93 | `AssignableAthlete`, `PhaseInput`, `Phase`, `Competition`, `AthleteEvent`, `AthletePlan`, `Plan`, `Week` |
+| `zones.ts` | 22 | `ZoneRange`, `Zones` |
+| `aerobic.ts` | 78 | `InputMode`, `AerobicTest`, `TrainingInterval`, `TrainingIntervals`, `AerobicPreview` |
+| `simulator.ts` | 60 | `Feasibility`, `SimWeek`, `SimulationResult`, `MacroProjection`, `SeasonResult` |
+| `dashboard.ts` | 81 | `TeamWeekPoint`, `AthleteStatusRow`, `DashboardSummary`, `TeamWeekRow`, `TeamWeek` |
+
+**Los 32 archivos que importan no se tocaron**: `from '../../lib/types'` resuelve
+a `types/index.ts` tal cual. Mismo criterio que dejó `Principal` importable desde
+`core.dependencies` en el corte del backend — el corte se ve en el árbol de
+archivos, no en los call sites. Los 35 tipos exportados siguen siendo los mismos
+35, verificado nombre a nombre contra la versión de git.
+
+Tres decisiones del corte, por si hay que rehacerlo:
+
+- **`zones.ts` aparte pese a tener dos tipos.** `Zones` la usan `Week` (plan),
+  `SimWeek` (simulador) y `TeamWeekRow` (equipo). Dejarla en `plans.ts` haría que
+  los otros dos importaran de planes, y no dependen del plan: dependen de la
+  prescripción
+- **Los códigos de vinculación viajan con `swimmers.ts`**, aunque en el backend
+  `link_codes/` sea un módulo propio. Son 39 líneas que lee siempre la misma
+  carpeta que a `Swimmer`; el espejo exacto daría dos archivos de 30 líneas
+- **`AssignableAthlete` va en `plans.ts`**, no en `swimmers.ts`: sigue al endpoint
+  que la sirve (`GET /plans/{id}/assignable-athletes`) y lo que expresa es "un
+  atleta, un macrociclo vivo", que es regla de planes
+
+### La excepción que queda
+
+| archivo | líneas | nota |
+|---|---:|---|
+| ~~`backend/app/domain/engine.py`~~ | ~~721~~ | **Borrado el 2026-08-17** en C4: se disolvió en `dominio/servicios/`, donde ningún archivo pasa de 250 líneas |
+
+---
+
+## TODO-17 — La invitación no debería crear la cuenta (P2)
+
+**Qué:** `POST /link-codes/invite` crea la cuenta si el correo no existe y le
+devuelve la contraseña temporal al entrenador. Cuando exista registro público,
+debería limitarse a dejar la invitación esperando a que esa persona se registre.
+
+**Por qué:** hoy un entrenador puede ocupar cualquier correo que no controle y
+además conoce su contraseña. **No es una regresión** —`POST /auth/members` tiene
+la misma propiedad desde siempre— pero el alta por correo la hace mucho más
+fácil de ejercer, y con registro público pasa de incómoda a explotable: quien
+llegue después encuentra su correo tomado.
+
+**Contexto:** hallazgo #3 de la auditoría del 2026-08-10
+(`.gstack/security-reports/2026-08-11-040500.json`). Se aceptó a sabiendas
+porque hoy no hay registro público: el entrenador es la única forma de entrar.
+
+**Por dónde empezar:** separar `invite` en dos caminos según exista la cuenta.
+El de "no existe" solo escribe el `LinkCode` con `invited_email`; `GET
+/link-codes/mine` ya busca por correo, así que la invitación aparece sola en
+cuanto esa persona se registre. La ficha sí se puede crear desde el principio.
+
+**Esfuerzo:** S. **Depende de:** que exista registro público. **Bloquea:** abrir
+el registro.
+
+---
+
+## TODO-18 — Sin límite de intentos en el canje de códigos (P3)
+
+**Qué:** `POST /link-codes/redeem` acepta intentos ilimitados.
+
+**Por qué:** hoy es teórico —30^8 ≈ 6,5e11 combinaciones con TTL de 72 h, y desde
+el 2026-08-10 un código dirigido exige además coincidir con el correo invitado—
+pero la cuenta de "impracticable" se hace con la app en localhost. Con el login
+encendido y la app en internet, la ausencia de límite es lo primero que se prueba.
+
+**Contexto:** hallazgo #4 de la misma auditoría. Los códigos **sin** destinatario
+(`POST /link-codes/`, el que se dicta al borde de la piscina) son los expuestos:
+valen para quien los tenga.
+
+**Por dónde empezar:** límite por IP y por cuenta sobre el endpoint de canje.
+Antes de encender `PEAKSTROKE_AUTH_ENABLED=true` en algo que mire a internet.
+
+**Esfuerzo:** S. **Depende de:** nada. **Bloquea:** exponer la app.
+
+---
+
 ## TODO-3 — `useSelectedPlan` aislado por usuario (P2)
 
 **Qué:** el macrociclo seleccionado vive hoy en un `localStorage` global
@@ -171,18 +321,30 @@ identidad en desarrollo**, pero NO la de dos cuentas reales compartiendo navegad
 
 ---
 
-## TODO-4 — `SimulatorPage.tsx` excede el límite de tamaño (P3)
+## ~~TODO-4 — `SimulatorPage.tsx` excede el límite de tamaño~~ — CERRADO 2026-08-09
 
-**Qué:** 458 líneas contra la regla de "ningún archivo supera ~300 líneas" del `CLAUDE.md`.
+458 → **100 líneas**. La página quedó como pura orquestación; cada bloque de resultado
+vive en su propio archivo, ninguno pasa de 101 líneas:
 
-**Por qué:** es la regla de organización que el propio proyecto declara no negociable, y
-ahora mismo se incumple en silencio. `DashboardPage.tsx` (255) y `WeeklyPlanPage.tsx` (214)
-la cruzarán si se les añaden ramas por rol sin extraer subcomponentes.
+| archivo | qué es |
+|---|---|
+| `SimParams.tsx` | la fila de parámetros y las dos reglas de autocorrección |
+| `SimFeasibility.tsx` | veredicto de factibilidad del macro |
+| `SimSeason.tsx` | proyección anual (3 macrociclos) |
+| `SimCurveChart.tsx` | la gráfica **y** el armado de `chartData` (macro + extensión) |
+| `SimPlanTable.tsx` | la tabla semana a semana, compartida por plan y extensión |
+| `SimExtension.tsx` | aviso de semanas extra + tabla de extensión |
+| `simDefaults.ts` | forma y valores iniciales de los parámetros |
 
-**Contexto:** pre-existente, no lo causa ningún plan en curso. Detectado en la revisión del
-2026-08-06.
+Dos notas para quien lo retome:
 
-**Por dónde empezar:** el candidato obvio a extraer es `renderWeekTick` y la configuración
-de gráficas; `SimZones.tsx` ya demuestra que el patrón de extracción funciona aquí.
+- `renderWeekTick` **ya estaba extraído** desde antes (`components/charts/weekAxisTick.tsx`).
+  La pista que daba este TODO estaba obsoleta; el bulto real era el JSX de las tarjetas.
+- `simDefaults.ts` existe por la regla de fast refresh de ESLint: un archivo de componentes
+  no puede exportar además constantes. No lo fusiones de vuelta en `SimParams.tsx`.
 
-**Esfuerzo:** S (humano) → S (con CC). **Depende de:** nada.
+**Verificado** con `tsc -b` limpio, `npm run build` en verde y el simulador en el navegador:
+el texto renderizado es **byte a byte idéntico** al de antes (6045 chars, mismo hash) con los
+parámetros por defecto, y se ejercitaron a mano las ramas alternativas — autocorrección de
+estilo/especialidad al pasar a 400m (Tier 1), curva sigmoidal con la científica de
+referencia, meta dentro del techo (sin extensión) y modo simple.

@@ -17,11 +17,11 @@ tokens que revocar.
 from __future__ import annotations
 
 import pytest
+from conftest import API, PASSWORD, World
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.modules.auth.models import User
-from conftest import API, PASSWORD, World
+from app.persistencia.tablas.usuarios import User
 
 
 @pytest.fixture

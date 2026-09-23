@@ -21,10 +21,10 @@ en cuanto el login se enciende o el entorno es producción.
 from __future__ import annotations
 
 import pytest
+from conftest import API, World, como
 
 from app.core.config import settings
-from app.core.dependencies import DEV_BYPASS_HEADER
-from conftest import API, World, como
+from app.core.dev_identity import DEV_BYPASS_HEADER
 
 
 def con_bypass(email: str) -> dict[str, str]:
@@ -77,7 +77,7 @@ async def test_con_bypass_puede_marcar_el_paron_de_una_semana(client, db, world:
     """La autorización por campo también lo honra, no solo las dependencias."""
     from sqlalchemy import select
 
-    from app.modules.plans.models import WeeklyPlan
+    from app.persistencia.tablas.planes import WeeklyPlan
 
     semana = (await db.execute(
         select(WeeklyPlan).where(
@@ -193,7 +193,7 @@ async def test_el_bypass_no_se_puede_persistir(db, world: World):
     assert "is_developer" not in columnas
     assert "is_dev" not in columnas
 
-    from app.modules.teams.models import ROLES
+    from app.persistencia.tablas.equipos import ROLES
     assert "developer" not in ROLES and "dev" not in ROLES
 
 

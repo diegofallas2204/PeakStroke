@@ -6,7 +6,7 @@ import { NavLink } from 'react-router-dom'
 import { ChevronsUpDown, Settings } from 'lucide-react'
 import { Manta } from '../ui/Manta'
 import { navItemsFor } from './navConfig'
-import { ROLE_META, SECTION_ACCENT } from '../../lib/constants'
+import { SECTION_ACCENT, roleMeta } from '../../lib/constants'
 import { useRole, useSession } from '../../hooks/useSession'
 import { initials } from '../../lib/format'
 
@@ -160,7 +160,7 @@ export function NavFooter({
 }: { variant: Variant; onOpenSettings: () => void; onNavigate?: () => void }) {
   const { data: session } = useSession()
   const color = SECTION_ACCENT['/perfil']
-  const role = session ? ROLE_META[session.role] : undefined
+  const role = session ? roleMeta(session.role, session.is_owner) : undefined
 
   return (
     <div className="shrink-0 border-t border-line px-2 py-2">

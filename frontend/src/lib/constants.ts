@@ -34,9 +34,12 @@ export function specialtyForDistance(distance: number): string {
 
 export const DISTANCES = [50, 100, 200, 400, 800, 1500]
 
-// Pruebas de natación válidas — misma regla que el backend (app/engine/events.py).
+// Pruebas de natación válidas — misma regla que el backend, donde es una
+// invariante del constructor de `Prueba` (app/dominio/valores/prueba.py).
 //   ≥600m → solo libre · 300–599m → libre/combinado · 100–299m → todos ·
 //   <100m → libre/espalda/pecho/mariposa (no hay 50 combinado).
+// Esto solo filtra los desplegables: quien RECHAZA es el backend, con un 422.
+// Si cambia la regla, hay que tocar los dos sitios.
 export function strokesForDistance(distance: number): string[] {
   if (distance >= 600) return ['libre']
   if (distance >= 300) return ['libre', 'combinado']
@@ -92,8 +95,25 @@ export const CURVE_COLORS: Record<string, string> = {
 }
 
 // Color distintivo por sección (ruta). Fuente única que comparten el sidebar
-// (indicador activo) y cada página (barra de acento del encabezado). Tabla del
-// equipo y Simulador se intercambiaron para separarlos de Plan semanal (rosa).
+// (indicador activo) y cada página (barra de acento del encabezado).
+//
+// UN color por RUTA, no por vista: el riel, la barra superior de móvil y la
+// cabecera lo leen del mismo pathname, así que el color contesta "dónde estoy".
+// Las tres vistas de Plan semanal comparten el suyo — si cambiara con la
+// pestaña, el riel y la página dirían sitios distintos a la vez.
+//
+// El violeta #a78bfa quedó LIBRE al fusionar Comparación dentro de Plan semanal
+// (decisión R9, 2026-08-16): la sección superviviente CONSERVA su rosa. Absorbió
+// algo, no se convirtió en otra cosa —misma ruta, mismo nombre, y la pestaña
+// "Plan" es la página de siempre—, así que su color persiste. Liberar el rosa
+// habría creado una trampa: reaparecería en otra sección contradiciendo a quien
+// ya lo tenía asociado a Plan semanal. El violeta no la crea, porque ya no
+// señala nada que se pueda volver a encontrar.
+//
+// OJO al reasignar: el coral de Simulador y este rosa son casi indistinguibles
+// en tema oscuro. Por eso Tabla del equipo y Simulador tienen los colores
+// intercambiados —el coral está lejos de Plan semanal en el riel, no pegado a
+// él—. Ese intercambio NO se puede deshacer mientras esta sección sea rosa.
 export const SECTION_ACCENT: Record<string, string> = {
   '/': '#3b82f6',              // Dashboard — azul
   '/macrociclos': '#22d3ee',   // Macrociclos — cian
@@ -101,7 +121,6 @@ export const SECTION_ACCENT: Record<string, string> = {
   '/pruebas': '#fbbf24',       // Base aeróbica — ámbar
   '/plan-semanal': '#f472b6',  // Plan semanal — rosa
   '/equipo': '#fb923c',        // Tabla del equipo — naranja
-  '/comparacion': '#a78bfa',   // Comparación — violeta
   '/simulador': '#fb7185',     // Simulador — coral
   '/perfil': '#818cf8',        // Perfil — índigo
 }
@@ -116,7 +135,15 @@ export const ROLE_META: Record<string, { label: string; color: string }> = {
 // De cara al usuario eso se llama entrenador en jefe.
 export const HEAD_COACH = { label: 'Entrenador en jefe', color: '#fbbf24' }
 
-export function roleMeta(role: string, isOwner = false) {
+// Cuenta que existe en el sistema y todavía no está en ningún club. No es un
+// rol: es la ausencia de uno, y por eso no vive en ROLE_META.
+export const NO_TEAM = { label: 'Sin equipo', color: '#8b93b8' }
+
+export function roleMeta(role: string | null | undefined, isOwner = false) {
+  // `null` (sin club) y `undefined` (la sesión aún no cargó) se pintan igual a
+  // propósito: en los dos casos lo honesto es no afirmar un rol. La diferencia
+  // la usan la navegación y las rutas, no la etiqueta.
+  if (!role) return NO_TEAM
   if (isOwner && role === 'coach') return HEAD_COACH
   return ROLE_META[role] ?? ROLE_META.athlete
 }
@@ -136,13 +163,6 @@ export const STATUS_META: Record<string, { label: string; color: string; bg: str
   on_track: { label: 'En plan', color: '#22d3ee', bg: 'rgba(34,211,238,.12)' },
   behind: { label: 'Atrasado', color: '#fb7185', bg: 'rgba(251,113,133,.12)' },
   pending: { label: 'Sin datos', color: '#8b93b8', bg: 'rgba(139,147,184,.12)' },
-}
-
-export const PHASE_COLORS: Record<string, string> = {
-  base: '#22d3ee',
-  build: '#3b82f6',
-  peak: '#fbbf24',
-  taper: '#34d399',
 }
 
 // Estado de ciclo de vida del macrociclo (valor crudo en BD -> etiqueta + color).

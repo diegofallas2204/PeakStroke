@@ -16,13 +16,13 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
-from app.core.config import settings
-from app.core.database import Base
 
 # Importado por su efecto: puebla Base.metadata con todos los modelos. Lo que no
 # esté registrado ahí es invisible para --autogenerate. Misma lista que usa la
 # app al arrancar, para que no puedan divergir.
 from app.core import model_registry  # noqa: F401
+from app.core.config import settings
+from app.core.database import Base
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

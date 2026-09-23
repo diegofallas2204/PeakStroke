@@ -124,6 +124,8 @@ peakstroke/
 │   │       ├── swimmers/         models · schemas · service · router
 │   │       ├── plans/            macrociclos, fases, competencias,
 │   │       │                     athlete_plans, athlete_events, weekly_plans
+│   │       │                     + enrollment.py (un atleta, un macro vivo)
+│   │       ├── link_codes/       código que caduca: liga una cuenta a una ficha
 │   │       ├── aerobic_tests/    tests + splits
 │   │       ├── dashboard/        agregaciones (summary, team-week)
 │   │       └── simulator/        stateless, solo invoca el motor
@@ -138,7 +140,7 @@ peakstroke/
         ├── components/
         │   ├── layout/           Sidebar (nav animada + chip de macro) · PageHeader
         │   ├── ui/               Card, StatCard (count-up), RingGauge (SVG+GSAP),
-        │   │                     Modal, Badge, EventPicker, ZoneTag, EmptyState
+        │   │                     Modal, Badge, EventPicker, Toggle, EmptyState
         │   ├── charts/           tema Recharts + ProgressionChart (Y invertido)
         │   └── three/            WaveBackground (shader GLSL de ondas)
         └── features/             ★ espejo del backend
@@ -153,13 +155,15 @@ peakstroke/
   infraestructura. Se puede ajustar, versionar y testear sin levantar nada.
 - **Router sin lógica**: los endpoints reciben, delegan al service y retornan.
 - **Una responsabilidad por archivo**, ningún archivo >300 líneas.
-- **Fuente de verdad única**: zonas en `engine/zones.py`, catálogos UI en
+- **Fuente de verdad única**: zonas en `dominio/servicios/zonas.py`, catálogos UI en
   `lib/constants.ts`.
 
 ### API (REST, versionada `/api/v1`)
 ```
 GET/POST/PUT/DELETE  /swimmers
+GET/POST/DELETE      /link-codes      + POST /redeem   liga cuenta ↔ ficha
 GET/POST/PATCH/DELETE /plans            (+ fases y competencias embebidas)
+GET                  /plans/{id}/assignable-athletes  quién puede entrar hoy
 POST/DELETE          /plans/{id}/athletes          genera el plan semanal
 GET                  /plans/events/{id}/weeks       semanas + zonas + estado
 PATCH                /plans/weeks/{id}              tiempo real / parón → recalcula
@@ -248,9 +252,9 @@ Del documento `macrociclos_natacion_investigacion.pdf`:
 | Periodización y fases | Matveyev (1964), Bompa & Haff (2009) | Fases por defecto Base/Construcción/Pico/Descenso |
 | Supercompensación 3:1 | Bompa & Haff (2009) | Onda de microciclo en `km_distribution.py` |
 | Taper 40–60% de volumen | Mujika | Envolvente final del kilometraje |
-| Distribución por especialidad | Seiler (2010), Issurin (2008) | `SPECIALTY_ZONE_MIX` en `engine/zones.py` |
+| Distribución por especialidad | Seiler (2010), Issurin (2008) | `MEZCLA_DE_ZONAS_POR_ESPECIALIDAD` en `dominio/servicios/tablas.py` |
 | Dominio aeróbico por prueba | Gastin (2001), Maglischo (2011) | `AEROBIC_RATIO` del análisis de factibilidad |
-| Factores de zona por distancia | Calculadora de entrenadores (Excel) | `engine/zones.py` (tabla §2.1) |
+| Factores de zona por distancia | Calculadora de entrenadores (Excel) | `dominio/valores/zona.py` (`factores_de_zona`) |
 
 ---
 
@@ -366,6 +370,33 @@ Una vez calibrado un valor en `tuning.json`, se porta a la constante del motor
   los bordes (tablas full-bleed) pero el encabezado conserva su padding, así el
   título deja de quedar pegado/cortado por el borde (p. ej. "Plan semanal
   generado" en el simulador). Aplicado también en plan semanal y tabla del equipo.
+
+**09/08/2026 — Atleta y nadador son la misma persona**
+
+- **Código de vinculación** (`modules/link_codes/`): ficha deportiva y cuenta
+  eran dos listas de las mismas personas, y el entrenador las unía él solo
+  eligiendo un nombre de un desplegable. Ahora el vínculo lo crea un código de
+  8 caracteres que **caduca a las 72 h, sirve una vez y muere al reemitirse**:
+  lo genera el entrenador desde *Atletas* y lo canjea la persona desde su
+  perfil. Hasta que no actúan los dos, no hay relación. `MemberCreate` perdió
+  su `swimmer_id`; `POST /link-codes/redeem` es el único endpoint que no exige
+  pertenencia a un equipo, porque es el que la crea.
+- **La lista de atletas es el pool completo**: cada tarjeta dice en cuál de los
+  tres estados está esa persona (con cuenta · código pendiente · sin cuenta),
+  así que ya no hay que cruzarla a ojo con la de miembros del equipo.
+- **Un atleta, un macrociclo vivo** (`plans/enrollment.py`): dos macros a la vez
+  son dos planes contradictorios para las mismas fechas. La regla bloquea a
+  todos —dueño incluido— tanto al inscribir como al reactivar una inscripción
+  dada de baja, y de rebote resuelve lo que se pedía en la interfaz: un atleta
+  ya comprometido no le aparece a otro entrenador para un macro nuevo.
+- **Filtros que desaparecen solos**: los tres desplegables del `EventPicker` se
+  dibujan como etiqueta cuando no hay nada entre lo que elegir. Un atleta ve
+  su nombre, no un selector con una única opción — sin un `if (isAthlete)` que
+  mantener en paralelo al scoping del backend.
+- **La desviación semanal pasó de gráfico de barras a tabla**: un desvío es un
+  número con signo que se lee contra el tiempo planificado, y la barra obligaba
+  a estimar alturas y a pasar el ratón por encima. La forma de la deriva
+  sobrevive en una barra pequeña dentro de la celda, alineada al cero.
 
 ---
 

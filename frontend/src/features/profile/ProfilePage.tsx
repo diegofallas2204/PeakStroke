@@ -6,13 +6,14 @@ import { useQuery } from '@tanstack/react-query'
 import { UserX } from 'lucide-react'
 import { api } from '../../lib/api'
 import { usePageEnter } from '../../hooks/usePageEnter'
-import { useAuthConfig, useIsCoach, useSession } from '../../hooks/useSession'
+import { useAuthConfig, useIsCoach, useSession, useSinEquipo } from '../../hooks/useSession'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { EmptyState, Spinner } from '../../components/ui/primitives'
 import { AccountCard, DevSessionNotice } from './AccountCard'
 import { AthleteProfileCard } from './AthleteProfileCard'
 import { MembersCard } from './MembersCard'
 import { MemberForm } from './MemberForm'
+import { JoinRequestsCard } from './JoinRequestsCard'
 import { PasswordForm } from './PasswordForm'
 import { TeamCard } from './TeamCard'
 
@@ -26,6 +27,9 @@ export function ProfilePage() {
   // mano en cuatro sitios, que es como se acaba con cuatro versiones que se
   // parecen. `useIsOwner` vive al lado para la capa de dueño.
   const isCoach = useIsCoach()
+  // Cuenta que existe y todavía no está en ningún club: su perfil es lo único
+  // que puede ver, y lo único accionable ahí son sus solicitudes de ingreso.
+  const sinEquipo = useSinEquipo()
   const { data: members, isLoading: loadingMembers } = useQuery({
     queryKey: ['members'],
     queryFn: () => api.auth.members(),
@@ -57,7 +61,9 @@ export function ProfilePage() {
         subtitle={
           isCoach
             ? 'Tu cuenta y los accesos del equipo'
-            : 'Tu cuenta y tu ficha deportiva'
+            : sinEquipo
+              ? 'Tu cuenta y tus solicitudes de ingreso a un equipo'
+              : 'Tu cuenta y tu ficha deportiva'
         }
       />
 
@@ -85,6 +91,12 @@ export function ProfilePage() {
               onInvite={() => setMemberOpen(true)}
             />
           )
+        ) : session.swimmer_id == null ? (
+          // Sin ficha no hay nada que enseñar todavía: lo único accionable son
+          // las solicitudes de ingreso, así que ocupan el sitio de la ficha en
+          // vez de sumarse debajo de un estado vacío que dice lo mismo. Cubre a
+          // la vez al invitado sin club y al atleta del club que aún no canjeó.
+          <JoinRequestsCard />
         ) : (
           <AthleteProfileCard swimmerId={session.swimmer_id} />
         )}
