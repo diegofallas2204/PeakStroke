@@ -33,7 +33,7 @@ async def _plan_nuevo(client: AsyncClient, email: str, nombre: str) -> int:
     lunes = date.today() - timedelta(days=date.today().weekday())
     r = await client.post(f"{API}/plans/", headers=como(email), json={
         "name": nombre, "start_date": lunes.isoformat(), "total_weeks": 12,
-        "weeks_per_micro": 4, "total_km": 300, "progression_curve": "science",
+        "weeks_per_micro": 4, "total_km": 300,
         "competitions": [],
     })
     assert r.status_code == 201, r.text

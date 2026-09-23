@@ -260,7 +260,7 @@ async def world(db: AsyncSession) -> World:
     lunes = date.today() - timedelta(days=date.today().weekday()) - timedelta(weeks=3)
     plan = await create_plan(repo, PlanCreate(
         name="Macrociclo de Prueba", start_date=lunes, total_weeks=12,
-        weeks_per_micro=4, total_km=300, progression_curve="science",
+        weeks_per_micro=4, total_km=300,
         competitions=[CompetitionInput(name="Nacional", week_number=12, days=2, is_main=True)],
     ), team.id, owner.id)
     macro = await repo.recargar(plan.id)

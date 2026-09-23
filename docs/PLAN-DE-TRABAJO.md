@@ -4,8 +4,8 @@
 > partes. Cada bloque trae una explicación para leer y un **prompt listo para
 > copiar** en una sesión nueva de Claude Code.
 >
-> **Estado al 2026-09-22: A, B, C0–C6 y P3 hechos.** Siguen R7 y C7 (C7 empieza
-> retirando `real_time`). El estado vivo
+> **Estado al 2026-09-23: A, B, C0–C6, P3 y R7 hechos.** Sigue C7, que empieza
+> retirando `real_time` y necesita antes N1 y N2. El estado vivo
 > está en «Dónde estamos y qué sigue», justo abajo; el resto del documento
 > conserva cada bloque como se planeó y cómo quedó.
 
@@ -77,7 +77,7 @@ se sigue en `Preliminar` con la siguiente.
 
 | | |
 |---|---|
-| Tests backend | **959 en verde** (tras C6; eran 938) · `ruff check .` limpio |
+| Tests backend | **965 en verde** (tras R7; 938 antes de C6) · `ruff check .` limpio |
 | Backend | 10.695 líneas · 15 modelos · **4 archivos >300** (`valores/tiempo.py` 354, `valores/escalas.py` 340, `valores/zona.py` 312, `repositorios/macrociclos.py` 307) |
 | Frontend | 8.995 líneas (incluye la exportación a PDF, sin commitear) · **0 archivos >300** · `tsc -b` y `eslint .` limpios |
 | Snapshot del motor | 3 caminos · 92 casos · **regenerado una sola vez (P3) y solo por la etiqueta de fase**: ningún número se movió desde A0 |
@@ -94,7 +94,7 @@ macrociclos, y ese se deja: su división natural llega con C6-C7.
 | ~~1~~ | ~~**C5 · Repositorios**~~ | — | ✅ **HECHO el 2026-08-25.** Ver el bloque |
 | ~~1~~ | ~~**P3 · Las tres fases**~~ | — | ✅ **HECHO el 2026-09-22.** Ver el bloque P3 |
 | ~~1~~ | ~~**C6 · `Resultado`**~~ | — | ✅ **HECHO el 2026-09-22.** Ver el bloque |
-| 2 | **R7 · La curva sale de `plans`** | bajo | Migración + `PlanCreate`/`PlanResponse` + el desplegable del wizard |
+| ~~2~~ | ~~**R7 · La curva sale de `plans`**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque R7, tras C6 |
 | 3 | **C7 · `Sesion`** | medio | **Empieza retirando `real_time`** (ver «Lo que falta» en C6). Trae consigo los mutadores de las entidades (`dar_de_baja`, `inscribir`), que C5 dejó fuera porque las escrituras siguen armando filas del ORM |
 | 4 | **C8 · `CargaDiaria` + Banister** | bajo | Necesita C7 |
 
@@ -107,9 +107,9 @@ macrociclos, y ese se deja: su división natural llega con C6-C7.
    vez de la forma fija de 15 semanas (movería números: pide su propia
    decisión), y pintar el aviso de `banda_de_aviso` en la tabla del plan (R6),
    que ya tiene la `Fase` de cada semana en la base.
-2. **R7 — `progression_curve` sigue siendo columna de `plans`.** El motor ya
-   recibe la curva por firma, que es lo que R7 pide de verdad; sacarla de la
-   tabla toca migración, dos schemas y el wizard.
+2. ~~**R7 — `progression_curve` sigue siendo columna de `plans`.**~~
+   ✅ **Cerrado el 2026-09-23**: la columna salió, y la curva de un plan real es
+   `Macrociclo.curva`, siempre la científica.
 3. **El estilo se sigue guardando crudo** (`"crol"` en vez de `"libre"`).
    Canonizarlo toca filas existentes: es migración de datos, y C5 se lo pasó a
    C6. **C6 no lo hizo**: la base de desarrollo ya guarda los cinco canónicos y
@@ -1974,6 +1974,47 @@ RESTRICCIONES
 AL TERMINAR
 Dime qué queda por hacer para poder retirar real_time en la siguiente versión.
 ```
+
+---
+
+### R7 · La curva sale de `plans` — ✅ HECHO (2026-09-23)
+
+R7 se cerró el 2026-08-16 (§10.1 de `REDISENO.md`): **curva elegible en el
+simulador, fija en el plan real**, y `progression_curve` fuera de la tabla. C4
+dejó el parámetro en la firma del motor y aplazó la columna a un bloque propio
+(ver «Lo que NO entró» en C4). Este es ese bloque.
+
+**Qué se hizo:**
+
+- `Macrociclo.curva` pasa de campo a **propiedad** que devuelve siempre
+  `CURVA_DEL_PLAN` (`"science"`). Ya no se puede construir un macro con otra.
+  La clave está copiada en la entidad —el dominio no importa de lado— y
+  `tests/test_curva_del_plan.py` la compara con `Cientifica.clave`.
+- Migración `82135c6cb2d8`: borra `plans.progression_curve`. Avisa en el log de
+  los planes que tenían otra curva (su `expected_time` no se toca; el siguiente
+  recálculo usa la científica). El downgrade devuelve la columna `NOT NULL`, sin
+  `server_default`, con `'science'` en todas las filas — lo único recuperable.
+- `PlanCreate` y `PlanResponse` sin el campo. Un cliente viejo que lo mande no
+  rompe: Pydantic ignora el campo de más.
+- Frontend: fuera el desplegable y la fila de resumen del asistente, y la curva
+  de la ficha del plan y del selector de macrociclo. La vista previa de
+  factibilidad del alta simula con `'science'`. **El simulador conserva su
+  desplegable** de cinco curvas.
+
+**Medido:**
+
+| | |
+|---|---|
+| Tests | **965 en verde** (959 + 6) · `ruff`, `tsc -b` y `eslint .` limpios |
+| Contrato | El OpenAPI cambia **solo** en `progression_curve` de `PlanCreate` y `PlanResponse` |
+| Datos | Base de desarrollo: todas las tablas con el mismo conteo antes y después, 0 FKs rotas; las 24 respuestas GET (semanas, resumen, tabla del equipo) byte a byte iguales |
+| Migración | Subida, bajada y vuelta a subir contra una copia; `alembic check` sin diferencias |
+
+**Por qué recrear `plans` no arrastra nada.** `batch_alter_table` en SQLite copia,
+borra y renombra la tabla. La conexión de Alembic no enciende
+`PRAGMA foreign_keys` (ese listener es del motor de la aplicación), así que
+borrar la tabla vieja no cascadea a fases, competencias ni inscripciones. El test
+de la migración lo comprueba contando `plan_phases`.
 
 ---
 

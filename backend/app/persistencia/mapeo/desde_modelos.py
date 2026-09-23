@@ -114,7 +114,6 @@ def macrociclo_desde_fila(fila: Plan) -> Macrociclo:
         nombre=fila.name,
         semanas_por_micro=fila.weeks_per_micro,
         km_totales=fila.total_km,
-        curva=fila.progression_curve,
         piscina=Piscina.desde_texto(fila.pool),
         n_mac=fila.n_mac,
         prueba_principal=fila.main_event,

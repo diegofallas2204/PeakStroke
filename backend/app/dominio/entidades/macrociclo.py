@@ -22,6 +22,11 @@ from .base import PorIdentidad
 # Estados que el entrenador pone a mano y mandan tal cual sobre la fecha.
 _OVERRIDES_MANUALES = (EstadoDeMacro.SUSPENDIDO, EstadoDeMacro.BORRADOR, EstadoDeMacro.TERMINADO)
 
+# La clave de `servicios.curvas.Cientifica`, copiada y no importada porque el
+# dominio no importa hacia los lados (ver la cabecera de `entidades/`).
+# `tests/test_entidades.py` la compara con la curva viva.
+CURVA_DEL_PLAN = "science"
+
 
 def lunes_de(inicio: date, semana: int) -> date:
     """Fecha del lunes de la semana N (1-indexada) desde la fecha de inicio.
@@ -99,9 +104,6 @@ class Macrociclo(PorIdentidad):
     nombre: str = ""
     semanas_por_micro: int = 4
     km_totales: float = 0.0
-    # La curva sigue siendo la clave de texto (`science`, `sigmoid`…) hasta que el
-    # paso 4 la convierta en la `Curva` del patrón Strategy (§6.2).
-    curva: str = "science"
     piscina: Piscina = Piscina.LARGA
     n_mac: int = 1
     prueba_principal: str | None = None
@@ -113,6 +115,19 @@ class Macrociclo(PorIdentidad):
     def __post_init__(self) -> None:
         if self.semanas < 1:
             raise ValueError(f"Un macrociclo dura al menos una semana: {self.semanas}")
+
+    @property
+    def curva(self) -> str:
+        """La forma de la progresión de un plan real: **siempre la científica** (R7).
+
+        Hasta el 2026-09-23 era una columna que el entrenador elegía al crear el
+        plan. No era cosmética: a mitad de macro las cinco curvas se separan hasta
+        1,30 s, contra una tolerancia de estado de ±0,4 %, así que el mismo nado
+        salía «adelantado» o «atrasado» según una casilla rellenada quince
+        semanas antes (§10.4). Elegir curva sigue existiendo, pero en el
+        simulador, que compara escenarios y no le da un veredicto a nadie.
+        """
+        return CURVA_DEL_PLAN
 
     def duracion_en_semanas(self) -> int:
         return self.semanas

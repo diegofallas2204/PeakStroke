@@ -65,7 +65,6 @@ export interface Plan {
   total_weeks: number
   weeks_per_micro: number
   total_km: number
-  progression_curve: string
   pool: string
   n_mac: number
   main_event: string | null

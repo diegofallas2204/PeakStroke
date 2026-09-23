@@ -51,7 +51,8 @@ class Plan(Base):
     total_weeks: Mapped[int] = mapped_column(Integer)          # 12..18
     weeks_per_micro: Mapped[int] = mapped_column(Integer, default=4)
     total_km: Mapped[float] = mapped_column(Float)
-    progression_curve: Mapped[str] = mapped_column(String(20), default="science")
+    # Sin `progression_curve` desde R7 (2026-09-23): la curva de un plan real es
+    # fija, la científica, y la decide `Macrociclo.curva`, no una columna.
     pool: Mapped[str] = mapped_column(String(2), default="50")  # "50" larga | "25" corta
     n_mac: Mapped[int] = mapped_column(Integer, default=1)      # número de macrociclo (1=primero)
     main_event: Mapped[str | None] = mapped_column(String(60))

@@ -239,7 +239,7 @@ async def seed() -> None:
         start = plan_start_date(date.today())
         plan = await create_plan(repo, PlanCreate(
             name="Temporada Nacional 2026", start_date=start, total_weeks=12,
-            weeks_per_micro=4, total_km=320, progression_curve="science",
+            weeks_per_micro=4, total_km=320,
             main_event="Nacional Juvenil", notes=(
                 "Preparación para el Nacional Juvenil. Foco en pruebas principales "
                 "de cada atleta y mejora técnica de virajes."

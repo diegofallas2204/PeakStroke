@@ -96,11 +96,13 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
   un borde de una décima que cambia el volumen prescrito un 45 % (defecto 1 de §10.4,
   cerrado el 2026-08-17). El alta en el macrociclo y el recálculo pasan los dos el
   mismo dato — si solo lo pasara uno, el atleta tendría dos niveles según la puerta
-- **Curva de progresión por defecto = `"science"`** (distribución F_FASE, back-loaded,
-  pico en taper). Fuente única: `dominio/servicios/curvas.py::Cientifica`, que
-  deriva sus tramos de `MACRO_15_FASES` y `Fase.f_fase`. Sigmoide/exp/log/lineal
-  solo comparan escenarios —pero **cambian el veredicto que ve el atleta**: el
-  mismo nado sale `AHEAD` con la científica y `BEHIND` con la exponencial—. La mejora
+- **La curva de un plan real es SIEMPRE la científica** (R7, 2026-09-23): `Macrociclo.curva`
+  es una propiedad fija, `plans` ya no tiene `progression_curve` y el asistente no la
+  ofrece. Distribución F_FASE, back-loaded, pico en taper; fuente única
+  `dominio/servicios/curvas.py::Cientifica`, que deriva sus tramos de `MACRO_15_FASES`
+  y `Fase.f_fase`. Sigmoide/exp/log/lineal **solo existen en el simulador**, porque
+  cambian el veredicto que ve el atleta: el mismo nado sale `AHEAD` con la científica
+  y `BEHIND` con la exponencial. La mejora
   por MACROCICLO (`I_max × N/5`) ≠ la anual: la temporada son ~3 macros encadenados
   con degradación `MACROCYCLE_DEGRADATION = 0.60`. Validado en notas 16/17 del vault
 - **Las fases del macrociclo son las cinco de `Fase`** (P3, 2026-09-22):

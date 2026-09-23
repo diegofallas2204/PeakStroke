@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ArrowRight, Check, Plus, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
-import { CURVES, POOLS } from '../../lib/constants'
+import { POOLS } from '../../lib/constants'
 import type { ClaveDeFase, PhaseInput } from '../../lib/types'
 import { Field, Modal } from '../../components/ui/primitives'
 
@@ -18,7 +18,7 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
   const [error, setError] = useState('')
   const [form, setForm] = useState({
     name: '', start_date: '', total_weeks: 12, weeks_per_micro: 4,
-    total_km: 320, progression_curve: 'science', pool: '50', n_mac: 1, main_event: '', notes: '',
+    total_km: 320, pool: '50', n_mac: 1, main_event: '', notes: '',
   })
   const [phases, setPhases] = useState<PhaseDraft[]>([])
   const [comps, setComps] = useState<CompDraft[]>([])
@@ -124,11 +124,6 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
           </Field>
           <Field label="Kilometraje total (km)">
             <input type="number" className="field" value={form.total_km} onChange={set('total_km')} min={50} max={1500} />
-          </Field>
-          <Field label="Curva de progresión">
-            <select className="field" value={form.progression_curve} onChange={set('progression_curve')}>
-              {CURVES.map((c) => <option key={c.value} value={c.value}>{c.label}{c.value === 'science' ? ' (recomendada)' : ''}</option>)}
-            </select>
           </Field>
           <Field label="Piscina">
             <select className="field" value={form.pool} onChange={set('pool')}>
@@ -236,7 +231,6 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
               ['Inicio', form.start_date],
               ['Duración', `${form.total_weeks} semanas · micros de ${form.weeks_per_micro}`],
               ['Kilometraje', `${form.total_km} km`],
-              ['Curva', CURVES.find((c) => c.value === form.progression_curve)?.label ?? ''],
               ['Piscina', POOLS.find((p) => p.value === form.pool)?.label ?? ''],
               ['Macrociclo', `${form.n_mac}.°`],
               ['Evento', form.main_event || '—'],

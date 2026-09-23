@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarRange, Plus, Trash2, UserPlus, Flag, CheckCircle2, PauseCircle, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { Plan } from '../../lib/types'
-import { CURVE_LABEL, SPECIALTY_LABEL, PLAN_STATUS_META } from '../../lib/constants'
+import { SPECIALTY_LABEL, PLAN_STATUS_META } from '../../lib/constants'
 import { toClock } from '../../lib/format'
 import { usePageEnter } from '../../hooks/usePageEnter'
 import { PageHeader } from '../../components/layout/PageHeader'
@@ -80,7 +80,7 @@ export function PlansPage() {
                   </div>
                   <p className="mt-1 text-[11.5px] text-text-dim">
                     Inicio {plan.start_date} · {plan.total_weeks} semanas · micros de {plan.weeks_per_micro} ·{' '}
-                    {plan.total_km} km · curva {CURVE_LABEL[plan.progression_curve]}
+                    {plan.total_km} km
                     {plan.main_event && <> · objetivo: <span className="text-text">{plan.main_event}</span></>}
                   </p>
                 </div>
