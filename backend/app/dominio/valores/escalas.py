@@ -300,6 +300,13 @@ class TipoDeTest(_EscalaTextual):
     def tiene_parciales(self) -> bool:
         return self in (TipoDeTest.T30, TipoDeTest.T15, TipoDeTest.CUSTOM)
 
+    @property
+    def mide_el_umbral(self) -> bool:
+        """Si su ritmo es un CSS: el CSS de Wakayoshi, el T30 (Olbrecht) o uno
+        ya calculado. Un T15 o uno libre se nadan más cortos y por encima del
+        umbral; la carga (`servicios.banister`) solo los usa a falta de otro."""
+        return self in (TipoDeTest.CSS, TipoDeTest.T30, TipoDeTest.DIRECT)
+
 
 class ModoDeIngreso(_EscalaTextual):
     """Cómo apuntó el entrenador los números de un test.

@@ -35,6 +35,7 @@ from app.dominio.entidades import (
     Sesion,
     TestAerobico,
 )
+from app.dominio.servicios.banister import MedicionDeCss
 from app.dominio.valores import (
     Especialidad,
     EstadoDeMacro,
@@ -44,6 +45,7 @@ from app.dominio.valores import (
     ModoDeIngreso,
     Piscina,
     Prueba,
+    Ritmo,
     Tiempo,
     TipoDeTest,
 )
@@ -183,4 +185,12 @@ def sesion_desde_fila(fila: SwimSession) -> Sesion:
         duracion=Tiempo(fila.duration_s),
         rpe=fila.rpe,
         notas=fila.notes,
+    )
+
+
+def medicion_desde_test(fila: AerobicTest) -> MedicionDeCss:
+    """El umbral que mide un test, y si lo mide de verdad (`mide_el_umbral`)."""
+    return MedicionDeCss(
+        fecha=fila.test_date, ritmo=Ritmo(fila.avg_per100),
+        preferente=TipoDeTest.desde_texto(fila.test_type).mide_el_umbral,
     )

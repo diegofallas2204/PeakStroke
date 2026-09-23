@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.atletas.router import router as swimmers_router
 from app.api.v1.auth.router import router as auth_router
+from app.api.v1.carga.router import router as training_load_router
 from app.api.v1.codigos.router import router as link_codes_router
 from app.api.v1.equipos.router import router as teams_router
 from app.api.v1.macrociclos.router import router as plans_router
@@ -58,6 +59,9 @@ app.include_router(link_codes_router, prefix="/api/v1/link-codes", tags=["link-c
 app.include_router(plans_router, prefix="/api/v1/plans", tags=["plans"])
 app.include_router(aerobic_router, prefix="/api/v1/aerobic-tests", tags=["aerobic-tests"])
 app.include_router(sessions_router, prefix="/api/v1/sessions", tags=["sessions"])
+app.include_router(
+    training_load_router, prefix="/api/v1/training-load", tags=["training-load"],
+)
 app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(simulator_router, prefix="/api/v1/simulator", tags=["simulator"])
 

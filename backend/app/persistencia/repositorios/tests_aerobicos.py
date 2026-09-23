@@ -22,6 +22,8 @@ from sqlalchemy.orm import selectinload
 from app.core.principal import Principal
 from app.persistencia.tablas.tests_aerobicos import AerobicTest
 
+from .carga import recalcular
+
 
 class RepositorioDeTests:
     """Los tests aeróbicos que alcanza un `Principal`, y nada más."""
@@ -99,7 +101,11 @@ class RepositorioDeTests:
     # ── Escrituras ───────────────────────────────────────────────────────────
 
     async def guardar(self, fila: AerobicTest) -> AerobicTest:
+        """Guarda el test y recalcula la carga desde su fecha: fija el CSS de ahí en adelante."""
         self.db.add(fila)
+        await self.db.flush()
+        await recalcular(self.db, team_id=fila.team_id, swimmer_id=fila.swimmer_id,
+                         desde=fila.test_date)
         await self.db.commit()
         return fila
 
@@ -112,5 +118,9 @@ class RepositorioDeTests:
         pero rehacerla es imposible.
         """
         fila.is_active = activa
+        # Sin él (o con él de vuelta) cambia el CSS de su fecha en adelante.
+        await self.db.flush()
+        await recalcular(self.db, team_id=fila.team_id, swimmer_id=fila.swimmer_id,
+                         desde=fila.test_date)
         await self.db.commit()
         return fila

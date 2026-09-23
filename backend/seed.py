@@ -47,11 +47,14 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal, Base, engine
 from app.core.dependencies import Principal
 from app.core.security import hash_password
+from app.dominio.entidades import Sesion
+from app.dominio.valores import Tiempo
 from app.persistencia.repositorios import (
     RepositorioDeAtletas,
     RepositorioDeEquipos,
     RepositorioDeMacrociclos,
     RepositorioDeResultados,
+    RepositorioDeSesiones,
     RepositorioDeTests,
 )
 from app.persistencia.tablas.equipos import CoachAthlete
@@ -136,6 +139,46 @@ _NOTAS = {
     "debaja@peakstroke.dev": "      (ficha de nadador dada de baja)",
     "sinequipo@peakstroke.dev": "   (cuenta del pool: sin club todavía)",
 }
+
+
+# ── Sesiones sintéticas (C8) ─────────────────────────────────────────────────
+#
+# Lo que el atleta habría nadado si cumpliera el plan, para que la carga de
+# Banister tenga de dónde salir. Tres supuestos, cada uno con su porqué:
+#
+# · El volumen es el `planned_km` de su semana (prueba principal). No se inventa:
+#   es lo que el motor ya prescribió.
+# · Cinco sesiones, de lunes a viernes, a partes iguales. **Es un escenario, no
+#   ciencia**: cuántas sesiones por semana es la pregunta N3, abierta.
+# · La duración sale del IF de la sesión (ritmo medio con descanso frente al
+#   CSS): duración = metros/100 · CSS / IF. El IF por fase sigue las bandas de
+#   Allen & Coggan (Training and Racing with a Power Meter, 2010) —resistencia
+#   0,75–0,85, tempo 0,85–0,95—, las mismas de las que el sTSS se adaptó a la
+#   natación: la base arranca en resistencia baja, la intensidad sube con la
+#   especificidad y **se mantiene en el taper**, donde lo que cae es el volumen
+#   (Mujika & Padilla 2003).
+#
+# El RPE queda vacío: no se usa para la carga y un número inventado ahí sería
+# justo el dato que miente.
+SESIONES_POR_SEMANA = 5
+IF_POR_FASE = {
+    "base_general": 0.75, "base_especifica": 0.80, "umbral_css": 0.85,
+    "pre_competitivo": 0.85, "taper": 0.85,
+}
+
+
+def sesiones_de_la_semana(
+    atleta_id: int, lunes: date, km: float, fase: str, css_100: float, hasta: date,
+) -> list[Sesion]:
+    """Las de una semana del plan, sin pasar de `hasta` (no se apunta el futuro)."""
+    metros = round(km * 1000 / SESIONES_POR_SEMANA)
+    # Se apunta en minutos enteros, como lo haría una persona.
+    segundos = round(metros / 100 * css_100 / IF_POR_FASE[fase] / 60) * 60
+    return [
+        Sesion(atleta_id=atleta_id, fecha=lunes + timedelta(days=d), distancia_m=metros,
+               duracion=Tiempo(segundos))
+        for d in range(SESIONES_POR_SEMANA) if lunes + timedelta(days=d) <= hasta
+    ]
 
 
 def plan_start_date(today: date) -> date:
@@ -314,6 +357,31 @@ async def seed() -> None:
             notes="CSS 400/50 según Wakayoshi",
         ), principal)
 
+        # Sesiones sintéticas hasta ayer: ver `sesiones_de_la_semana`. El ritmo
+        # de referencia es la base aeróbica del alta; la carga, en cambio, la
+        # calcula el CSS de sus tests —como con un atleta real—, así que Gabriel
+        # (sin test) queda con sus sesiones sin CSS, que es un estado a ver.
+        sesiones_repo = RepositorioDeSesiones(db, principal)
+        ayer = date.today() - timedelta(days=1)
+        n_sesiones = 0
+        for event in all_events:
+            if event.priority != 1:
+                continue
+            ap = await db.get(AthletePlan, event.athlete_plan_id)
+            idx = next(i for i, s in enumerate(swimmers) if s.id == ap.swimmer_id)
+            base = next(b for i, _, b in EVENTS if i == idx)
+            semanas = (await db.execute(select(WeeklyPlan).where(
+                WeeklyPlan.athlete_event_id == event.id, WeeklyPlan.week_date <= ayer,
+            ).order_by(WeeklyPlan.week_number))).scalars().all()
+            for w in semanas:
+                if w.disabled:
+                    continue
+                for sesion in sesiones_de_la_semana(
+                    ap.swimmer_id, w.week_date, w.planned_km, w.phase, base, ayer,
+                ):
+                    await sesiones_repo.guardar(sesion)
+                    n_sesiones += 1
+
     await engine.dispose()
 
     print("Base de datos sembrada:")
@@ -325,6 +393,7 @@ async def seed() -> None:
     print(f"  - {len(SWIMMERS) + len(SWIMMERS_EXTRA)} atletas ({len(SWIMMERS)} en el macrociclo, 1 de baja)")
     print("  - Macrociclo 'Temporada Nacional 2026' (12 semanas, semana actual: 7)")
     print("  - Tiempos reales semanas 1-6 + 12 tests aeróbicos")
+    print(f"  - {n_sesiones} sesiones sintéticas hasta ayer (y su carga de Banister)")
     print()
     print("  Conmutador de desarrollo (solo con el login apagado y fuera de producción):")
     print("    X-PeakStroke-Dev-User: <email>   quién eres. La interfaz que ves es")

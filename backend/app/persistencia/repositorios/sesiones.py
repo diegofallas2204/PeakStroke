@@ -9,6 +9,9 @@ hay nada que traducir a medias: la rebanada del API construye una `Sesion` —y
 con ella pasa las validaciones del dominio— y este repositorio la persiste.
 
 **Borrar es borrar** (C7, 2026-09-23). Ver `persistencia/tablas/sesiones.py`.
+
+**Toda escritura recalcula la carga** (C8) en la misma transacción, desde el
+primer día que cambia: ver `carga.recalcular`.
 """
 from __future__ import annotations
 
@@ -21,6 +24,8 @@ from app.core.principal import Principal
 from app.dominio.entidades import Sesion
 from app.persistencia.mapeo import sesion_desde_fila
 from app.persistencia.tablas.sesiones import SwimSession
+
+from .carga import recalcular
 
 
 class RepositorioDeSesiones:
@@ -82,15 +87,20 @@ class RepositorioDeSesiones:
                 return None
             fila = SwimSession(team_id=self.principal.team_id, swimmer_id=sesion.atleta_id)
             self.db.add(fila)
+            desde = sesion.fecha
         else:
             fila = await self._fila(sesion.id)
             if fila is None or fila.swimmer_id != sesion.atleta_id:
                 return None
+            # Mover una sesión de fecha cambia la carga de los dos días.
+            desde = min(fila.session_date, sesion.fecha)
         fila.session_date = sesion.fecha
         fila.distance_m = sesion.distancia_m
         fila.duration_s = round(sesion.duracion.segundos)
         fila.rpe = sesion.rpe
         fila.notes = sesion.notas
+        await self.db.flush()
+        await recalcular(self.db, team_id=fila.team_id, swimmer_id=fila.swimmer_id, desde=desde)
         await self.db.commit()
         return sesion_desde_fila(fila)
 
@@ -100,5 +110,8 @@ class RepositorioDeSesiones:
         if fila is None:
             return False
         await self.db.delete(fila)
+        await self.db.flush()
+        await recalcular(self.db, team_id=fila.team_id, swimmer_id=fila.swimmer_id,
+                         desde=fila.session_date)
         await self.db.commit()
         return True
