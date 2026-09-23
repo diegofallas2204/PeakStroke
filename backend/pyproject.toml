@@ -1,0 +1,111 @@
+[tool.pytest.ini_options]
+# Hace que `app` sea importable sin importar el cwd desde el que se invoque
+# pytest (antes fallaba con ModuleNotFoundError si no se corría desde backend/).
+pythonpath = ["."]
+testpaths = ["tests"]
+# Los tests de API son async. En modo "auto" no hace falta decorar cada uno con
+# @pytest.mark.asyncio; los tests síncronos del motor no se ven afectados.
+asyncio_mode = "auto"
+
+# Un producto cartesiano es un fallo de seguridad, no un aviso.
+#
+# `Principal.scope_to_own_swimmer(stmt, column)` acota una consulta al nadador
+# propio. Si alguien le pasa una columna de una tabla que NO está en el FROM,
+# SQLAlchemy no protesta: añade la tabla y produce un producto cartesiano, con
+# lo que el filtro deja de acotar y la consulta devuelve la tabla entera. Es el
+# modo de fallo ABIERTO de un helper que existe justo para lo contrario.
+#
+# El linter de FROM de SQLAlchemy 2.0 ya lo detecta y avisa; aquí ese aviso pasa
+# a reventar el test. Sale gratis en producción —la comprobación equivalente en
+# caliente cuesta 1,3 ms por consulta porque compila el statement— y caza el
+# error donde se cazan los errores.
+filterwarnings = [
+    "error:.*cartesian product.*:sqlalchemy.exc.SAWarning",
+]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Ruff — linter del backend.  Correr con: .venv\Scripts\python -m ruff check .
+# ─────────────────────────────────────────────────────────────────────────────
+[tool.ruff]
+# CLAUDE.md pide líneas de ~100. `line-length` es el objetivo (y lo que usaría
+# `ruff format`); el tope duro que hace fallar el check vive en
+# [tool.ruff.lint.pycodestyle] y es más ancho a propósito — ver allí.
+line-length = 100
+target-version = "py312"
+
+# Las migraciones las escribe `alembic revision --autogenerate` a partir de su
+# plantilla, no una persona: linchar código generado solo produce ruido y
+# tentación de editar a mano un fichero que es un registro histórico.
+extend-exclude = [".venv", "alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes (imports/nombres sin usar, f-strings rotas)
+    "I",        # orden de imports
+    "UP",       # sintaxis moderna (py312)
+    "B",        # bugbear (trampas reales en tiempo de ejecución)
+    "C4",       # comprensiones
+    "SIM",      # simplificaciones
+    "ANN",      # type hints — regla no negociable de CLAUDE.md
+    "RUF",      # reglas propias de ruff
+]
+ignore = [
+    # El código está comentado y documentado en español, con tipografía real
+    # (— · «» ¿?). RUF001/2/3 marcan esos caracteres como "ambiguos" pensando en
+    # homoglifos de ataque; aquí solo son prosa.
+    "RUF001", "RUF002", "RUF003",
+    # `__all__` de app/domain está agrupado por intención (motor → dataclasses →
+    # funciones → constantes). Ordenarlo alfabéticamente pierde esa lectura.
+    "RUF022",
+    # `zip(xs, xs[1:])` para recorrer pares consecutivos es idiomático y legible;
+    # `itertools.pairwise` no aporta claridad en un test de tres líneas.
+    "RUF007",
+    # Un if/else con su propio comentario explicando el caso especial (p. ej. "la
+    # última semana siempre es descarga", en `km_distribution`) se lee mejor que
+    # un ternario de 90 caracteres donde el comentario ya no cabe.
+    "SIM108",
+]
+
+[tool.ruff.lint.pycodestyle]
+# Objetivo 100, tope duro 120: las tablas científicas del motor
+# (`I_MAX_TABLE`, `WEEKLY_VOLUME_KM`, `ZONE_OVER_RACE`…) están alineadas en
+# columnas a propósito, y partirlas para ganar 15 caracteres haría ilegible
+# justo el código que más se lee contra el paper. Nada nuevo debería acercarse
+# a este tope.
+max-line-length = 120
+
+[tool.ruff.lint.flake8-bugbear]
+# `Depends(...)` en el valor por defecto NO es el bug que B008 persigue: es cómo
+# se declara una dependencia en FastAPI. Se declaran inmutables para que B008
+# siga cazando el caso real (una lista o un dict compartido entre llamadas).
+extend-immutable-calls = [
+    "fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body",
+    "fastapi.Header", "fastapi.Form", "fastapi.File", "fastapi.Security",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# DEUDA CONOCIDA, no excepción permanente: 65 firmas de `app/` sin anotación de
+# retorno (casi todas manejadores de router) y ~465 de `tests/`. Anotarlas no es
+# mecánico —el tipo correcto de un handler con `response_model` o de un
+# `Select` de SQLAlchemy es una decisión, no un `-> None`— así que se listan
+# aquí en vez de tocarlas de refilón. Al anotar un fichero, se borra su línea.
+"tests/**" = ["ANN", "RUF012"]
+"app/main.py" = ["ANN201"]
+"app/core/database.py" = ["ANN001"]
+# `scope_to_own_swimmer(stmt, column)` salió de `dependencies.py` a `principal.py`
+# al partirlo (2026-08-14): sus dos argumentos son un `Select` y una `Column` de
+# SQLAlchemy, y anotarlos ata la firma a los genéricos internos de la librería.
+"app/core/principal.py" = ["ANN001", "ANN201"]
+"app/api/v1/*/router.py" = ["ANN001", "ANN201", "ANN202"]
+# Manejadores que salieron de `auth/router.py` al partirlo (2026-08-13) y que
+# viajaron a `api/v1/auth/` en el paso 5: la deuda viaja con el código, no con la
+# ruta del fichero.
+"app/api/v1/auth/members.py" = ["ANN201"]
+"app/api/v1/auth/sessions.py" = ["ANN201"]
+# `acotar(stmt)` recibe un `Select` de SQLAlchemy y devuelve otro; anotarlo ata
+# la firma a los genéricos internos de la librería. Lo tienen todos los
+# repositorios, y la deuda viajó con el código al pasar de `modules/*/access.py`
+# y `modules/*/service.py` a `persistencia/` (2026-08-25).
+"app/persistencia/repositorios/*.py" = ["ANN001", "ANN201", "ANN202"]

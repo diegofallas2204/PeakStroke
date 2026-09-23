@@ -1,0 +1,35 @@
+# PostgreSQL para desarrollo. NO se usa todavía: el entorno local corre sobre
+# SQLite y el código es idéntico en ambos motores. Esto queda listo para el día
+# del despliegue (o para reproducir un bug que solo aparezca en Postgres).
+#
+#   docker compose up -d db
+#   pip install asyncpg
+#   set PEAKSTROKE_DATABASE_URL=postgresql+asyncpg://peakstroke:peakstroke@localhost:5432/peakstroke
+#   cd backend && alembic upgrade head && python seed.py
+#
+# Requiere Docker Desktop, que a 2026-08-03 no está instalado en la máquina.
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: peakstroke-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: peakstroke
+      # Credenciales de desarrollo: esta base solo escucha en localhost y nunca
+      # contiene datos reales. En producción van por variables de entorno.
+      POSTGRES_PASSWORD: peakstroke
+      POSTGRES_DB: peakstroke
+    ports:
+      - "5432:5432"
+    volumes:
+      - peakstroke-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Evita que la app arranque contra una base que aún está inicializándose.
+      test: ["CMD-SHELL", "pg_isready -U peakstroke -d peakstroke"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  peakstroke-pgdata:

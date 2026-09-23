@@ -1,15 +1,28 @@
-fastapi==0.115.5
-uvicorn[standard]==0.32.1
-sqlalchemy==2.0.36
-alembic==1.14.0
-asyncpg==0.30.0
-pydantic==2.10.3
-pydantic-settings==2.6.1
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-python-multipart==0.0.17
-stripe==11.3.0
-python-dotenv==1.0.1
-httpx==0.28.1
-pytest==8.3.4
-pytest-asyncio==0.24.0
+fastapi>=0.115
+uvicorn[standard]>=0.34
+sqlalchemy[asyncio]>=2.0.36
+aiosqlite>=0.20
+pydantic>=2.12
+pydantic-settings>=2.10
+pytest>=8.3
+pytest-asyncio>=0.25
+httpx>=0.28
+
+# --- Migraciones de esquema -------------------------------------------------
+# Sustituye a create_all(): en cuanto hay datos reales, el esquema se versiona.
+alembic>=1.14
+
+# --- Identidad y autenticación ----------------------------------------------
+# PyJWT en vez de python-jose (la nota 01 del vault lo daba por hecho): jose
+# lleva años sin mantenimiento activo. PyJWT es el estándar de facto vigente.
+pyjwt>=2.10
+# Argon2id en vez de passlib+bcrypt: es la recomendación OWASP actual y evita la
+# incompatibilidad conocida entre passlib 1.7 y bcrypt >= 4.1.
+argon2-cffi>=23.1
+# Requerido por pydantic para validar EmailStr.
+email-validator>=2.2
+
+# --- PostgreSQL (cuando toque desplegar) ------------------------------------
+# El código no cambia: basta instalar esto y apuntar PEAKSTROKE_DATABASE_URL a
+# postgresql+asyncpg://...  Ver docker-compose.yml en la raíz del repo.
+# asyncpg>=0.30

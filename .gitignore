@@ -1,33 +1,27 @@
 # Python
+backend/.venv/
 __pycache__/
-*.py[cod]
-*$py.class
+*.pyc
 .pytest_cache/
+backend/peakstroke.db
+# Copias de la base antes de una migración (p. ej. peakstroke.db.antes-c6)
+backend/peakstroke.db.*
+backend/.env
 
-# Environment files
-.env
-.env.*
+# Node
+frontend/node_modules/
+frontend/dist/
 
-# Virtual environments
-venv/
-.venv/
-
-# Node modules
-node_modules/
-
-# IDE/editor files
-.vscode/
-.idea/
-.claude/
-
-# Build / distribution
-build/
-dist/
-*.egg-info/
-
-# Logs
-*.log
-
-# OS files
+# OS / editor
 .DS_Store
 Thumbs.db
+*.log
+.gstack/
+.claude/
+
+# Android / Gradle / Kotlin (sandbox/movil)
+.gradle/
+.idea/
+.kotlinc/
+local.properties
+sandbox/movil/parity/**/*.jar
