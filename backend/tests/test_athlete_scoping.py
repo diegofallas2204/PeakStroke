@@ -25,6 +25,7 @@ from conftest import API, World, como
 from sqlalchemy import select
 
 from app.persistencia.tablas.planes import WeeklyPlan
+from app.persistencia.tablas.resultados import Result
 
 
 async def semana_de(db, event_id: int, numero: int = 2) -> WeeklyPlan:
@@ -33,6 +34,13 @@ async def semana_de(db, event_id: int, numero: int = 2) -> WeeklyPlan:
             WeeklyPlan.athlete_event_id == event_id, WeeklyPlan.week_number == numero,
         )
     )).scalar_one()
+
+
+async def tiempos_de(db, swimmer_id: int) -> list[float]:
+    """Lo que ese atleta tiene apuntado: desde C7 el tiempo solo vive aquí."""
+    return list((await db.execute(
+        select(Result.time).where(Result.swimmer_id == swimmer_id, Result.is_active.is_(True))
+    )).scalars())
 
 
 # ── Las cuatro escrituras ajenas confirmadas en vivo ─────────────────────────
@@ -49,7 +57,8 @@ async def test_no_puede_escribir_la_semana_de_otro(client, db, world: World):
 
     assert r.status_code == 404
     await db.refresh(semana)
-    assert semana.real_time is None, "el tiempo ajeno se escribió de todos modos"
+    assert await tiempos_de(db, world.carlos_swimmer_id) == [], (
+        "el tiempo ajeno se escribió de todos modos")
     assert semana.expected_time == antes, "la curva ajena se recalculó"
 
 
@@ -222,8 +231,7 @@ async def test_puede_registrar_su_propio_tiempo(client, db, world: World):
     )
 
     assert r.status_code == 200
-    await db.refresh(semana)
-    assert semana.real_time == 131.5
+    assert await tiempos_de(db, world.sofia_swimmer_id) == [131.5]
 
 
 async def test_puede_leer_sus_propias_semanas(client, world: World):
@@ -275,8 +283,7 @@ async def test_el_entrenador_si_puede_escribir_la_semana_de_un_atleta(client, db
         headers=como(world.owner_email),
     )
     assert r.status_code == 200
-    await db.refresh(semana)
-    assert semana.real_time == 127.0
+    assert await tiempos_de(db, world.carlos_swimmer_id) == [127.0]
 
 
 # ── El modo de fallo cerrado ─────────────────────────────────────────────────

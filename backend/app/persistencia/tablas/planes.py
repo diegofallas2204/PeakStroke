@@ -220,7 +220,8 @@ class WeeklyPlan(Base):
     planned_km: Mapped[float] = mapped_column(Float)
     expected_time: Mapped[float] = mapped_column(Float)      # curva ideal original
     recalc_time: Mapped[float | None] = mapped_column(Float)  # curva recalculada
-    real_time: Mapped[float | None] = mapped_column(Float)
+    # Sin tiempo real: lo nadado vive en `resultados` y la semana lo deriva por
+    # atleta, prueba y fechas (R2 enmendada; la columna salió en C7).
     # Clave de `Fase` de esa semana, la que la ciencia puede leer. El nombre que
     # se enseña es el del tramo que la cubre (`plan_phases.name`) y no se copia.
     phase: Mapped[str] = mapped_column(String(20))
