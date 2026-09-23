@@ -95,7 +95,7 @@ macrociclos, y ese se deja: su división natural llega con C6-C7.
 | ~~1~~ | ~~**P3 · Las tres fases**~~ | — | ✅ **HECHO el 2026-09-22.** Ver el bloque P3 |
 | ~~1~~ | ~~**C6 · `Resultado`**~~ | — | ✅ **HECHO el 2026-09-22.** Ver el bloque |
 | ~~2~~ | ~~**R7 · La curva sale de `plans`**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque R7, tras C6 |
-| 3 | **C7 · `Sesion`** | medio | **Empieza retirando `real_time`** (ver «Lo que falta» en C6). Trae consigo los mutadores de las entidades (`dar_de_baja`, `inscribir`), que C5 dejó fuera porque las escrituras siguen armando filas del ORM |
+| ~~3~~ | ~~**C7 · `Sesion`**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque. Los mutadores (`dar_de_baja`, `inscribir`) **no** entraron: no los necesita la sesión y siguen pendientes |
 | 4 | **C8 · `CargaDiaria` + Banister** | bajo | Necesita C7 |
 
 ### Cinco cabos sueltos concretos
@@ -1903,7 +1903,14 @@ Lo que hay que saber antes de tocarlo:
    canónicos, y la lectura pasa todo por `Estilo.desde_texto`, que acepta
    `"crol"`.
 
-### Lo que falta para retirar `real_time` — al EMPEZAR C7 (decidido 2026-09-22)
+### Lo que falta para retirar `real_time` — al EMPEZAR C7 (decidido 2026-09-22) — ✅ HECHO (2026-09-23, `b7a49c7`)
+
+> Puntos 1, 2 y 5 hechos (migración `c7a1e0d5b2f4`). Del 3 salió
+> `test_el_conteo_de_retirada_cuadra`, pero **la guarda de downgrade de
+> `bae825334065` se quedó**: sigue siendo cierta —un resultado que no cae en
+> ninguna semana no cabe en la columna vieja—. El 4 no hizo falta: la sesión no
+> trae entrada de tiempos, así que N1 y N2 siguen abiertas sin bloquear nada.
+
 
 El criterio de R2 («dos despliegues seguidos») no aplica a una aplicación local.
 Se sustituye por: **C7 arranca retirándola.**
@@ -2018,7 +2025,37 @@ de la migración lo comprueba contando `plan_phases`.
 
 ---
 
-## C7 · `Sesion` (y `Serie`, **fuera del rediseño**)
+## C7 · `Sesion` (y `Serie`, **fuera del rediseño**) — ✅ HECHO (2026-09-23)
+
+### Cómo quedó
+
+Dos commits en `Preliminar`: `b7a49c7` (paso 0, `real_time` fuera) y el de la
+sesión. Las decisiones del usuario al arrancar: **se apunta después de nadar**
+(opción A: el atleta o el entrenador), **se borra de verdad**, y **el RPE se
+guarda y C8 decide** qué carga sale de él.
+
+- Entidad `dominio/entidades/sesion.py`: `ritmo_medio()` y `carga(css)` (sTSS,
+  fuente en la nota 05), derivados, nunca guardados. Enmiendas al §5.11 en
+  REDISENO: sin FK a semana ni macro, sin `zonas_nadadas()`.
+- Tabla `sesiones` (migración `4cf6606404c4`), FK compuesta al nadador, CHECK
+  de metros, duración y RPE 1-10. Repositorio `RepositorioDeSesiones`, el
+  primero que **recibe** entidades (`guardar(Sesion)`).
+- Rebanada `api/v1/sesiones/`, prefijo `/api/v1/sessions`: `GET /` (con
+  `swimmer_id`, `desde`, `hasta`), `POST /`, `GET|PATCH|DELETE /{id}`. Sin
+  `require_coach`: el atleta apunta lo suyo; lo ajeno, 404.
+- **996 tests** (965 − 1 + 2 de la migración de `real_time` + 30 de sesiones).
+  OpenAPI contra `b7a49c7`: dos rutas y tres schemas nuevos, **nada viejo
+  cambiado** (el primer intento sí cambiaba: `SessionResponse` chocaba con el
+  de `auth`, de ahí `TrainingSession*`).
+
+**Qué hace falta en el frontend** (no construido): tipos en `lib/types/`
+(`sessions.ts`) y `api.sessions` en `lib/api.ts` con el mismo patrón que
+`aerobic`; un formulario de cuatro campos (fecha, metros, duración en `h:mm`,
+RPE 1-10 con su escala a la vista) que el atleta abra en dos toques después de
+nadar; una lista por atleta con editar y borrar (el borrado es real: confirmar);
+y dónde vive —¿sección propia o dentro de la ficha del atleta y de su vista de
+inicio?—. Una sección nueva toca `navConfig.ts` **y** `dominio/roles.Seccion`,
+que está pinada contra él.
 
 > **R1 — CERRADA el 2026-08-16.** `Sesion` entra, pero **después de que C1–C6
 > estén verdes y desplegados**: C1–C6 mueven comportamiento de sitio y este bloque

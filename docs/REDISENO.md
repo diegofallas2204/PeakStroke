@@ -716,6 +716,25 @@ semana.
 De este hueco cuelga todo lo que hoy no se puede construir. Sin `Sesion` no hay
 de dónde sacar el sTSS diario, y sin sTSS no hay Banister.
 
+> **`Sesion` construida el 2026-09-23 (C7)**, con tres enmiendas a lo de arriba:
+>
+> ```
+> Sesion:  atleta · fecha · distancia_m · duracion: Tiempo · rpe? (CR-10) · notas
+>          ritmo_medio() -> Ritmo         duración total / distancia; derivado
+>          carga(css: Ritmo) -> float     sTSS; derivado; `css` el vigente ESE día
+> ```
+>
+> 1. **Sin `macrociclo?` ni `semana?`.** `weekly_plans` va por prueba objetivo:
+>    con dos pruebas hay dos filas para la misma semana y `semana_id` no tiene a
+>    cuál apuntar. Misma razón que la enmienda de R2: se encuentran por fecha.
+> 2. **Sin `zonas_nadadas()`.** Sin series no se sabe qué se nadó en cada zona, y
+>    el reparto *planificado* presentado como nadado es el dato que miente.
+> 3. **Cómo se rellena: después de nadar** (opción A). La apunta el atleta o su
+>    entrenador; planificarla antes es el módulo de la nota 22 y depende de N5.
+>
+> Se **borra de verdad** (es un registro que su dueño corrige), y el RPE se
+> guarda sin decidir aún qué carga sale de él: eso es de C8.
+
 ### 5.12 `CargaDiaria` — nuevo (R1: tras 1-6)
 
 ```

@@ -40,7 +40,7 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
 - **`main` recibe solo fases completadas**: cuando lo que se está montando está entero, PR de `Preliminar` contra `main` con merge commit (no squash), y se sigue en `Preliminar` con lo siguiente. Nunca commitear directo en `main`
 
 ## Reglas de código (NO negociables)
-- **Un agregado se reparte en tres capas, no en una carpeta** (paso 5 del rediseño, 2026-08-25): su tabla en `app/persistencia/tablas/<agregado>.py`, su repositorio en `app/persistencia/repositorios/<agregado>.py`, y su router + schemas + presentación en `app/api/v1/<agregado>/`. **`app/modules/` ya no existe.** Hoy hay siete agregados —`atletas` · `codigos` · `equipos` · `macrociclos` · `resultados` · `tests_aerobicos` · `usuarios`— y ocho rebanadas de API (seis de ellos + `simulador`, que no tiene tabla, + `vistas`). `resultados` (C6) no tiene rebanada propia: lo leen `macrociclos` y `vistas` por su repositorio
+- **Un agregado se reparte en tres capas, no en una carpeta** (paso 5 del rediseño, 2026-08-25): su tabla en `app/persistencia/tablas/<agregado>.py`, su repositorio en `app/persistencia/repositorios/<agregado>.py`, y su router + schemas + presentación en `app/api/v1/<agregado>/`. **`app/modules/` ya no existe.** Hoy hay ocho agregados —`atletas` · `codigos` · `equipos` · `macrociclos` · `resultados` · `sesiones` · `tests_aerobicos` · `usuarios`— y nueve rebanadas de API (siete de ellos + `simulador`, que no tiene tabla, + `vistas`). `resultados` (C6) no tiene rebanada propia: lo leen `macrociclos` y `vistas` por su repositorio. `sesiones` (C7) es el primero cuyo repositorio **recibe y devuelve entidades** (`guardar(Sesion)`), no filas
 - **`app/api/v1/vistas/` son pantallas compuestas, NO agregados**: el tablero, la tabla del equipo y la comparación no tienen modelo, no escriben y no imponen ninguna regla. Leen de los repositorios y dan forma. Cuando el tablero era `modules/dashboard/` parecía un módulo de dominio y se comportaba como tal — importaba `plans.access`, `plans.service` y tres modelos para poder preguntar en qué semana iba un plan
 - **Feature backend nueva:** una tabla, un repositorio y una rebanada de API. Si no tiene tabla propia (como el simulador) es solo la rebanada; si no impone reglas ni escribe, es una vista
 - `router.py` nunca tiene lógica de negocio — recibe, delega al service, retorna
@@ -251,8 +251,15 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   `resultados`, con FK al nadador y **ninguna** al plan, así que ni sacar a
   alguien del macro ni borrar el macro lo tocan. La semana **no** guarda su
   tiempo: promedia los resultados del atleta en esa prueba y esa semana,
-  convertidos a la piscina del macro. `weekly_plans.real_time` es una sombra que
-  se escribe y **no se lee**; se retira al empezar C7. No leerla nunca
+  convertidos a la piscina del macro. `weekly_plans.real_time` **ya no existe**
+  (C7, migración `c7a1e0d5b2f4`)
+- **La sesión guarda hechos, no derivados** (C7, 2026-09-23): `sesiones` lleva
+  fecha, metros, duración total (descansos incluidos) y RPE CR-10 del atleta.
+  El ritmo medio y la carga (sTSS) se calculan al leer, y las zonas y
+  prescripciones no se guardan en ningún sitio. Cuelga del atleta y **no apunta
+  a la semana ni al macro**: se encuentran por fecha. **Es la excepción a «nada
+  se borra»**: se borra de verdad, porque es un registro que su dueño corrige y
+  la carga de C8 se recalcula desde lo que haya
 - `ondelete=CASCADE` solo donde hay composición real (plan → fases, test →
   parciales). El resto usa el defecto, que impide borrar mientras algo lo referencie
 

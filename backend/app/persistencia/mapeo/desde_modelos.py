@@ -32,6 +32,7 @@ from app.dominio.entidades import (
     FaseDelMacro,
     Macrociclo,
     Resultado,
+    Sesion,
     TestAerobico,
 )
 from app.dominio.valores import (
@@ -49,6 +50,7 @@ from app.dominio.valores import (
 from app.persistencia.tablas.atletas import Swimmer
 from app.persistencia.tablas.planes import Competition, Plan, PlanPhase
 from app.persistencia.tablas.resultados import Result
+from app.persistencia.tablas.sesiones import SwimSession
 from app.persistencia.tablas.tests_aerobicos import AerobicTest
 
 
@@ -169,4 +171,16 @@ def resultado_desde_fila(fila: Result) -> Resultado:
         piscina=Piscina.desde_texto(fila.pool),
         contexto=Contexto.desde_texto(fila.context),
         competencia_id=fila.competition_id,
+    )
+
+
+def sesion_desde_fila(fila: SwimSession) -> Sesion:
+    return Sesion(
+        id=fila.id,
+        atleta_id=fila.swimmer_id,
+        fecha=fila.session_date,
+        distancia_m=fila.distance_m,
+        duracion=Tiempo(fila.duration_s),
+        rpe=fila.rpe,
+        notas=fila.notes,
     )
