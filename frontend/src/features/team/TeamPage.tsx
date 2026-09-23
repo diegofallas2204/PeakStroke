@@ -13,6 +13,8 @@ import { useSimpleMode } from '../../hooks/useSimpleMode'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { weekDateTick } from '../../components/charts/weekAxisTick'
 import { Card, EmptyState, Spinner, StatusBadge } from '../../components/ui/primitives'
+import { BotonPdf } from '../../components/ui/BotonPdf'
+import { descargarEquipoPdf } from './teamPdf'
 
 export function TeamPage() {
   const selectedId = useSelectedPlanId()
@@ -81,6 +83,12 @@ export function TeamPage() {
                 Hoy
               </button>
             )}
+            <BotonPdf
+              label="Descargar PDF"
+              title="Descarga esta semana en PDF: tiempos, salidas y km por zona de cada atleta"
+              disabled={!data.rows.length}
+              onClick={() => descargarEquipoPdf(data, summary?.plan_name, totalWeeks, simple)}
+            />
           </div>
         }
       />

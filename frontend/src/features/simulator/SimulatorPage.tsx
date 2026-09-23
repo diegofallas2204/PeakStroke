@@ -9,7 +9,9 @@ import { usePageEnter } from '../../hooks/usePageEnter'
 import { useSimpleMode } from '../../hooks/useSimpleMode'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card, Spinner } from '../../components/ui/primitives'
+import { BotonPdf } from '../../components/ui/BotonPdf'
 import { SIM_PARAMS_INICIALES } from './simDefaults'
+import { descargarSimPdf } from './simPdf'
 import { SimParams } from './SimParams'
 import { SimFeasibility } from './SimFeasibility'
 import { SimSeason } from './SimSeason'
@@ -89,7 +91,17 @@ export function SimulatorPage() {
 
               {!simple && <SimZones weeks={data.weeks} />}
 
-              <Card title={`Plan semanal generado · ${data.weeks.length} semanas`} className="card-hover" animate={false} flush>
+              <Card
+                title={`Plan semanal generado · ${data.weeks.length} semanas`}
+                className="card-hover" animate={false} flush
+                action={
+                  <BotonPdf
+                    label="Descargar PDF"
+                    title="Descarga las tablas del simulador: zonas de entrenamiento, plan semana a semana y las semanas de extensión si las hay"
+                    onClick={() => descargarSimPdf(debounced, data, simple)}
+                  />
+                }
+              >
                 <SimPlanTable weeks={data.weeks} simple={simple} />
                 {!simple && (
                   <p className="border-t border-line px-4 py-2.5 text-[10px] text-text-faint">
