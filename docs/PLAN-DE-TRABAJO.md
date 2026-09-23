@@ -66,9 +66,14 @@ era el prototipo del 2026-06-02 (`app/services/progression_engine.py`,
 2026-06-12. Se unieron en la rama con `git merge -s ours --allow-unrelated-histories`
 (commit `674d5cc`): el árbol es el de la rama, sin tocar, y la historia de `main`
 queda como segundo padre. Eso hace posible el PR de la rama contra `main` en
-GitHub, que antes era imposible («entirely different commit histories»). **Cuando
-ese PR se fusione, se trabaja sobre `main`.** `Preliminar` es un antepasado viejo
-de la rama y no se tocó.
+GitHub, que antes era imposible («entirely different commit histories»). La rama
+se fusionó en `main` (PR #2) y en `Preliminar` (PR #1) el 2026-09-23 y después
+se borró.
+
+**Cómo se trabaja desde el 2026-09-23: en `Preliminar`.** Todo el trabajo del día
+a día va ahí. **A `main` solo pasa una fase completada** —cuando lo que se estaba
+montando está entero—, con un PR de `Preliminar` contra `main` y merge commit, y
+se sigue en `Preliminar` con la siguiente.
 
 | | |
 |---|---|

@@ -35,6 +35,10 @@ cd backend && .venv\Scripts\python -m alembic current
 cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "Ana" --role coach
 ```
 
+## Ramas
+- **Se trabaja en `Preliminar`.** Todo commit del día a día va ahí
+- **`main` recibe solo fases completadas**: cuando lo que se está montando está entero, PR de `Preliminar` contra `main` con merge commit (no squash), y se sigue en `Preliminar` con lo siguiente. Nunca commitear directo en `main`
+
 ## Reglas de código (NO negociables)
 - **Un agregado se reparte en tres capas, no en una carpeta** (paso 5 del rediseño, 2026-08-25): su tabla en `app/persistencia/tablas/<agregado>.py`, su repositorio en `app/persistencia/repositorios/<agregado>.py`, y su router + schemas + presentación en `app/api/v1/<agregado>/`. **`app/modules/` ya no existe.** Hoy hay siete agregados —`atletas` · `codigos` · `equipos` · `macrociclos` · `resultados` · `tests_aerobicos` · `usuarios`— y ocho rebanadas de API (seis de ellos + `simulador`, que no tiene tabla, + `vistas`). `resultados` (C6) no tiene rebanada propia: lo leen `macrociclos` y `vistas` por su repositorio
 - **`app/api/v1/vistas/` son pantallas compuestas, NO agregados**: el tablero, la tabla del equipo y la comparación no tienen modelo, no escriben y no imponen ninguna regla. Leen de los repositorios y dan forma. Cuando el tablero era `modules/dashboard/` parecía un módulo de dominio y se comportaba como tal — importaba `plans.access`, `plans.service` y tres modelos para poder preguntar en qué semana iba un plan
