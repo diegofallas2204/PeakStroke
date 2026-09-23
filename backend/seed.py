@@ -51,6 +51,7 @@ from app.persistencia.repositorios import (
     RepositorioDeAtletas,
     RepositorioDeEquipos,
     RepositorioDeMacrociclos,
+    RepositorioDeResultados,
     RepositorioDeTests,
 )
 from app.persistencia.tablas.equipos import CoachAthlete
@@ -202,6 +203,7 @@ async def seed() -> None:
         )
         atletas = RepositorioDeAtletas(db, principal)
         repo = RepositorioDeMacrociclos(db, principal)
+        resultados = RepositorioDeResultados(db, principal)
         tests_repo = RepositorioDeTests(db, principal)
 
         swimmers = []
@@ -277,7 +279,7 @@ async def seed() -> None:
                 noise = random.uniform(-0.0015, 0.0015)
                 real = w.expected_time * (bias[swimmer_idx] + noise)
                 await update_week(
-                    db, repo, w.id, WeekUpdateRequest(real_time=round(real, 2)),
+                    db, repo, resultados, w.id, WeekUpdateRequest(real_time=round(real, 2)),
                 )
 
         # Tests aeróbicos: T-30 inicial + control reciente para varios atletas

@@ -619,6 +619,11 @@ del atleta que no cae en ninguna semana del plan —una competencia en fecha
 suelta, una prueba que no es objetivo de este macro— entra en su histórico y
 **no toca la predicción**.
 
+**Un tiempo en otra piscina sí entra, convertido** (2026-09-22, al construir
+C6): a la piscina del macro, con el factor corta/larga de `Piscina.factor`
+—el mismo que usan las zonas—. La fila guarda lo que marcó el reloj; se
+convierte al leer (`Resultado.tiempo_en`).
+
 ### 5.9 `TestAerobico` (AerobicTest) y `Parcial` (AerobicSplit)
 
 ```
@@ -683,6 +688,11 @@ Es el patrón correcto que el resto del esquema no siguió.
 > (`dashboard/service.py`, `plans/weeks.py`, `plans/roster.py`) y el conteo
 > `resultados == real_time no nulos` cuadre en dos despliegues seguidos.
 > **Enmendada el mismo día:** la semana no lleva FK. Ver §5.8 y §10.2.
+>
+> **Construido el 2026-09-22 (C6).** `real_time` queda como sombra que se
+> escribe y nadie lee, y el criterio de los «dos despliegues» se cambió por uno
+> que una aplicación local puede cumplir: **se retira al empezar C7**. Detalle
+> en el bloque C6 de `docs/PLAN-DE-TRABAJO.md`.
 
 ### 5.11 `Sesion` y `Serie` — nuevo (R1: `Sesion` tras 1-6; `Serie` fuera)
 
@@ -884,7 +894,8 @@ semanas.real_time  ──►  resultados(atleta, prueba, tiempo, fecha, piscina,
 ```
 
 La prueba y el atleta se derivan de `pruebas_objetivo` e `inscripciones`; la
-fecha, de `semanas.fecha`. Es un `INSERT ... SELECT` con un `UPDATE` de vuelta.
+fecha, de `semanas.fecha`. Es un `INSERT ... SELECT` **sin** `UPDATE` de vuelta
+(la frase decía «con», de antes de la enmienda de R2).
 El resto son renombres de columna y `CheckConstraint` añadidos.
 
 ---
@@ -930,7 +941,7 @@ El resto son renombres de columna y `CheckConstraint` añadidos.
 | 3 | `Rol` + subclases; `Principal` compone — **✅ HECHO 2026-08-17** | bajo | — | sí |
 | 4 | **Fusión de los dos motores** — **✅ HECHO 2026-08-17** (rama `refactor/motor-unico`) | **medio-alto** | P1 (P3 no: se cerró aparte el 2026-09-22) | rama propia |
 | 5 | `persistencia/repositorios/` + recorte de imports cruzados — **✅ HECHO 2026-08-25** | medio | P5 | sí |
-| 6 | `Resultado` + migración de `real_time` | medio | §5.10 | sí |
+| 6 | `Resultado` + migración de `real_time` — **✅ HECHO 2026-09-22** | medio | §5.10 | sí |
 | 7 | `Sesion` (R1: **`Serie` fuera**) | medio | el hueco de fondo | sí |
 | 8 | `CargaDiaria` + Banister (R1) | bajo | nota 05 | — |
 

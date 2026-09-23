@@ -4,7 +4,8 @@
 > partes. Cada bloque trae una explicación para leer y un **prompt listo para
 > copiar** en una sesión nueva de Claude Code.
 >
-> **Estado al 2026-09-22: A, B, C0–C5 y P3 hechos.** Sigue C6. El estado vivo
+> **Estado al 2026-09-22: A, B, C0–C6 y P3 hechos.** Siguen R7 y C7 (C7 empieza
+> retirando `real_time`). El estado vivo
 > está en «Dónde estamos y qué sigue», justo abajo; el resto del documento
 > conserva cada bloque como se planeó y cómo quedó.
 
@@ -60,7 +61,7 @@ clave (ver el bloque P3 más abajo).
 
 | | |
 |---|---|
-| Tests backend | **938 en verde** (118 s) · `ruff check .` limpio |
+| Tests backend | **959 en verde** (tras C6; eran 938) · `ruff check .` limpio |
 | Backend | 10.695 líneas · 15 modelos · **4 archivos >300** (`valores/tiempo.py` 354, `valores/escalas.py` 340, `valores/zona.py` 312, `repositorios/macrociclos.py` 307) |
 | Frontend | 8.995 líneas (incluye la exportación a PDF, sin commitear) · **0 archivos >300** · `tsc -b` y `eslint .` limpios |
 | Snapshot del motor | 3 caminos · 92 casos · **regenerado una sola vez (P3) y solo por la etiqueta de fase**: ningún número se movió desde A0 |
@@ -76,9 +77,9 @@ macrociclos, y ese se deja: su división natural llega con C6-C7.
 |---|---|---|---|
 | ~~1~~ | ~~**C5 · Repositorios**~~ | — | ✅ **HECHO el 2026-08-25.** Ver el bloque |
 | ~~1~~ | ~~**P3 · Las tres fases**~~ | — | ✅ **HECHO el 2026-09-22.** Ver el bloque P3 |
-| 1 | **C6 · `Resultado`** | medio | Cierra el agujero de `delete_plan`, que hoy puede llevarse todos los tiempos reales de un equipo. Se lleva además el estilo crudo (`"crol"`), que C5 le reasignó por ser migración de datos |
+| ~~1~~ | ~~**C6 · `Resultado`**~~ | — | ✅ **HECHO el 2026-09-22.** Ver el bloque |
 | 2 | **R7 · La curva sale de `plans`** | bajo | Migración + `PlanCreate`/`PlanResponse` + el desplegable del wizard |
-| 3 | **C7 · `Sesion`** | medio | Necesita C6 hecho. Trae consigo los mutadores de las entidades (`dar_de_baja`, `inscribir`), que C5 dejó fuera porque las escrituras siguen armando filas del ORM |
+| 3 | **C7 · `Sesion`** | medio | **Empieza retirando `real_time`** (ver «Lo que falta» en C6). Trae consigo los mutadores de las entidades (`dar_de_baja`, `inscribir`), que C5 dejó fuera porque las escrituras siguen armando filas del ORM |
 | 4 | **C8 · `CargaDiaria` + Banister** | bajo | Necesita C7 |
 
 ### Cinco cabos sueltos concretos
@@ -94,9 +95,10 @@ macrociclos, y ese se deja: su división natural llega con C6-C7.
    recibe la curva por firma, que es lo que R7 pide de verdad; sacarla de la
    tabla toca migración, dos schemas y el wizard.
 3. **El estilo se sigue guardando crudo** (`"crol"` en vez de `"libre"`).
-   Canonizarlo toca filas existentes: es migración de datos, y C5 —que fue un
-   refactor de estructura sin tocar ni una fila— se lo pasó a **C6**, que ya
-   migra datos de todas formas.
+   Canonizarlo toca filas existentes: es migración de datos, y C5 se lo pasó a
+   C6. **C6 no lo hizo**: la base de desarrollo ya guarda los cinco canónicos y
+   toda lectura pasa por `Estilo.desde_texto`, que acepta los alias. Queda para
+   cuando haya una base con filas crudas.
 4. **El snapshot no cubre el camino nuevo.** Sus casos no llevan
    `base_aerobica`, así que recorren la estimación del nivel y no el test.
    Tampoco cubren `factibilidad`, `generar_extension`, `km_por_zona`,
@@ -1783,7 +1785,7 @@ está en `PeakStroke/peakstroke.antes-p3.db`, fuera del repo.
 
 ---
 
-## C6 · `Resultado` y la migración de los tiempos
+## C6 · `Resultado` y la migración de los tiempos — ✅ HECHO (2026-09-22)
 
 ### Qué pasa
 
@@ -1843,6 +1845,64 @@ reversible.
 > **N1 y N2 siguen abiertas** (§10.3 de `REDISENO.md`): si el promedio es de todos
 > los tiempos o el entrenador marca cuál cuenta, y qué hace un tiempo de
 > competencia. No bloquean este bloque: bloquean la UI que lo explota.
+
+### Cómo quedó — ✅ HECHO el 2026-09-22
+
+**Hecho, y medido.** Tabla `resultados` (migración `bae825334065`), entidad
+`dominio/entidades/resultado.py`, `persistencia/tablas/resultados.py` y
+`RepositorioDeResultados`. Sin rebanada de API propia: el contrato no cambió, y
+nadie la pide todavía.
+
+| | |
+|---|---|
+| Base de desarrollo | **57 `real_time` → 57 resultados**, las 57 `real_time` intactas, 0 filas que no casen con su semana |
+| Tests | **959 en verde** (938 + 21) · `ruff` limpio |
+| Contrato | `app.openapi()` **idéntico**; las 24 respuestas GET de la base real (semanas, resumen, tabla del equipo) **byte a byte iguales** viejo-sobre-base-vieja contra nuevo-sobre-base-migrada, con un worktree de HEAD |
+| Migración | Subida, bajada y vuelta a subir contra una copia de la base y en `tests/test_migracion_resultados.py` · `alembic check` sin diferencias |
+
+Lo que hay que saber antes de tocarlo:
+
+1. **La semana deriva, no apunta.** Sus resultados son los del atleta en esa
+   prueba y `[lunes, lunes + 7)`, y enseña el **promedio**. Uno, varios y
+   ninguno son el mismo recorrido (`entidades.resultado.real_de_la_semana`).
+2. **Un tiempo en otra piscina entra CONVERTIDO** (decidido el 2026-09-22 al
+   cerrar la sesión): `Resultado.tiempo_en(piscina)` con el mismo
+   `Piscina.factor(perfil)` que usan las zonas, perfil por la distancia de la
+   prueba. En la misma piscina es ×1 exacto, que es por lo que la base real no
+   movió un decimal. La conversión es al **leer**: la fila guarda lo que marcó el
+   reloj y su piscina.
+3. **`PATCH /weeks/{id}` REEMPLAZA** (decidido el 2026-09-22): la celda de la
+   tabla es «el tiempo de la semana» y escribirla retira —no borra— los que
+   hubiera, de cualquier piscina, y apunta uno. Los varios tiempos por semana
+   llegarán por otra entrada (C7). Con esto se mantiene
+   `resultados vivos == real_time no nulos`, que fija
+   `test_el_conteo_de_retirada_cuadra`.
+4. **`real_time` es sombra**: `apuntar_en_semana` la escribe, **nadie la lee**
+   (`semanas.py` y `tablero.py` pasan por `reales_por_semana`, una consulta por
+   pantalla).
+5. **La migración tiene dos guardas**: al subir, si lo copiado no cuadra con los
+   `real_time`, tira la tabla y falla (el DDL de SQLite va sin transacción); al
+   bajar, se niega si hay más resultados vivos que `real_time`.
+6. **El estilo crudo NO se canonizó**: la base real ya guardaba los cinco
+   canónicos, y la lectura pasa todo por `Estilo.desde_texto`, que acepta
+   `"crol"`.
+
+### Lo que falta para retirar `real_time` — al EMPEZAR C7 (decidido 2026-09-22)
+
+El criterio de R2 («dos despliegues seguidos») no aplica a una aplicación local.
+Se sustituye por: **C7 arranca retirándola.**
+
+1. Quitar `semana.real_time = tiempo` de `apuntar_en_semana`.
+2. Migración que borra la columna, con un downgrade que la **rellena** desde
+   `resultados` (promedio por semana, convertido a la piscina del plan): es el
+   `UPDATE` de vuelta que C6 no necesitó.
+3. Quitar la guarda de downgrade de `bae825334065` que compara con `real_time`,
+   y `test_el_conteo_de_retirada_cuadra`.
+4. **N1 y N2 siguen abiertas**, y C7 las necesita: con una entrada de tiempos
+   que sume, el `PATCH` que reemplaza y el promedio de todos chocan.
+5. Dos macros solapados con el mismo atleta y la misma prueba **comparten**
+   resultados (es lo buscado), pero la sombra solo se escribe en uno. Hoy no hay
+   ninguno; desaparece con la columna.
 
 ### Prompt
 

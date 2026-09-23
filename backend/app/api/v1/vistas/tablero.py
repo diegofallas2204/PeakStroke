@@ -6,6 +6,10 @@ forma. Cuando vivía en `modules/dashboard/` importaba `plans.access`,
 `plans.service` y tres modelos de `plans` —P5 del §0— y lo hacía por una razón
 que ya no existe: necesitaba `current_week_of(plan)` para saber en qué semana
 iba el macrociclo. Ahora recibe un `Macrociclo` y se lo pregunta a él.
+
+El tiempo real de cada semana tampoco es ya una columna (C6): es el promedio de
+sus `Resultado`, y sale en una sola consulta por pantalla de
+`RepositorioDeResultados.reales_por_semana`.
 """
 from __future__ import annotations
 
@@ -15,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dominio.entidades import Macrociclo
 from app.dominio.servicios.kilometraje import km_por_zona
 from app.dominio.servicios.motor import MOTOR
-from app.persistencia.repositorios import RepositorioDeMacrociclos
+from app.persistencia.repositorios import RepositorioDeMacrociclos, RepositorioDeResultados
 from app.persistencia.tablas.atletas import Swimmer
 from app.persistencia.tablas.planes import AthleteEvent
 
@@ -48,7 +52,8 @@ async def _swimmers_for(db: AsyncSession, events: list[AthleteEvent]) -> dict[in
 
 
 async def build_summary(
-    db: AsyncSession, repo: RepositorioDeMacrociclos, macro: Macrociclo,
+    db: AsyncSession, repo: RepositorioDeMacrociclos, resultados: RepositorioDeResultados,
+    macro: Macrociclo,
 ) -> DashboardSummary:
     """El estado del macrociclo, acotado a quien pregunta.
 
@@ -59,6 +64,7 @@ async def build_summary(
     current = macro.semana_actual()
     events = await repo.pruebas_de(macro.id)
     swimmers = await _swimmers_for(db, events)
+    reales = await resultados.reales_por_semana(events, macro.piscina)
 
     statuses: list[AthleteStatusRow] = []
     counts = {"ahead": 0, "on_track": 0, "behind": 0, "pending": 0}
@@ -70,27 +76,28 @@ async def build_summary(
         swimmer = swimmers.get(event.athlete_plan.swimmer_id)
         weeks = sorted(event.weeks, key=lambda w: w.week_number)
         cur = next((w for w in weeks if w.week_number == current), None)
-        reals = [w for w in weeks if w.real_time is not None]
+        reals = [w for w in weeks if w.id in reales]
         last_real = max(reals, key=lambda w: w.week_number) if reals else None
+        cur_real = reales.get(cur.id) if cur is not None else None
 
         if current:
             past = [w for w in weeks if w.week_number <= current and not w.disabled]
             weeks_passed += len(past)
-            weeks_with_real += sum(1 for w in past if w.real_time is not None)
+            weeks_with_real += sum(1 for w in past if w.id in reales)
         for w in reals:
-            deviations.append((w.real_time - w.expected_time) / w.expected_time * 100)
+            deviations.append((reales[w.id] - w.expected_time) / w.expected_time * 100)
 
         status = "pending"
-        if cur is not None and cur.real_time is not None:
-            status = MOTOR.estado_de_rendimiento(cur.real_time, cur.expected_time)
+        if cur_real is not None:
+            status = MOTOR.estado_de_rendimiento(cur_real, cur.expected_time)
         elif last_real is not None:
-            status = MOTOR.estado_de_rendimiento(last_real.real_time, last_real.expected_time)
+            status = MOTOR.estado_de_rendimiento(reales[last_real.id], last_real.expected_time)
         counts[status] = counts.get(status, 0) + 1
 
         total_improvement = event.current_time - event.goal_time
         progress = 0.0
         if last_real is not None and total_improvement > 0:
-            progress = (event.current_time - last_real.real_time) / total_improvement * 100
+            progress = (event.current_time - reales[last_real.id]) / total_improvement * 100
         statuses.append(AthleteStatusRow(
             athlete_plan_id=event.athlete_plan_id, swimmer_id=event.athlete_plan.swimmer_id,
             event_id=event.id, name=swimmer.name if swimmer else "—",
@@ -98,15 +105,15 @@ async def build_summary(
             event_label=event_label(event),
             expected_time=cur.expected_time if cur else event.goal_time,
             recalc_time=cur.recalc_time if cur else None,
-            real_time=cur.real_time if cur else None,
+            real_time=cur_real,
             status=status,
-            diff_seconds=round(cur.real_time - cur.expected_time, 2)
-            if cur and cur.real_time is not None else None,
+            diff_seconds=round(cur_real - cur.expected_time, 2)
+            if cur_real is not None else None,
             goal_time=event.goal_time, current_time=event.current_time,
             progress_percent=round(max(0.0, min(progress, 110.0)), 1),
         ))
 
-    progression_points = _team_progression(macro, events, current)
+    progression_points = _team_progression(macro, events, current, reales)
     fase_actual = macro.fase_de(current) if current else None
 
     return DashboardSummary(
@@ -152,6 +159,7 @@ async def build_summary(
 
 def _team_progression(
     macro: Macrociclo, events: list[AthleteEvent], current: int | None,
+    reales: dict[int, float],
 ) -> list[TeamWeekPoint]:
     """Promedio del % de mejora planificada vs. real acumulada del equipo."""
     points = []
@@ -167,9 +175,9 @@ def _team_progression(
             expected_fracs.append(
                 (event.current_time - week.expected_time) / total_improvement * 100
             )
-            if week.real_time is not None:
+            if week.id in reales:
                 real_fracs.append(
-                    (event.current_time - week.real_time) / total_improvement * 100
+                    (event.current_time - reales[week.id]) / total_improvement * 100
                 )
         points.append(TeamWeekPoint(
             week_number=week_n,
@@ -183,7 +191,7 @@ def _team_progression(
 
 
 async def team_week(
-    db: AsyncSession, repo: RepositorioDeMacrociclos,
+    db: AsyncSession, repo: RepositorioDeMacrociclos, resultados: RepositorioDeResultados,
     macro: Macrociclo, week_number: int,
 ) -> TeamWeekResponse:
     """La tabla de la semana del equipo. Solo llega aquí un entrenador.
@@ -196,6 +204,7 @@ async def team_week(
     """
     events = await repo.pruebas_de(macro.id)
     swimmers = await _swimmers_for(db, events)
+    reales = await resultados.reales_por_semana(events, macro.piscina)
     fase = macro.fase_de(week_number)
     phase = fase.nombre if fase is not None and fase.contiene(week_number) else None
     rows = []
@@ -213,13 +222,14 @@ async def team_week(
             continue
         effective = week.recalc_time if week.recalc_time is not None else week.expected_time
         pace = effective / (event.distance / 100)
+        real = reales.get(week.id)
         rows.append(TeamWeekZones(
             event_id=event.id, week_id=week.id, name=swimmer.name if swimmer else "—",
             specialty=specialty, event_label=event_label(event),
             expected_time=week.expected_time, pace_100m=round(pace, 2),
-            real_time=week.real_time,
-            status=MOTOR.estado_de_rendimiento(week.real_time, week.expected_time)
-            if week.real_time is not None else None,
+            real_time=real,
+            status=MOTOR.estado_de_rendimiento(real, week.expected_time)
+            if real is not None else None,
             zones=MOTOR.zonas(pace, event.distance, event.stroke, macro.piscina.value),
             zone_km=km_por_zona(week.planned_km, distancia=event.distance, especialidad=specialty),
             planned_km=week.planned_km, disabled=week.disabled,

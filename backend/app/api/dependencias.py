@@ -22,6 +22,7 @@ from app.persistencia.repositorios import (
     RepositorioDeCodigos,
     RepositorioDeEquipos,
     RepositorioDeMacrociclos,
+    RepositorioDeResultados,
     RepositorioDeTests,
     RepositorioDeUsuarios,
 )
@@ -32,6 +33,13 @@ async def repo_de_macrociclos(
     principal: Principal = Depends(get_current_principal),
 ) -> RepositorioDeMacrociclos:
     return RepositorioDeMacrociclos(db, principal)
+
+
+async def repo_de_resultados(
+    db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+) -> RepositorioDeResultados:
+    return RepositorioDeResultados(db, principal)
 
 
 async def repo_de_atletas(

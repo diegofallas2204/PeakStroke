@@ -36,7 +36,7 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
 ```
 
 ## Reglas de código (NO negociables)
-- **Un agregado se reparte en tres capas, no en una carpeta** (paso 5 del rediseño, 2026-08-25): su tabla en `app/persistencia/tablas/<agregado>.py`, su repositorio en `app/persistencia/repositorios/<agregado>.py`, y su router + schemas + presentación en `app/api/v1/<agregado>/`. **`app/modules/` ya no existe.** Hoy hay seis agregados —`atletas` · `codigos` · `equipos` · `macrociclos` · `tests_aerobicos` · `usuarios`— y ocho rebanadas de API (las seis + `simulador`, que no tiene tabla, + `vistas`)
+- **Un agregado se reparte en tres capas, no en una carpeta** (paso 5 del rediseño, 2026-08-25): su tabla en `app/persistencia/tablas/<agregado>.py`, su repositorio en `app/persistencia/repositorios/<agregado>.py`, y su router + schemas + presentación en `app/api/v1/<agregado>/`. **`app/modules/` ya no existe.** Hoy hay siete agregados —`atletas` · `codigos` · `equipos` · `macrociclos` · `resultados` · `tests_aerobicos` · `usuarios`— y ocho rebanadas de API (seis de ellos + `simulador`, que no tiene tabla, + `vistas`). `resultados` (C6) no tiene rebanada propia: lo leen `macrociclos` y `vistas` por su repositorio
 - **`app/api/v1/vistas/` son pantallas compuestas, NO agregados**: el tablero, la tabla del equipo y la comparación no tienen modelo, no escriben y no imponen ninguna regla. Leen de los repositorios y dan forma. Cuando el tablero era `modules/dashboard/` parecía un módulo de dominio y se comportaba como tal — importaba `plans.access`, `plans.service` y tres modelos para poder preguntar en qué semana iba un plan
 - **Feature backend nueva:** una tabla, un repositorio y una rebanada de API. Si no tiene tabla propia (como el simulador) es solo la rebanada; si no impone reglas ni escribe, es una vista
 - `router.py` nunca tiene lógica de negocio — recibe, delega al service, retorna
@@ -241,6 +241,12 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   datos hace imposible mezclar equipos aunque el código tenga un bug
 - **Nada se borra: se da de baja.** `swimmers.is_active`, `team_members.is_active`,
   `users.is_active`. `DELETE /swimmers/{id}` desactiva y devuelve el atleta
+- **El tiempo nadado es del atleta, no del plan** (C6, 2026-09-22): vive en
+  `resultados`, con FK al nadador y **ninguna** al plan, así que ni sacar a
+  alguien del macro ni borrar el macro lo tocan. La semana **no** guarda su
+  tiempo: promedia los resultados del atleta en esa prueba y esa semana,
+  convertidos a la piscina del macro. `weekly_plans.real_time` es una sombra que
+  se escribe y **no se lee**; se retira al empezar C7. No leerla nunca
 - `ondelete=CASCADE` solo donde hay composición real (plan → fases, test →
   parciales). El resto usa el defecto, que impide borrar mientras algo lo referencie
 

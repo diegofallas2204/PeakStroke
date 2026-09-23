@@ -14,7 +14,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencias import repo_de_macrociclos
+from app.api.dependencias import repo_de_macrociclos, repo_de_resultados
 from app.core.database import get_db
 from app.core.dates import age_at
 from app.core.guards import exigir_o_bypass, require_coach
@@ -22,7 +22,7 @@ from app.core.principal import Principal
 from app.dominio.entidades import Macrociclo
 from app.dominio.roles import Recurso
 from app.dominio.servicios.motor import fases_por_defecto
-from app.persistencia.repositorios import RepositorioDeMacrociclos
+from app.persistencia.repositorios import RepositorioDeMacrociclos, RepositorioDeResultados
 from app.persistencia.tablas.planes import Plan
 
 from . import inscripcion, nomina, semanas, service
@@ -221,18 +221,20 @@ async def restore_athlete(
 async def event_weeks(
     event_id: int,
     repo: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
+    resultados: RepositorioDeResultados = Depends(repo_de_resultados),
     db: AsyncSession = Depends(get_db),
 ):
     event = await repo.prueba(event_id)
     if event is None:
         raise HTTPException(404, "Prueba no encontrada")
-    return await semanas.event_weeks_response(db, event)
+    return await semanas.event_weeks_response(db, resultados, event)
 
 
 @router.patch("/weeks/{week_id}", response_model=list[WeekResponse])
 async def update_week(
     week_id: int, data: WeekUpdateRequest,
     repo: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
+    resultados: RepositorioDeResultados = Depends(repo_de_resultados),
     db: AsyncSession = Depends(get_db),
 ):
     # Sin require_coach a propósito: registrar el tiempo real de la semana es una
@@ -249,7 +251,7 @@ async def update_week(
     ):
         exigir_o_bypass(repo.principal, "entrenador para marcar el parón de una semana")
 
-    event = await semanas.update_week(db, repo, week_id, data)
+    event = await semanas.update_week(db, repo, resultados, week_id, data)
     if event is None:
         raise HTTPException(404, "Semana no encontrada")
-    return await semanas.event_weeks_response(db, event)
+    return await semanas.event_weeks_response(db, resultados, event)

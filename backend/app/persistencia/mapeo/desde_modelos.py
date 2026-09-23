@@ -28,8 +28,10 @@ from sqlalchemy import inspect
 from app.dominio.entidades import (
     Atleta,
     Competencia,
+    Contexto,
     FaseDelMacro,
     Macrociclo,
+    Resultado,
     TestAerobico,
 )
 from app.dominio.valores import (
@@ -40,11 +42,13 @@ from app.dominio.valores import (
     Genero,
     ModoDeIngreso,
     Piscina,
+    Prueba,
     Tiempo,
     TipoDeTest,
 )
 from app.persistencia.tablas.atletas import Swimmer
 from app.persistencia.tablas.planes import Competition, Plan, PlanPhase
+from app.persistencia.tablas.resultados import Result
 from app.persistencia.tablas.tests_aerobicos import AerobicTest
 
 
@@ -151,4 +155,19 @@ def test_desde_fila(fila: AerobicTest) -> TestAerobico | None:
         numeros=[s.split_time for s in fila.splits],
         notas=fila.notes,
         activo=fila.is_active,
+    )
+
+
+def resultado_desde_fila(fila: Result) -> Resultado:
+    """El estilo pasa por `Estilo.desde_texto`, así que una fila con el estilo
+    crudo (`"crol"`) sigue siendo la misma prueba que una con `"libre"`."""
+    return Resultado(
+        id=fila.id,
+        atleta_id=fila.swimmer_id,
+        prueba=Prueba(fila.distance, Estilo.desde_texto(fila.stroke)),
+        tiempo=Tiempo(fila.time),
+        fecha=fila.result_date,
+        piscina=Piscina.desde_texto(fila.pool),
+        contexto=Contexto.desde_texto(fila.context),
+        competencia_id=fila.competition_id,
     )

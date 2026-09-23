@@ -14,6 +14,7 @@ from .atletas import RepositorioDeAtletas
 from .codigos import RepositorioDeCodigos
 from .equipos import RepositorioDeEquipos
 from .macrociclos import RepositorioDeMacrociclos
+from .resultados import RepositorioDeResultados
 from .tests_aerobicos import RepositorioDeTests
 from .usuarios import RepositorioDeUsuarios
 
@@ -22,6 +23,7 @@ __all__ = [
     "RepositorioDeCodigos",
     "RepositorioDeEquipos",
     "RepositorioDeMacrociclos",
+    "RepositorioDeResultados",
     "RepositorioDeTests",
     "RepositorioDeUsuarios",
 ]
