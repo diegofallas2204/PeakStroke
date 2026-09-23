@@ -49,15 +49,26 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 
 ## Dónde estamos y qué sigue — medido el 2026-09-22
 
-**Los pasos 1 a 5 del rediseño son código.** `app/dominio/` tiene `valores/`,
+**Los pasos 1 a 6 del rediseño son código.** `app/dominio/` tiene `valores/`,
 `entidades/`, `roles/` y `servicios/`; el motor científico es **uno**
 (`app/domain/` borrado, `app/engine/` en dos módulos que nunca fueron motor); y
 desde C5 la estructura es la del §2: `app/modules/` **ya no existe** y en su
-lugar están `app/api/v1/` (ocho rebanadas), `app/persistencia/tablas/` (seis
-tablas) y `app/persistencia/repositorios/` (seis repositorios). Todo en la rama
-`feat/salida-y-alta-por-correo`. **Y desde el 2026-09-22 P3 también está
-cerrado**: las fases del macro son las cinco de la ciencia y la base guarda su
-clave (ver el bloque P3 más abajo).
+lugar están `app/api/v1/` (ocho rebanadas), `app/persistencia/tablas/` (siete
+tablas desde C6) y `app/persistencia/repositorios/` (siete repositorios). **Y
+desde el 2026-09-22 P3 y C6 también están cerrados**: las fases del macro son
+las cinco de la ciencia, y el tiempo nadado vive en `resultados` (ver sus
+bloques más abajo).
+
+**Dónde vive el código (2026-09-22).** Todo se hizo en la rama
+`feat/salida-y-alta-por-correo`, que **no compartía historia con `main`**: `main`
+era el prototipo del 2026-06-02 (`app/services/progression_engine.py`,
+`BITACORA.md`, `mockup.html`…) y el proyecto actual se empezó aparte el
+2026-06-12. Se unieron en la rama con `git merge -s ours --allow-unrelated-histories`
+(commit `674d5cc`): el árbol es el de la rama, sin tocar, y la historia de `main`
+queda como segundo padre. Eso hace posible el PR de la rama contra `main` en
+GitHub, que antes era imposible («entirely different commit histories»). **Cuando
+ese PR se fusione, se trabaja sobre `main`.** `Preliminar` es un antepasado viejo
+de la rama y no se tocó.
 
 | | |
 |---|---|
