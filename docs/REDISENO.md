@@ -746,6 +746,16 @@ atleta · fecha · stss · ctl · atl · tsb
 
 La nota 05 del vault, por fin construible.
 
+> **Construida el 2026-09-23 (C8)** como tabla `carga_diaria`, con dos enmiendas:
+> **sin columna `tsb`** (es CTL − ATL; una tercera columna podría discrepar), y
+> **sin `alerta_de_sobreentrenamiento()` en la fila**: las alertas miran rachas y
+> rampas de varios días, así que son de la serie (`banister.alertas`), no de un
+> día. Es un **derivado materializado**: lo escribe solo
+> `persistencia/repositorios/carga.recalcular`, en la misma transacción que la
+> sesión o el test que lo cambia, y un test comprueba que coincide con el cálculo
+> desde cero tras cualquier secuencia de escrituras. Se guarda por escala —muchas
+> lecturas, una escritura al día por atleta—, no porque sea un hecho.
+
 ### 5.13 Relaciones auxiliares
 
 ```
@@ -841,6 +851,22 @@ CargaAcumulada
   calcular(sesiones, desde, hasta) -> list[CargaDiaria]
   CTL = media exponencial 42 d · ATL = 7 d · TSB = CTL − ATL
 ```
+
+> **Construida el 2026-09-23 (C8)** en `dominio/servicios/banister.py`. Lo que
+> decidió el usuario, con los números delante:
+>
+> - **La carga es el sTSS** (`Sesion.carga(css)`, nota 05). El CSS es el del
+>   último test ≤ la fecha de la sesión; un T15 o un test libre solo a falta de
+>   otro (`TipoDeTest.mide_el_umbral`). Sin test previo, la sesión no entra y se
+>   cuenta aparte. Un día sin sesión es carga 0.
+> - **Arranque en equilibrio**: CTL₀ = ATL₀ = carga media de los primeros 14
+>   días. Con CTL₀ = 0, medido con el seed, un atleta que cumple su plan daba
+>   «fatiga sostenida» cada semana hasta el taper (la CTL tarda ~3τ en olvidar el
+>   cero). Es un supuesto —ya entrenaba a una carga parecida—, escrito como tal.
+> - **Alertas** (convención de la práctica, no ciencia revisada; umbrales de la
+>   nota 05 unificados): TSB < −25 advertencia, < −40 peligro, TSB < 0 más de 14
+>   días seguidos, y **rampa**: CTL +7 o más en una semana. Ninguna en los 14
+>   días del arranque.
 
 ---
 

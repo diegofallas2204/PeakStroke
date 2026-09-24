@@ -14,7 +14,7 @@ class LoadDay(BaseModel):
     tsb: float
     # `None` sin alerta o durante el calentamiento. "advertencia" | "peligro".
     alert: str | None = None
-    # "tsb_bajo" | "fatiga_sostenida"
+    # "tsb_bajo" | "fatiga_sostenida" | "rampa"
     reasons: list[str] = []
 
 
@@ -24,7 +24,8 @@ class TrainingLoadResponse(BaseModel):
     hasta: date
     # Primer día con carga. Sin sesiones con CSS no hay serie y vale `None`.
     history_start: date | None
-    # Menos de 42 días de historia a `hasta`: la curva se enseña, sin alertas.
+    # Menos de 14 días de historia a `hasta`: el arranque en equilibrio aún se
+    # está estimando; la curva se enseña, sin alertas.
     warming_up: bool
     # Sesiones anteriores al primer test aeróbico: sin CSS no tienen sTSS.
     sessions_without_css: int

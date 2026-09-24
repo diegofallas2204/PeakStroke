@@ -96,7 +96,7 @@ macrociclos, y ese se deja: su división natural llega con C6-C7.
 | ~~1~~ | ~~**C6 · `Resultado`**~~ | — | ✅ **HECHO el 2026-09-22.** Ver el bloque |
 | ~~2~~ | ~~**R7 · La curva sale de `plans`**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque R7, tras C6 |
 | ~~3~~ | ~~**C7 · `Sesion`**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque. Los mutadores (`dar_de_baja`, `inscribir`) **no** entraron: no los necesita la sesión y siguen pendientes |
-| 4 | **C8 · `CargaDiaria` + Banister** | bajo | Necesita C7 |
+| ~~4~~ | ~~**C8 · `CargaDiaria` + Banister**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque. Con C8 están hechos los ocho bloques de la parte C; siguen pendientes los mutadores (`dar_de_baja`, `inscribir`) |
 
 ### Cinco cabos sueltos concretos
 
@@ -2133,7 +2133,48 @@ Dime qué hace falta en el frontend para que esto sea usable, sin construirlo.
 
 ---
 
-## C8 · Carga de entrenamiento (Banister)
+## C8 · Carga de entrenamiento (Banister) — ✅ HECHO (2026-09-23)
+
+### Cómo quedó
+
+Decisiones del usuario: **carga = sTSS** (opción A de tres: sTSS, sRPE de
+Foster, TRIMP por zonas —imposible sin series—); **diseño que aguante miles de
+usuarios** sin perder la ciencia; **día sin sesión = 0**; **umbrales de la nota
+05 unificados**; y, tras ver el primer ejemplo, **arranque en equilibrio** en
+vez de CTL₀ = 0 más 42 días de calentamiento, y **alerta de rampa**.
+
+- `dominio/servicios/banister.py`: `EstadoDeCarga.avanzar` (la EWMA de la nota
+  05, con `1 − e^(−1/τ)`), `estado_inicial`, `serie`, `css_vigente`,
+  `alertas` y `CargaAcumulada.calcular`, la definición de referencia.
+- `carga_diaria` (migración `d921148a01ad`), PK `(swimmer_id, load_date)`:
+  derivado materializado. `repositorios/carga.recalcular` es lo único que la
+  escribe, **incremental** desde el día que cambia (serie entera si el cambio
+  cae en los 14 días del arranque), dentro de la transacción de la escritura
+  que lo provoca, con `FOR UPDATE` sobre el nadador para PostgreSQL. Lo que va
+  de la última sesión a hoy se calcula al leer (solo decae): no hay tarea
+  nocturna. `tools/recalcular_carga.py` la reconstruye entera.
+- `GET /api/v1/training-load/{swimmer_id}?desde&hasta` (90 días por defecto,
+  dos años como tope).
+- **Medido** sobre la base del seed: leer 90 días, 9,7 ms de mediana (listar
+  sesiones, 12,9); apuntar una sesión, ~40 ms, casi todo el commit; rehacer 42
+  días en vez de 1 añade ~6 ms.
+- `seed.py`: 256 sesiones sintéticas (el `planned_km` de cada semana, 5 por
+  semana, IF por fase de Allen & Coggan, RPE vacío).
+- **1020 tests**. `test_carga.py` fija que la tabla es el cálculo desde cero
+  tras crear, mover, borrar y tests que entran y salen.
+
+**El ejemplo** (Carlos, 200 libre; S1-S6 del seed, S7-S12 el plan cumplido con
+el mismo generador): arranca en CTL = ATL = 57,9, no salta nada hasta el bloque
+de umbral —S7, 39,5 km a IF 0,85: TSB −8,9 al cierre, dos días bajo −25—, la
+descarga de S8 arrastra seis días de «fatiga sostenida» y el taper lleva el TSB
+a **+26,2 la semana del Nacional**, en la ventana de forma de la nota 05. Con
+CTL₀ = 0 el mismo atleta daba alertas todas las semanas de S7 a S11.
+
+**Qué hace falta en el frontend** (no construido): la curva CTL/ATL/TSB por
+atleta (Recharts, eje de fecha + `S#`), con la franja de calentamiento, las
+alertas marcadas y el aviso de «N sesiones sin CSS: haz un test»; y el estado de
+hoy de cada atleta en la tabla del equipo, que pide un endpoint de equipo (hoy
+solo hay el de un atleta).
 
 > **R1 — CERRADA: entra, después de C7.** Y C7 después de C1–C6. Banister depende
 > de `Sesion`, **no de `Serie`**: el sTSS diario sale de fecha + carga.

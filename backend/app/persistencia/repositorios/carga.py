@@ -9,8 +9,10 @@ transacción: o se confirman el cambio y su carga, o ninguno.
 **Incremental.** El modelo es una recurrencia —cada día depende solo del
 anterior y de su carga—, así que un cambio en la fecha `d` deja intacto todo lo
 de antes. Se retoma del último día guardado anterior a `d` y se rehace hacia
-delante. Apuntar la sesión de hoy recalcula un día, no un año. Si no hay día
-anterior (el cambio toca el primero), se rehace la serie entera.
+delante. Apuntar la sesión de hoy recalcula un día, no un año. **Se rehace la
+serie entera** si no hay día anterior (el cambio toca el primero) o si el
+cambio cae en los primeros `DIAS_PARA_EQUILIBRIO`: de esos días sale el estado
+de arranque (`banister.estado_inicial`), y moverlos mueve la serie completa.
 
 **Concurrencia.** Dos escrituras del mismo atleta a la vez (él y su entrenador)
 se serializan bloqueando la fila del nadador (`FOR UPDATE`) antes de leer. En
@@ -28,10 +30,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.principal import Principal
 from app.dominio.servicios.banister import (
+    DIAS_PARA_EQUILIBRIO,
     DiaDeCarga,
-    EstadoDeCarga,
     MedicionDeCss,
     carga_por_dia,
+    estado_inicial,
     serie,
 )
 from app.persistencia.mapeo import medicion_desde_test, sesion_desde_fila
@@ -62,10 +65,14 @@ async def recalcular(db: AsyncSession, *, team_id: int, swimmer_id: int, desde: 
     await db.execute(select(Swimmer.id).where(Swimmer.id == swimmer_id).with_for_update())
     await db.flush()
 
-    previo = (await db.execute(
-        select(DailyLoad).where(DailyLoad.swimmer_id == swimmer_id, DailyLoad.load_date < desde)
-        .order_by(DailyLoad.load_date.desc()).limit(1)
-    )).scalar_one_or_none()
+    primero = (await db.execute(select(func.min(DailyLoad.load_date)).where(
+        DailyLoad.swimmer_id == swimmer_id))).scalar_one_or_none()
+    previo = None
+    if primero is not None and desde >= primero + timedelta(days=DIAS_PARA_EQUILIBRIO):
+        previo = (await db.execute(
+            select(DailyLoad).where(DailyLoad.swimmer_id == swimmer_id, DailyLoad.load_date < desde)
+            .order_by(DailyLoad.load_date.desc()).limit(1)
+        )).scalar_one_or_none()
     # Con día anterior, basta leer las sesiones de después; sin él, todas.
     stmt = select(SwimSession).where(SwimSession.swimmer_id == swimmer_id)
     if previo is not None:
@@ -79,8 +86,11 @@ async def recalcular(db: AsyncSession, *, team_id: int, swimmer_id: int, desde: 
     await db.execute(borrar)
 
     if cargas:
-        inicio = previo.load_date + timedelta(days=1) if previo is not None else min(cargas)
-        estado = _dia(previo).estado if previo is not None else EstadoDeCarga()
+        if previo is not None:
+            inicio, estado = previo.load_date + timedelta(days=1), _dia(previo).estado
+        else:
+            inicio = min(cargas)
+            estado = estado_inicial(cargas, inicio)
         db.add_all(
             DailyLoad(swimmer_id=swimmer_id, team_id=team_id, load_date=d.fecha,
                       stss=d.stss, ctl=d.ctl, atl=d.atl)

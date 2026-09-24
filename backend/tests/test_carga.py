@@ -9,6 +9,8 @@ Lo que fija este archivo, en el orden en que importa:
      secuencia de escrituras (crear, mover de fecha, borrar, tests que entran y
      salen). Es lo que hace seguro guardar un derivado.
   4. **Alertas con los umbrales unificados**, y ninguna durante el calentamiento.
+  5. **La serie arranca en equilibrio**: quien entrena a carga constante tiene
+     TSB 0 desde el primer día, no −30 durante meses.
 """
 from __future__ import annotations
 
@@ -22,6 +24,8 @@ from sqlalchemy import select
 from app.dominio.entidades import Sesion
 from app.dominio.servicios.banister import (
     DIAS_DE_CALENTAMIENTO,
+    DIAS_PARA_EQUILIBRIO,
+    RAMPA_MAXIMA_CTL_SEMANAL,
     TAU_ATL_DIAS,
     TAU_CTL_DIAS,
     CargaAcumulada,
@@ -33,6 +37,7 @@ from app.dominio.servicios.banister import (
     alertas,
     carga_por_dia,
     css_vigente,
+    estado_inicial,
     serie,
 )
 from app.dominio.valores import Ritmo, Tiempo, TipoDeTest
@@ -76,6 +81,20 @@ def test_sin_carga_solo_decae():
     dias = serie({}, D0, D0 + timedelta(9), EstadoDeCarga(70.0, 90.0))
     assert dias[-1].ctl == pytest.approx(70 * math.exp(-10 / 42))
     assert dias[-1].atl == pytest.approx(90 * math.exp(-10 / 7))
+
+
+# ── 5. El arranque en equilibrio ─────────────────────────────────────────────
+
+def test_el_equilibrio_es_la_media_de_la_ventana_con_los_descansos_en_cero():
+    cargas = {D0: 140.0, D0 + timedelta(3): 140.0, D0 + timedelta(DIAS_PARA_EQUILIBRIO): 999.0}
+    assert estado_inicial(cargas, D0) == EstadoDeCarga(20.0, 20.0)
+
+
+def test_a_carga_constante_el_tsb_es_cero_desde_el_primer_dia():
+    hora = Tiempo(3600)
+    sesiones = [Sesion(atleta_id=1, fecha=d, distancia_m=4000, duracion=hora) for d in _dias(60)]
+    dias, _ = CargaAcumulada.calcular(sesiones, [MedicionDeCss(D0, Ritmo(90.0))])
+    assert all(d.ctl == pytest.approx(100.0) and d.tsb == pytest.approx(0.0) for d in dias)
 
 
 # ── 2. El CSS de cada día ────────────────────────────────────────────────────
@@ -129,6 +148,20 @@ def test_umbrales_de_tsb(tsb, nivel):
     dias = _con_tsb([5.0, tsb])
     [*_, ultimo] = [None, *alertas(dias, inicio_de_historia=D0 - timedelta(100))]
     assert (ultimo.nivel if ultimo else None) == nivel
+
+
+def test_subir_la_ctl_mas_de_7_en_una_semana_es_rampa():
+    inicio = D0 - timedelta(100)
+
+    def con_ctl(ctls: list[float]) -> list[DiaDeCarga]:
+        return [DiaDeCarga(d, 0.0, c, c) for d, c in zip(_dias(len(ctls)), ctls, strict=True)]
+
+    justo = con_ctl([50.0] + [50.0] * 6 + [50.0 + RAMPA_MAXIMA_CTL_SEMANAL])
+    pasado = con_ctl([50.0] + [50.0] * 6 + [50.0 + RAMPA_MAXIMA_CTL_SEMANAL + 0.1])
+    assert alertas(justo, inicio) == []
+    [a] = alertas(pasado, inicio)
+    assert (a.fecha, a.nivel, a.motivos) == (
+        D0 + timedelta(7), NivelDeAlerta.ADVERTENCIA, (MotivoDeAlerta.RAMPA,))
 
 
 def test_mas_de_14_dias_seguidos_negativos_es_fatiga_sostenida():
@@ -187,6 +220,13 @@ async def test_la_tabla_es_el_calculo_desde_cero_tras_cualquier_escritura(client
     await _cuadra(db, world)
     assert len(await _tabla(db, world.sofia_swimmer_id)) == 9, "días de carga 0 incluidos"
 
+    # Dentro de la ventana de equilibrio: mueve el arranque, rehace la serie entera.
+    await _apuntar(client, world, lunes + timedelta(3), 5000, 5400)
+    await _cuadra(db, world)
+    # Fuera de ella: incremental.
+    ultima = await _apuntar(client, world, lunes + timedelta(20))
+    await _cuadra(db, world)
+
     # Anterior al test: no tiene CSS, no mueve nada.
     await _apuntar(client, world, lunes - timedelta(2))
     await _cuadra(db, world)
@@ -204,8 +244,11 @@ async def test_la_tabla_es_el_calculo_desde_cero_tras_cualquier_escritura(client
     assert creado.status_code == 201
     await _cuadra(db, world)
 
-    # Borrar la última: la serie termina en la anterior, no en un descanso colgando.
+    # Borrar una de en medio, y luego la última: la serie termina en la
+    # anterior, no en un descanso que quedó colgando.
     await client.delete(f"{API}/sessions/{b}", headers=owner)
+    await _cuadra(db, world)
+    await client.delete(f"{API}/sessions/{ultima}", headers=owner)
     await _cuadra(db, world)
     assert (await _tabla(db, world.sofia_swimmer_id))[-1][0] == lunes + timedelta(4)
 

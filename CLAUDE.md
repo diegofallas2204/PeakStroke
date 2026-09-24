@@ -40,7 +40,7 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
 - **`main` recibe solo fases completadas**: cuando lo que se está montando está entero, PR de `Preliminar` contra `main` con merge commit (no squash), y se sigue en `Preliminar` con lo siguiente. Nunca commitear directo en `main`
 
 ## Reglas de código (NO negociables)
-- **Un agregado se reparte en tres capas, no en una carpeta** (paso 5 del rediseño, 2026-08-25): su tabla en `app/persistencia/tablas/<agregado>.py`, su repositorio en `app/persistencia/repositorios/<agregado>.py`, y su router + schemas + presentación en `app/api/v1/<agregado>/`. **`app/modules/` ya no existe.** Hoy hay ocho agregados —`atletas` · `codigos` · `equipos` · `macrociclos` · `resultados` · `sesiones` · `tests_aerobicos` · `usuarios`— y nueve rebanadas de API (siete de ellos + `simulador`, que no tiene tabla, + `vistas`). `resultados` (C6) no tiene rebanada propia: lo leen `macrociclos` y `vistas` por su repositorio. `sesiones` (C7) es el primero cuyo repositorio **recibe y devuelve entidades** (`guardar(Sesion)`), no filas
+- **Un agregado se reparte en tres capas, no en una carpeta** (paso 5 del rediseño, 2026-08-25): su tabla en `app/persistencia/tablas/<agregado>.py`, su repositorio en `app/persistencia/repositorios/<agregado>.py`, y su router + schemas + presentación en `app/api/v1/<agregado>/`. **`app/modules/` ya no existe.** Hoy hay ocho agregados —`atletas` · `codigos` · `equipos` · `macrociclos` · `resultados` · `sesiones` · `tests_aerobicos` · `usuarios`— más la tabla derivada `carga_diaria`, y diez rebanadas de API (siete de ellos + `carga`, de solo lectura, + `simulador`, que no tiene tabla, + `vistas`). `resultados` (C6) no tiene rebanada propia: lo leen `macrociclos` y `vistas` por su repositorio. `sesiones` (C7) es el primero cuyo repositorio **recibe y devuelve entidades** (`guardar(Sesion)`), no filas
 - **`app/api/v1/vistas/` son pantallas compuestas, NO agregados**: el tablero, la tabla del equipo y la comparación no tienen modelo, no escriben y no imponen ninguna regla. Leen de los repositorios y dan forma. Cuando el tablero era `modules/dashboard/` parecía un módulo de dominio y se comportaba como tal — importaba `plans.access`, `plans.service` y tres modelos para poder preguntar en qué semana iba un plan
 - **Feature backend nueva:** una tabla, un repositorio y una rebanada de API. Si no tiene tabla propia (como el simulador) es solo la rebanada; si no impone reglas ni escribe, es una vista
 - `router.py` nunca tiene lógica de negocio — recibe, delega al service, retorna
@@ -113,6 +113,12 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
   existen: dan 422. Las fases por defecto las da el motor
   (`servicios/plan.fases_por_defecto`, la forma de `MACRO_15_FASES` escalada) y el
   asistente las pide a `GET /plans/default-phases` — no hay copia en el frontend
+- **Carga de entrenamiento = sTSS de la sesión** (`Sesion.carga(css)`), con el CSS
+  del último test ≤ esa fecha (T15/libre solo a falta de otro). Banister en
+  `dominio/servicios/banister.py`: la serie arranca **en equilibrio** (CTL₀ = ATL₀
+  = media de los primeros 14 días; con CTL₀ = 0 las alertas salían falsas durante
+  meses), y las alertas son TSB < −25 / < −40, TSB < 0 más de 14 días y CTL +7 en
+  una semana — convención de la práctica, no ciencia revisada, y en escala sTSS
 - **Proyección anual**: `MOTOR.proyectar_temporada()` (3 macros) → `POST
   /api/v1/simulator/season`. Estilo y piscina no entran: solo lee el techo
   realista de cada macro, que es de la distancia y el nivel
@@ -260,6 +266,12 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   a la semana ni al macro**: se encuentran por fecha. **Es la excepción a «nada
   se borra»**: se borra de verdad, porque es un registro que su dueño corrige y
   la carga de C8 se recalcula desde lo que haya
+- **`carga_diaria` es un derivado materializado** (C8, 2026-09-23): sTSS del día,
+  CTL y ATL de Banister. **La escribe solo `persistencia/repositorios/carga.recalcular`**,
+  y la llaman —antes de confirmar, en la misma transacción— las cuatro escrituras
+  que la cambian: guardar/borrar sesión y alta/baja de test aeróbico (el test fija
+  el CSS). Una escritura nueva que toque sesiones o tests **tiene que llamarla**;
+  `tests/test_carga.py` comprueba que la tabla es el cálculo desde cero
 - `ondelete=CASCADE` solo donde hay composición real (plan → fases, test →
   parciales). El resto usa el defecto, que impide borrar mientras algo lo referencie
 

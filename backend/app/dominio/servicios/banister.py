@@ -52,11 +52,28 @@ TSB_ADVERTENCIA = -25.0
 TSB_PELIGRO = -40.0
 DIAS_NEGATIVOS_SEGUIDOS = 14   # más de estos seguidos con TSB < 0: advertencia
 
-# Arranque en frío: con CTL₀ = ATL₀ = 0 la fatiga sube seis veces más rápido que
-# la forma, y cualquiera que empiece a apuntar sesiones cae a TSB ≈ −30 en una
-# semana. Hasta completar τ_CTL días de historia no hay alertas: la curva se
-# enseña, pero «calentando».
-DIAS_DE_CALENTAMIENTO = TAU_CTL_DIAS
+# Rampa (nota 05, «Valores de referencia de CTL»): «subir el CTL más de +7 por
+# semana aumenta el riesgo de lesión». Se compara la CTL de hoy con la de hace
+# siete días. Misma naturaleza que los umbrales de TSB: convención de la práctica.
+RAMPA_MAXIMA_CTL_SEMANAL = 7.0
+
+# ── Arranque en equilibrio (decidido 2026-09-23, tras medirlo en C8) ─────────
+#
+# Empezar en CTL₀ = ATL₀ = 0 es suponer que el atleta no había entrenado nunca.
+# La CTL (τ = 42) tarda ~3τ en olvidar ese cero, así que durante meses el TSB
+# sale artificialmente negativo y las alertas son falsas: medido con el seed, un
+# atleta que cumple su plan daba «fatiga sostenida» todas las semanas hasta el
+# taper. Se arranca en cambio en el punto fijo de la recurrencia: con carga
+# constante L, CTL = ATL = L. Se toma L = la carga media diaria de los primeros
+# DIAS_PARA_EQUILIBRIO días (los días sin sesión cuentan 0). **Es un supuesto,
+# no una medición**: que antes de apuntar nada ya entrenaba a una carga parecida.
+# Dos semanas porque son dos τ de la ATL y dos microciclos enteros, así que la
+# media no depende del día de la semana en que se empezó.
+DIAS_PARA_EQUILIBRIO = 14
+
+# Mientras esa media no está completa no hay alertas: la curva se enseña, pero
+# «calentando».
+DIAS_DE_CALENTAMIENTO = DIAS_PARA_EQUILIBRIO
 
 
 # ── Tipos ────────────────────────────────────────────────────────────────────
@@ -76,7 +93,7 @@ class MedicionDeCss:
 
 @dataclass(frozen=True, slots=True)
 class EstadoDeCarga:
-    """CTL y ATL al cierre de un día. El punto de partida de una serie es (0, 0)."""
+    """CTL y ATL al cierre de un día. Una serie arranca en `estado_inicial`."""
 
     ctl: float = 0.0
     atl: float = 0.0
@@ -119,6 +136,7 @@ class NivelDeAlerta(Enum):
 class MotivoDeAlerta(Enum):
     TSB_BAJO = "tsb_bajo"                   # TSB < −25 (o < −40: peligro)
     FATIGA_SOSTENIDA = "fatiga_sostenida"   # TSB < 0 más de 14 días seguidos
+    RAMPA = "rampa"                         # CTL sube más de 7 en una semana
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,14 +171,25 @@ def carga_por_dia(
     return cargas, sin_css
 
 
+def estado_inicial(cargas: Mapping[date, float], inicio: date) -> EstadoDeCarga:
+    """El equilibrio de arranque: CTL₀ = ATL₀ = carga media de los primeros días.
+
+    Ver `DIAS_PARA_EQUILIBRIO`. El denominador es fijo: un día sin sesión dentro
+    de la ventana es descanso, no un hueco que se salta.
+    """
+    total = sum(cargas.get(inicio + timedelta(days=i), 0.0) for i in range(DIAS_PARA_EQUILIBRIO))
+    media = total / DIAS_PARA_EQUILIBRIO
+    return EstadoDeCarga(media, media)
+
+
 def serie(
     cargas: Mapping[date, float], desde: date, hasta: date,
     previo: EstadoDeCarga | None = None,
 ) -> list[DiaDeCarga]:
     """Un `DiaDeCarga` por cada día de `[desde, hasta]`, partiendo de `previo`.
 
-    `previo` es el estado al cierre del día anterior a `desde` (sin él, 0 y 0:
-    el arranque de una serie). Encadenar dos
+    `previo` es el estado al cierre del día anterior a `desde` (sin él, 0 y 0;
+    una serie real arranca en `estado_inicial`). Encadenar dos
     tramos —el segundo con el último estado del primero— da exactamente lo mismo
     que calcularlos de una vez, y en eso se apoya el recálculo incremental.
     """
@@ -177,10 +206,12 @@ def serie(
 def alertas(dias: Sequence[DiaDeCarga], inicio_de_historia: date) -> list[Alerta]:
     """Las alertas de cada día de `dias` (consecutivos), fuera del calentamiento.
 
-    La racha de TSB negativo se cuenta dentro de `dias`: quien quiera saberla en
-    su primer día tiene que pasar los `DIAS_NEGATIVOS_SEGUIDOS` anteriores.
+    La racha de TSB negativo y la rampa se miran dentro de `dias`: quien las
+    quiera en su primer día tiene que pasar los `DIAS_NEGATIVOS_SEGUIDOS`
+    anteriores (que cubren también los siete de la rampa).
     """
     fin_del_calentamiento = inicio_de_historia + timedelta(days=DIAS_DE_CALENTAMIENTO)
+    ctl_de = {d.fecha: d.ctl for d in dias}
     resultado: list[Alerta] = []
     racha = 0
     for d in dias:
@@ -192,6 +223,9 @@ def alertas(dias: Sequence[DiaDeCarga], inicio_de_historia: date) -> list[Alerta
             motivos.append(MotivoDeAlerta.TSB_BAJO)
         if racha > DIAS_NEGATIVOS_SEGUIDOS:
             motivos.append(MotivoDeAlerta.FATIGA_SOSTENIDA)
+        hace_una_semana = ctl_de.get(d.fecha - timedelta(days=7))
+        if hace_una_semana is not None and d.ctl - hace_una_semana > RAMPA_MAXIMA_CTL_SEMANAL:
+            motivos.append(MotivoDeAlerta.RAMPA)
         if motivos:
             nivel = NivelDeAlerta.PELIGRO if d.tsb < TSB_PELIGRO else NivelDeAlerta.ADVERTENCIA
             resultado.append(Alerta(d.fecha, nivel, tuple(motivos)))
@@ -210,9 +244,11 @@ class CargaAcumulada:
         sesiones: Iterable[Sesion], mediciones: Sequence[MedicionDeCss],
         hasta: date | None = None,
     ) -> tuple[list[DiaDeCarga], int]:
-        """`(serie, sesiones sin CSS)`. La serie arranca el primer día con carga
-        y llega a `hasta` (por defecto, el último día con carga)."""
+        """`(serie, sesiones sin CSS)`. La serie arranca el primer día con carga,
+        en equilibrio (`estado_inicial`), y llega a `hasta` (por defecto, el
+        último día con carga)."""
         cargas, sin_css = carga_por_dia(sesiones, mediciones)
         if not cargas:
             return [], sin_css
-        return serie(cargas, min(cargas), hasta or max(cargas)), sin_css
+        inicio = min(cargas)
+        return serie(cargas, inicio, hasta or max(cargas), estado_inicial(cargas, inicio)), sin_css
