@@ -20,6 +20,7 @@ from app.api.v1.vistas.router import router as dashboard_router
 # Importado por su efecto: registra todos los modelos en Base.metadata para que
 # SQLAlchemy pueda resolver las FKs entre módulos (p. ej. swimmers -> teams).
 from app.core import model_registry  # noqa: F401
+from app.core.auditoria import MiddlewareDeAuditoria
 from app.core.config import settings
 from app.core.database import init_db
 from app.core.dev_identity import DEV_BYPASS_HEADER, DEV_USER_HEADER
@@ -32,6 +33,10 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title=settings.app_name, version=settings.version, lifespan=lifespan)
+
+# La auditoría envuelve cada petición: apunta durante y escribe al terminar, ya
+# enviada la respuesta. Ver `core/auditoria.py`.
+app.add_middleware(MiddlewareDeAuditoria)
 
 app.add_middleware(
     CORSMiddleware,

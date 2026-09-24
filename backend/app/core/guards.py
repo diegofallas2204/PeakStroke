@@ -12,6 +12,7 @@ from typing import Any
 
 from fastapi import Depends, HTTPException, status
 
+from app.core.auditoria import TipoDeEvento, auditar
 from app.core.dependencies import get_current_principal
 from app.core.principal import Principal
 from app.persistencia.tablas.equipos import ROLE_COACH
@@ -75,6 +76,12 @@ def exigir_o_bypass(principal: Principal, exigido: str) -> None:
         logger.warning(
             "MODO DESARROLLADOR: %s (%s) se salta el guard de %s",
             principal.user.email, principal.role, exigido,
+        )
+        # Y queda en la auditoría, que sobrevive al scroll de la consola: un
+        # `dev.bypass` en una base que no sea de desarrollo es una alarma.
+        auditar(
+            TipoDeEvento.DEV_BYPASS, principal,
+            detalle=f"{principal.role} se salta el guard de {exigido}",
         )
         return
     raise HTTPException(

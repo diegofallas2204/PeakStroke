@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencias import repo_de_macrociclos, repo_de_resultados
+from app.core.auditoria import TipoDeEvento, auditar
 from app.core.database import get_db
 from app.core.dates import age_at
 from app.core.guards import exigir_o_bypass, require_coach, require_team_owner
@@ -126,7 +127,7 @@ async def update_plan(
 @router.delete("/{plan_id}", status_code=204)
 async def delete_plan(
     plan_id: int,
-    _dueno: Principal = Depends(require_team_owner),
+    dueno: Principal = Depends(require_team_owner),
     repo: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
 ):
     """Borra el macrociclo. **Solo el dueño** y **409 si tiene tests aeróbicos colgando.**
@@ -147,6 +148,8 @@ async def delete_plan(
             f"Este macrociclo tiene {bloqueantes} test(s) aeróbico(s) asociados. "
             "Dales de baja o muévelos a otro macrociclo antes de borrarlo."
         ))
+    # Es un borrado de verdad, no una baja: el registro es lo único que queda.
+    auditar(TipoDeEvento.MACROCICLO_BORRADO, dueno, objetivo=("plan", plan_id))
 
 
 @router.get("/{plan_id}/assignable-athletes", response_model=list[AssignableAthlete])
@@ -209,6 +212,10 @@ async def remove_athlete(
     await _macro_o_404(repo, plan_id)
     if not await nomina.remove_athlete(repo, plan_id, athlete_plan_id):
         raise HTTPException(404, "Atleta no encontrado en este macrociclo")
+    auditar(
+        TipoDeEvento.INSCRIPCION_BAJA, coach, objetivo=("athlete_plan", athlete_plan_id),
+        detalle=f"del macrociclo {plan_id}",
+    )
 
 
 @router.post("/{plan_id}/athletes/{athlete_plan_id}/restore", status_code=204)
@@ -231,6 +238,10 @@ async def restore_athlete(
         ))
     if not await nomina.restore_athlete(repo, plan_id, athlete_plan_id):
         raise HTTPException(404, "No hay ninguna inscripción dada de baja con ese id")
+    auditar(
+        TipoDeEvento.INSCRIPCION_RESTAURADA, coach,
+        objetivo=("athlete_plan", athlete_plan_id), detalle=f"al macrociclo {plan_id}",
+    )
 
 
 @router.get("/events/{event_id}/weeks", response_model=list[WeekResponse])

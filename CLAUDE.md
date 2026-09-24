@@ -277,6 +277,31 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
 - `ondelete=CASCADE` solo donde hay composición real (plan → fases, test →
   parciales). El resto usa el defecto, que impide borrar mientras algo lo referencie
 
+## Auditoría (D0, 2026-09-24)
+- **Un evento de seguridad = `auditar(TipoDeEvento.X, quien, ...)`** (`core/auditoria.py`),
+  llamado en el router **después** de que la operación se confirme. Es síncrona y
+  no toca la base: apunta en el contexto de la petición, y `MiddlewareDeAuditoria`
+  lo escribe en una sesión propia **cuando la respuesta ya salió**. Si escribir
+  falla, la petición ya terminó bien y el log recibe un `ERROR` con los eventos
+  perdidos. Medido: +0,03 ms en una petición sin eventos; con uno, la respuesta
+  sale igual de rápido y el volcado ocupa ~11 ms del proceso después
+- **Una operación nueva que sea de seguridad** (acceso, pertenencia, propiedad,
+  bajas, borrados de verdad) **añade su `TipoDeEvento` y su `auditar`**. Si es de
+  acceso, va también en `TIPOS_DE_ACCESO` y en la vista (`test_auditoria_vistas.py`
+  compara los dos)
+- `auditoria` es **append-only por trigger**: la base rechaza `UPDATE`, y `DELETE`
+  de lo que tenga menos de 24 meses. La única escritura que borra es
+  `tools/purgar_auditoria.py` (cron mensual). Sin FKs: el rastro sobrevive a lo
+  que describe, y el correo del actor va denormalizado
+- **Una IP nunca llega entera al disco** (R11, opción C): red truncada (/24, /48)
+  + HMAC con una clave que rota cada 30 días y se BORRA al rotar
+  (`claves_de_auditoria`). El user-agent, solo como familia («Chrome · Windows»).
+  `X-Forwarded-For` se ignora hasta que haya un proxy de confianza
+- **`v_admin_accesos` · `v_admin_cuentas` · `v_admin_equipos` son el único
+  contrato de lectura de PSAdmin.** Ninguna lee tablas deportivas ni la de
+  claves; `test_auditoria_vistas.py` fija qué tablas lee y qué columnas expone
+  cada una. Cambiar una vista es una migración, no un `CREATE VIEW` a mano
+
 ## Esquema de base de datos
 - **Alembic es la única fuente del esquema.** `init_db()` ya no hace `create_all()`:
   solo avisa por log si la DB no está en `head`
@@ -292,6 +317,11 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
 - Toda tabla o columna nueva requiere su migración; `--autogenerate` compara contra
   los modelos importados en `alembic/env.py` (si no está importado ahí, es invisible)
 - `render_as_batch=True` para SQLite (no sabe hacer `ALTER COLUMN`)
+- **Las vistas no están en el metadata**: `seed.py` las borra aparte antes de
+  `drop_all` (si no, la migración que las crea revienta con "view already
+  exists"). Y `env.py` llama a `fileConfig(..., disable_existing_loggers=False)`:
+  con el valor por defecto, migrar dentro del proceso (tests, seed) apagaba
+  todos los loggers de la app
 - Reglas de portabilidad SQLite→PostgreSQL: nada de `JSONB`/`citext`/enums nativos,
   emails normalizados a minúsculas en el service, `DateTime(timezone=True)` siempre
 

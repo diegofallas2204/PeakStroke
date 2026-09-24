@@ -11,6 +11,7 @@ Se migran de uno en uno.
 from __future__ import annotations
 
 from .atletas import RepositorioDeAtletas
+from .auditoria import RepositorioDeAuditoria
 from .carga import RepositorioDeCarga
 from .codigos import RepositorioDeCodigos
 from .equipos import RepositorioDeEquipos
@@ -22,6 +23,7 @@ from .usuarios import RepositorioDeUsuarios
 
 __all__ = [
     "RepositorioDeAtletas",
+    "RepositorioDeAuditoria",
     "RepositorioDeCarga",
     "RepositorioDeCodigos",
     "RepositorioDeEquipos",

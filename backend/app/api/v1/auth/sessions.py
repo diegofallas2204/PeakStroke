@@ -12,10 +12,12 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auditoria import TipoDeEvento, auditar
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import TokenError, create_access_token, create_refresh_token, decode_token
 from app.persistencia.repositorios import RepositorioDeEquipos
+from app.persistencia.repositorios.usuarios import normalizar_correo
 from app.persistencia.tablas.usuarios import User
 
 from . import service
@@ -73,10 +75,22 @@ async def _issue_session(db: AsyncSession, response: Response, user: User) -> Se
 
 @router.post("/login", response_model=SessionResponse)
 async def login(data: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
-    user = await service.authenticate(db, data.email, data.password)
+    user, motivo = await service.comprobar_credenciales(db, data.email, data.password)
     if user is None:
+        # El correo TECLEADO, exista o no: es lo que deja ver un barrido.
+        auditar(
+            TipoDeEvento.LOGIN, correo=normalizar_correo(data.email),
+            fallo=True, detalle=motivo,
+        )
         raise _BAD_CREDENTIALS
-    return await _issue_session(db, response, user)
+    try:
+        sesion = await _issue_session(db, response, user)
+    except HTTPException:
+        # La contraseña era buena, pero el club le revocó el acceso.
+        auditar(TipoDeEvento.LOGIN, user, fallo=True, detalle="acceso_revocado")
+        raise
+    auditar(TipoDeEvento.LOGIN, user, equipo=sesion.user.team_id)
+    return sesion
 
 
 @router.post("/refresh", response_model=SessionResponse)
@@ -122,6 +136,15 @@ async def refresh(request: Request, response: Response, db: AsyncSession = Depen
             user.email, claims.rotation, user.refresh_rotation,
         )
         await service.revoke_sessions(db, user)
+        # El evento más importante del registro: un refresh gastado que vuelve
+        # es una cookie copiada. `fallo` porque el refresh se rechazó.
+        auditar(
+            TipoDeEvento.REFRESH_REUSADO, user, fallo=True,
+            detalle=(
+                f"rotación {claims.rotation}, esperada {user.refresh_rotation}: "
+                "se revocan todas las sesiones"
+            ),
+        )
         response.delete_cookie(settings.refresh_cookie_name, path="/api/v1/auth")
         raise _BAD_CREDENTIALS
 
@@ -151,4 +174,5 @@ async def logout(request: Request, response: Response, db: AsyncSession = Depend
             user = await service.get_user(db, claims.user_id)
             if user is not None:
                 await service.revoke_sessions(db, user)
+                auditar(TipoDeEvento.LOGOUT, user, detalle="se revocan todas las sesiones")
     response.delete_cookie(settings.refresh_cookie_name, path="/api/v1/auth")

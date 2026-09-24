@@ -77,20 +77,31 @@ async def authenticate(db: AsyncSession, email: str, password: str) -> User | No
     desactivada": distinguirlos en la respuesta permitiría enumerar qué emails
     están registrados.
     """
+    user, _ = await comprobar_credenciales(db, email, password)
+    return user
+
+
+async def comprobar_credenciales(
+    db: AsyncSession, email: str, password: str,
+) -> tuple[User | None, str]:
+    """Como `authenticate`, y además **por qué** no: para la auditoría, NUNCA
+    para la respuesta, que sigue siendo el mismo 401. Cincuenta
+    `cuenta_inexistente` son un barrido; cincuenta `password_incorrecta` sobre
+    una cuenta, un ataque a esa cuenta."""
     usuarios = RepositorioDeUsuarios(db)
     user = await usuarios.por_correo(email)
     if user is None:
         # Hash de descarte para que la respuesta tarde lo mismo exista o no el
         # usuario. Sin esto, el tiempo de respuesta delata qué emails son reales.
         hash_password(password)
-        return None
+        return None, "cuenta_inexistente"
     if not verify_password(password, user.password_hash):
-        return None
+        return None, "password_incorrecta"
     if not user.is_active:
-        return None
+        return None, "cuenta_desactivada"
 
     nuevo = hash_password(password) if needs_rehash(user.password_hash) else None
-    return await usuarios.marcar_login(user, nuevo_hash=nuevo)
+    return await usuarios.marcar_login(user, nuevo_hash=nuevo), ""
 
 
 # --- Miembros del equipo (sección Perfil) -----------------------------------

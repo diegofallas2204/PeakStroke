@@ -22,6 +22,7 @@ import random
 from datetime import date, timedelta
 from pathlib import Path
 
+import sqlalchemy as sa
 from sqlalchemy import select
 
 # Poblar `Base.metadata` con TODOS los modelos, no solo los que este archivo
@@ -198,6 +199,12 @@ async def reset_schema() -> None:
         # Con las FKs activas (lo están desde `core/database.py`) no hay ningún
         # orden de borrado válido: teams y team_members se referencian en ciclo.
         await conn.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        # Las vistas `v_admin_*` (D0) no están en el metadata: `drop_all` no las
+        # conoce, sobrevivirían a sus tablas y la migración que las crea
+        # reventaría con "view already exists".
+        vistas = await conn.run_sync(lambda c: sa.inspect(c).get_view_names())
+        for vista in vistas:
+            await conn.exec_driver_sql(f"DROP VIEW {vista}")
         await conn.run_sync(Base.metadata.drop_all)
         await conn.exec_driver_sql("DROP TABLE IF EXISTS alembic_version")
     await engine.dispose()

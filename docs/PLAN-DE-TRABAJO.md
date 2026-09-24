@@ -2307,9 +2307,59 @@ Leer no destruye; por eso mirar puede ser cómodo y tocar no necesita serlo.
 
 ---
 
-## D0 · La auditoría (va en PeakStroke, no en PSAdmin)
+## D0 · La auditoría (va en PeakStroke, no en PSAdmin) — ✅ HECHO (2026-09-24)
 
 **Prioridad: PRIMERO de la parte D, y útil por sí sola.**
+
+### Cómo quedó
+
+**R11 cerrada por el usuario: opción C, 24 meses.** De las tres que se le
+propusieron (A: solo la red truncada; B: IP completa N días y luego truncarla,
+que rompe el append-only; C: red truncada + HMAC con clave rotatoria), C es la
+única que deja correlacionar intentos sin que una IP completa exista en disco.
+Una regla "solo para menores" no se podía aplicar: en un login fallido todavía
+no se sabe de quién es la cuenta.
+
+- **Tabla `auditoria`** (migración `e3a9d0c41b7f`), un evento por fila, sin FKs,
+  actor denormalizado (id + correo de ese momento). **Append-only por trigger**
+  en SQLite y en PostgreSQL: `UPDATE` rechazado siempre, `DELETE` rechazado
+  sobre lo que tenga menos de 24 meses (y `TRUNCATE` en PostgreSQL).
+  `tools/purgar_auditoria.py` es la única escritura que borra, y se audita.
+- **Privacidad**: `ip_network` (/24 · /48), `ip_hash` (HMAC-SHA256 recortado,
+  clave por periodo de 30 días en `claves_de_auditoria`, **borrada al rotar**),
+  `user_agent` como familia. Límite escrito: con la clave del periodo en curso,
+  las huellas IPv4 de ese periodo se deshacen por fuerza bruta. La clave no está
+  en ninguna vista.
+- **21 tipos de evento** (`core/auditoria.TipoDeEvento`): los del prompt más
+  tres que el prompt no nombraba y son de seguridad —`cuenta.creada`,
+  `macrociclo.borrado` (borrado de verdad desde R4) y `codigo.canjeado` con
+  `fallo` (probar códigos)—, y `auditoria.purgada`.
+- **Nunca tumba la petición**: `auditar()` solo apunta; el middleware ASGI
+  escribe en su propia sesión cuando la respuesta ya salió, y un fallo deja un
+  `ERROR` con los eventos perdidos. **Medido** (base del seed, N = 400,
+  medianas): petición sin eventos +0,025 ms (ruido); con un evento, la respuesta
+  sale a los 5,3 ms igual que sin auditoría y el volcado termina 11 ms después.
+- **Vistas** `v_admin_accesos` · `v_admin_cuentas` (con `status`: activa ·
+  revocada · sin_equipo · desactivada) · `v_admin_equipos` (conteos de personas;
+  **ni macrociclos ni tests**, que ya dicen cuánto entrena un club).
+  `test_auditoria_vistas.py` fija tablas leídas y columnas expuestas.
+- **1065 tests** (40 nuevos). `alembic check` limpio; subir, bajar, subir y
+  `seed.py` probados en una base desechable.
+
+**Dos arreglos que salieron de construirlo**: `seed.py` borra las vistas antes
+de `drop_all` (no están en el metadata), y `alembic/env.py` ya no apaga los
+loggers de la app al migrar dentro del proceso — con eso, el aviso de fallo de
+la auditoría salía mudo en los tests.
+
+**Lo que NO se hizo:**
+- **La rama PostgreSQL de la migración no se ha ejecutado nunca** (Docker
+  Desktop instalado pero sin el daemon). Probarla antes de D2.
+- **La actividad no tiene vista.** Los eventos que no son de acceso (roles,
+  revocaciones, bajas, códigos, transferencias) están en `auditoria` pero en
+  ninguna `v_admin_*`, así que PSAdmin todavía no puede responder «¿quién revocó
+  a este atleta?». Pide una cuarta vista (`v_admin_actividad`), que el prompt no
+  incluía: decidir antes de D3.
+- Los 403 de los guards no se registran; solo el `dev.bypass`.
 
 ### Qué pasa
 
@@ -2615,7 +2665,7 @@ cuáles siguen sin respuesta.
 | # | Decisión | Recomendación |
 |---|---|---|
 | **R10** | ¿Túnel SSH o red privada (Tailscale/WireGuard)? | **Tailscale** para dos personas: casi tan fuerte y mucho más cómodo. SSH si el segundo perfil es esporádico |
-| **R11** | Política de retención de la auditoría | **Pendiente.** Hay IPs y hay cuentas de menores. Hay que decidirlo, no heredarlo |
+| ~~**R11**~~ | Política de retención de la auditoría | ✅ **Cerrada el 2026-09-24: opción C, 24 meses.** Red truncada + HMAC con clave rotatoria de 30 días; ver D0 |
 | **R12** | ¿PSAdmin espera a PostgreSQL? | La barrera 4 (usuario de solo lectura) **solo es real en PostgreSQL**. D0 y D1 no dependen de eso; D2 y D3 sí. **R8 se cerró el 2026-08-16 como "SQLite, y el cambio va después de C6"**, así que D2 y D3 esperan a esa migración — que ahora tiene un disparador de despliegue, no de rediseño |
 
 > **Nota (2026-08-16).** R1–R8 están cerradas; ver C0 y la §10 de `docs/REDISENO.md`.

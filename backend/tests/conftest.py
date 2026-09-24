@@ -160,8 +160,20 @@ async def _wipe() -> None:
     """
     async with engine.begin() as conn:
         await conn.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        # `auditoria` es append-only por trigger (D0): vaciarla es justo lo que
+        # la base rechaza. Se apartan los triggers, se vacía y se reponen con
+        # el SQL que guarda la propia base — así el test no tiene una copia
+        # que pueda divergir de la migración.
+        triggers = (await conn.exec_driver_sql(
+            "SELECT name, sql FROM sqlite_master "
+            "WHERE type = 'trigger' AND tbl_name = 'auditoria'",
+        )).all()
+        for nombre, _ in triggers:
+            await conn.exec_driver_sql(f"DROP TRIGGER {nombre}")
         for table in reversed(Base.metadata.sorted_tables):
             await conn.execute(table.delete())
+        for _, sql in triggers:
+            await conn.exec_driver_sql(sql)
     await engine.dispose()
 
 
