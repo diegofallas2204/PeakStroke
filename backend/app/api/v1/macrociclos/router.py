@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencias import repo_de_macrociclos, repo_de_resultados
 from app.core.database import get_db
 from app.core.dates import age_at
-from app.core.guards import exigir_o_bypass, require_coach
+from app.core.guards import exigir_o_bypass, require_coach, require_team_owner
 from app.core.principal import Principal
 from app.dominio.entidades import Macrociclo
 from app.dominio.roles import Recurso
@@ -110,16 +110,32 @@ async def update_plan(
     db: AsyncSession = Depends(get_db),
 ):
     fila = await _fila_o_404(repo, plan_id)
+    # Cambiar la meta del macro es de dueño (R4), el resto de la edición no:
+    # un asistente activa, suspende y anota los macros que lleva. Se mira si el
+    # valor CAMBIA, no si viaja, para que reenviar el formulario entero con la
+    # meta intacta no le cueste un 403. Después del 404: un macro ajeno sigue
+    # siendo ajeno antes que prohibido.
+    cambia_la_meta = (
+        "main_event" in data.model_fields_set and data.main_event != fila.main_event
+    )
+    if cambia_la_meta and not coach.is_owner:
+        exigir_o_bypass(coach, "dueño del equipo para cambiar la meta del macrociclo")
     return await service.to_plan_response(db, await service.update_plan(repo, fila, data), coach)
 
 
 @router.delete("/{plan_id}", status_code=204)
 async def delete_plan(
     plan_id: int,
-    coach: Principal = Depends(require_coach),
+    _dueno: Principal = Depends(require_team_owner),
     repo: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
 ):
-    """Borra el macrociclo. **409 si tiene tests aeróbicos colgando.**
+    """Borra el macrociclo. **Solo el dueño** y **409 si tiene tests aeróbicos colgando.**
+
+    Solo el dueño desde R4 (decidida el 2026-08-16, aplicada el 2026-09-24):
+    `plan_coaches` dice quién **ve** un macro, no quién puede hacerlo
+    desaparecer. Con `require_coach`, el asistente borraba el macro que llevaba.
+    El 403 sale antes de buscar el plan, igual para cualquier id: dice que el
+    rol no alcanza, no que el macro exista.
 
     No se borran en cascada a propósito: un test es una medición del atleta en
     una fecha, no una parte del macrociclo. Que el entrenador decida qué hacer

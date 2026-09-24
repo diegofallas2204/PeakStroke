@@ -236,6 +236,8 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
 - **`plan_coaches` decide visibilidad**: un entrenador que no esté en la lista no
   ve ni edita ese macrociclo. **Excepción: el dueño**, que llega a todos — sin eso
   los planes de un entrenador que se va quedarían huérfanos
+- **Ver no es poder borrar** (R4, 2026-09-24): borrar un macrociclo y cambiar
+  su meta (`main_event`) son **de dueño**, aunque el asistente lo lleve
 - **Toda consulta pasa por `Principal`** (`core/principal.py`): usuario +
   pertenencia + propiedad. `RepositorioDeMacrociclos.acotar()` es la única
   puerta a los macrociclos; nada la esquiva. El repositorio **se construye con

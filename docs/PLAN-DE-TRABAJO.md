@@ -97,6 +97,7 @@ macrociclos, y ese se deja: su división natural llega con C6-C7.
 | ~~2~~ | ~~**R7 · La curva sale de `plans`**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque R7, tras C6 |
 | ~~3~~ | ~~**C7 · `Sesion`**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque. Los mutadores (`dar_de_baja`, `inscribir`) **no** entraron: no los necesita la sesión y siguen pendientes |
 | ~~4~~ | ~~**C8 · `CargaDiaria` + Banister**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque. Con C8 están hechos los ocho bloques de la parte C; siguen pendientes los mutadores (`dar_de_baja`, `inscribir`) |
+| ~~5~~ | ~~**C3 · R4 y R5.4**~~ | — | ✅ **HECHO el 2026-09-24.** Estaban asignados a C3 desde C0 y no habían entrado. **R5.3 (`redeem`) sigue abierta**: ver el bloque C3 |
 
 ### Cinco cabos sueltos concretos
 
@@ -1216,7 +1217,23 @@ y `to_plan_response` a una vista.
 
 ---
 
-## C3 · Los roles
+## C3 · Los roles — ✅ HECHO (2026-08-17; R4 y R5.4 el 2026-09-24)
+
+### Cómo quedó
+
+La jerarquía (`app/dominio/roles/`, `Principal` compone el rol) entró el
+2026-08-17 en `6e48406`. **Los arreglos que C0 le asignó no entraron entonces**
+y se aplicaron el 2026-09-24, al revisar si la parte C estaba cerrada:
+
+- **R4**: `DELETE /plans/{id}` pasa a `require_team_owner`, y
+  `PATCH /plans/{id}` exige ser dueño **si cambia `main_event`** (cambiarlo, no
+  reenviarlo igual). No existía, ni existía en C0, ningún endpoint que cambie el
+  `goal_time` de una prueba: se fija al inscribir. El botón de borrar del
+  frontend se esconde a quien no es dueño.
+- **R5.4**: `_principal_for` usa `one_or_none()`. Un test simula la segunda
+  pertenencia (la `UNIQUE` impide crearla) y falla con `.first()`.
+- **R5.3 sigue abierta a propósito**: invertir los `elif` de `redeem` choca con
+  «revocado ≠ sin equipo» y pide decisión, no un arreglo mecánico.
 
 ### Qué pasa
 

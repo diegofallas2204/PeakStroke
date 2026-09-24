@@ -469,6 +469,9 @@ meta no).
 > reconocer que ya eran de dueño y estaban mal guardadas. Un rol más añadiría
 > una tercera pregunta a cada escritura, que es como se abrió el agujero del
 > scoping del atleta.
+>
+> **Aplicada el 2026-09-24.** «Cambiar la meta» es cambiar `main_event` en
+> `PATCH /plans/{id}`: el `goal_time` de una prueba no se edita por ninguna ruta.
 
 ---
 
@@ -1061,6 +1064,8 @@ cuerpo; se listan aquí para que se vean juntas.
    consulta atiende al club equivocado **sin fallar**. `one_or_none()` cuesta lo
    mismo y convierte una fuga silenciosa en un error inmediato. `plans/access.py:73`
    ya tuvo que codificarse a la defensiva anticipando ese cambio.
+   **Aplicado el 2026-09-24.** El 3 (`redeem`) sigue sin aplicar: choca con
+   «revocado ≠ sin equipo» (CLAUDE.md) y se decide aparte.
 5. **El ejemplo de §4.1 se cambió** por el del atleta que asciende a entrenador.
    El anterior argumentaba desde dos casos que el propio modelo prohíbe.
 
