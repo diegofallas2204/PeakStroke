@@ -49,6 +49,17 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 
 ## Dónde estamos y qué sigue — medido el 2026-09-22
 
+> **Actualizado el 2026-09-25.** La **parte C está cerrada entera**: C8 y los
+> arreglos R4 y R5.4 que C0 le había asignado a C3 y nunca entraron. **D0 también
+> está cerrado**: auditoría append-only, cuatro vistas `v_admin_*`, R11 decidida
+> (opción C, 24 meses) y probado en PostgreSQL, lo que obligó a arreglar tres
+> migraciones y añadir `b2d7f5a8c1e4`. Todo va en el **PR #3 (`Preliminar` →
+> `main`)**, que estaba abierto al cerrar la sesión. 1069 tests.
+> **Lo siguiente es D1** (CLI de operaciones): antes del prompt, leer «Antes de
+> ejecutarlo», que tiene dos decisiones pendientes. Siguen abiertos R5.3 (orden de
+> las comprobaciones en `redeem`), los mutadores `dar_de_baja`/`inscribir` y las
+> pantallas de C7/C8.
+
 **Los pasos 1 a 6 del rediseño son código.** `app/dominio/` tiene `valores/`,
 `entidades/`, `roles/` y `servicios/`; el motor científico es **uno**
 (`app/domain/` borrado, `app/engine/` en dos módulos que nunca fueron motor); y
@@ -2485,6 +2496,45 @@ documento entero, y ya la tienes a medias en `tools/create_user.py`.
 ### Riesgo
 
 **Bajo.** Amplía un patrón que ya existe.
+
+### Antes de ejecutarlo — anotado al cerrar D0 (2026-09-25)
+
+El prompt de abajo se escribió antes de que D0 existiera. Lo que hoy es distinto,
+y dos decisiones que conviene tomar **antes** de escribir código:
+
+1. **Cómo audita un script ya está resuelto**: `async with
+   contexto_de_auditoria(...)` y dentro `auditar(TipoDeEvento.X, ...)`. Lo usa
+   `tools/purgar_auditoria.py`, que es el ejemplo a copiar. Al cerrar el contexto
+   se escribe todo lo apuntado.
+2. **DECIDIR: cómo se registra un actor que no es una cuenta.** El prompt pide
+   anotar «el usuario del sistema operativo y desde dónde», pero `auditar()`
+   solo sabe de `Principal`/`User` o de un `correo`. Y `user_agent` pasa por
+   `familia_de()`, que solo reconoce navegadores: `"tools/…"` queda como `otro`.
+   Opciones: un prefijo en `actor_email` (`os:diego@host`), el origen en
+   `detail`, o una columna `origin` nueva, que es migración y cambia las vistas.
+3. **Un tipo de evento nuevo cae solo en `v_admin_actividad`** (esa vista es
+   «todo lo que no es acceso»). Si alguno es de acceso —por ejemplo forzar la
+   revocación de sesiones o resetear una contraseña—, va en `TIPOS_DE_ACCESO` y
+   exige una **migración que recree las dos vistas de eventos**:
+   `test_auditoria_vistas.py` falla si el enum y las vistas no coinciden.
+4. **DECIDIR: el punto «cuentas de PSAdmin» depende de D2**, que es donde se
+   diseñan esas cuentas (tabla, 2FA, sesión propia). O se deja fuera de D1, o se
+   adelanta el diseño de la tabla.
+5. **`tools/create_user.py` incumple hoy dos requisitos del propio prompt**:
+   acepta `--password` como argumento (queda en el historial del shell) y no
+   audita. Unificarlo bajo el CLI tiene que arreglar las dos cosas.
+6. **Hay lógica que ya existe y no hay que duplicar.** Revocar/restaurar
+   (`api/v1/auth/service.update_member`), transferir
+   (`api/v1/equipos/service.transfer_ownership`), cortar sesiones
+   (`RepositorioDeUsuarios.revocar_sesiones`) y la regla «el dueño no se queda
+   sin acceso» (`api/v1/auth/members.update_member`). Esa regla vive hoy en el
+   **router**: el CLI la necesita, y es buen momento para bajarla a un sitio
+   común en vez de copiarla.
+7. Otros scripts que ya existen en `tools/`: `recalcular_carga.py`,
+   `purgar_auditoria.py` y `grafo_de_imports.py`. El README que pide el prompt
+   debería cubrirlos también.
+8. Línea base: **1069 tests** (SQLite). PostgreSQL 17 ya funciona (contenedor
+   `peakstroke-db`), pero la suite no corre en él.
 
 ### Prompt
 
