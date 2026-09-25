@@ -28,6 +28,12 @@ COLUMNAS = {
         "id", "occurred_at", "event_type", "outcome", "actor_user_id", "actor_email",
         "team_id", "ip_network", "ip_hash", "user_agent", "detail",
     ],
+    # Sin IP ni user-agent: quien actúa aquí siempre está autenticado, y desde
+    # dónde entró ya lo dice su login en `v_admin_accesos`.
+    "v_admin_actividad": [
+        "id", "occurred_at", "event_type", "outcome", "actor_user_id", "actor_email",
+        "team_id", "target_type", "target_id", "detail",
+    ],
     "v_admin_cuentas": [
         "user_id", "email", "name", "account_active", "created_at", "last_login_at",
         "team_id", "team_name", "role", "membership_active", "is_owner",
@@ -92,6 +98,40 @@ async def test_accesos_filtra_exactamente_los_tipos_de_acceso(db, world: World):
     await db.commit()
     tipos = set((await db.execute(text("SELECT event_type FROM v_admin_accesos"))).scalars())
     assert tipos == {str(t) for t in TIPOS_DE_ACCESO}
+
+
+async def test_accesos_y_actividad_se_reparten_todos_los_tipos(db, world: World):
+    """Entre las dos vistas cubren cada tipo de evento, y ninguno sale dos veces:
+    un tipo nuevo que no esté en ninguna sería un evento que PSAdmin no ve."""
+    ahora = datetime.now(UTC)
+    db.add_all([
+        EventoDeAuditoria(occurred_at=ahora, event_type=str(t), outcome="ok", detail="")
+        for t in TipoDeEvento
+    ])
+    await db.commit()
+    accesos = (await db.execute(text("SELECT event_type FROM v_admin_accesos"))).scalars().all()
+    actividad = (await db.execute(
+        text("SELECT event_type FROM v_admin_actividad"),
+    )).scalars().all()
+    assert sorted(accesos + actividad) == sorted(str(t) for t in TipoDeEvento)
+    assert not set(accesos) & set(actividad)
+
+
+async def test_actividad_responde_quien_revoco_a_un_atleta(client, db, world: World):
+    """La pregunta con la que se justificó D0, y que sin esta vista no tenía respuesta."""
+    carlos = (await db.execute(
+        select(User.id).where(User.email == world.carlos_email),
+    )).scalar_one()
+    await client.patch(
+        f"{API}/auth/members/{carlos}", json={"is_active": False},
+        headers=como(world.owner_email),
+    )
+    fila = (await db.execute(text(
+        "SELECT actor_email, occurred_at FROM v_admin_actividad "
+        "WHERE event_type = 'miembro.revocado' AND target_type = 'user' AND target_id = :u",
+    ), {"u": carlos})).one()
+    assert fila.actor_email == world.owner_email
+    assert fila.occurred_at is not None
 
 
 async def test_cuentas_distingue_los_cuatro_estados(client, db, world: World):

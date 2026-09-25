@@ -287,8 +287,8 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   sale igual de rápido y el volcado ocupa ~11 ms del proceso después
 - **Una operación nueva que sea de seguridad** (acceso, pertenencia, propiedad,
   bajas, borrados de verdad) **añade su `TipoDeEvento` y su `auditar`**. Si es de
-  acceso, va también en `TIPOS_DE_ACCESO` y en la vista (`test_auditoria_vistas.py`
-  compara los dos)
+  acceso, va también en `TIPOS_DE_ACCESO` y en el filtro de las dos vistas de
+  eventos (`test_auditoria_vistas.py` compara los tres)
 - `auditoria` es **append-only por trigger**: la base rechaza `UPDATE`, y `DELETE`
   de lo que tenga menos de 24 meses. La única escritura que borra es
   `tools/purgar_auditoria.py` (cron mensual). Sin FKs: el rastro sobrevive a lo
@@ -297,10 +297,12 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   + HMAC con una clave que rota cada 30 días y se BORRA al rotar
   (`claves_de_auditoria`). El user-agent, solo como familia («Chrome · Windows»).
   `X-Forwarded-For` se ignora hasta que haya un proxy de confianza
-- **`v_admin_accesos` · `v_admin_cuentas` · `v_admin_equipos` son el único
-  contrato de lectura de PSAdmin.** Ninguna lee tablas deportivas ni la de
-  claves; `test_auditoria_vistas.py` fija qué tablas lee y qué columnas expone
-  cada una. Cambiar una vista es una migración, no un `CREATE VIEW` a mano
+- **`v_admin_accesos` · `v_admin_actividad` · `v_admin_cuentas` · `v_admin_equipos`
+  son el único contrato de lectura de PSAdmin.** Ninguna lee tablas deportivas
+  ni la de claves; `test_auditoria_vistas.py` fija qué tablas lee y qué columnas
+  expone cada una. Accesos y actividad se reparten los tipos de evento sin
+  solaparse (un test lo comprueba), y actividad no lleva IP. Cambiar una vista es
+  una migración, no un `CREATE VIEW` a mano
 
 ## Esquema de base de datos
 - **Alembic es la única fuente del esquema.** `init_db()` ya no hace `create_all()`:

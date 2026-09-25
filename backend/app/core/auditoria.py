@@ -60,7 +60,7 @@ class TipoDeEvento(StrEnum):
     LOGOUT = "sesion.logout"
     PASSWORD_CAMBIADA = "cuenta.password_cambiada"
     DEV_BYPASS = "dev.bypass"
-    # Actividad sobre cuentas, equipos y registros.
+    # Actividad sobre cuentas, equipos y registros — lo que enseña `v_admin_actividad`.
     CUENTA_CREADA = "cuenta.creada"
     ROL_CAMBIADO = "miembro.rol_cambiado"
     MIEMBRO_REVOCADO = "miembro.revocado"
@@ -79,8 +79,9 @@ class TipoDeEvento(StrEnum):
     AUDITORIA_PURGADA = "auditoria.purgada"
 
 
-# Los que forman `v_admin_accesos`. La vista los filtra en SQL; un test comprueba
-# que los dos conjuntos son el mismo.
+# Los que forman `v_admin_accesos`; el resto va a `v_admin_actividad`. Las dos
+# vistas filtran en SQL (copia en sus migraciones) y un test comprueba que se
+# reparten todos los tipos sin solaparse.
 TIPOS_DE_ACCESO = frozenset({
     TipoDeEvento.LOGIN, TipoDeEvento.REFRESH_REUSADO, TipoDeEvento.LOGOUT,
     TipoDeEvento.PASSWORD_CAMBIADA, TipoDeEvento.DEV_BYPASS,

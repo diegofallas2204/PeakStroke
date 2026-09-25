@@ -2339,11 +2339,11 @@ no se sabe de quién es la cuenta.
   `ERROR` con los eventos perdidos. **Medido** (base del seed, N = 400,
   medianas): petición sin eventos +0,025 ms (ruido); con un evento, la respuesta
   sale a los 5,3 ms igual que sin auditoría y el volcado termina 11 ms después.
-- **Vistas** `v_admin_accesos` · `v_admin_cuentas` (con `status`: activa ·
+- **Vistas** `v_admin_accesos` · `v_admin_actividad` · `v_admin_cuentas` (con `status`: activa ·
   revocada · sin_equipo · desactivada) · `v_admin_equipos` (conteos de personas;
   **ni macrociclos ni tests**, que ya dicen cuánto entrena un club).
   `test_auditoria_vistas.py` fija tablas leídas y columnas expuestas.
-- **1065 tests** (40 nuevos). `alembic check` limpio; subir, bajar, subir y
+- **1069 tests** (44 nuevos). `alembic check` limpio; subir, bajar, subir y
   `seed.py` probados en una base desechable.
 
 **Dos arreglos que salieron de construirlo**: `seed.py` borra las vistas antes
@@ -2354,11 +2354,12 @@ la auditoría salía mudo en los tests.
 **Lo que NO se hizo:**
 - **La rama PostgreSQL de la migración no se ha ejecutado nunca** (Docker
   Desktop instalado pero sin el daemon). Probarla antes de D2.
-- **La actividad no tiene vista.** Los eventos que no son de acceso (roles,
-  revocaciones, bajas, códigos, transferencias) están en `auditoria` pero en
-  ninguna `v_admin_*`, así que PSAdmin todavía no puede responder «¿quién revocó
-  a este atleta?». Pide una cuarta vista (`v_admin_actividad`), que el prompt no
-  incluía: decidir antes de D3.
+- ~~**La actividad no tiene vista.**~~ ✅ **Hecho el mismo día**
+  (migración `f4b8e1c2a9d3`, con el visto bueno del usuario): `v_admin_actividad`
+  es el complemento exacto de `v_admin_accesos` —un test comprueba que entre las
+  dos cubren todos los tipos sin solaparse— y **no lleva IP ni user-agent**: quien
+  actúa ahí está autenticado, y desde dónde entró lo dice su login. Un test
+  responde con ella «¿quién revocó a este atleta?».
 - Los 403 de los guards no se registran; solo el `dev.bypass`.
 
 ### Qué pasa
