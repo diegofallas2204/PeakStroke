@@ -51,7 +51,8 @@ class Plan(Base):
     total_weeks: Mapped[int] = mapped_column(Integer)          # 12..18
     weeks_per_micro: Mapped[int] = mapped_column(Integer, default=4)
     total_km: Mapped[float] = mapped_column(Float)
-    progression_curve: Mapped[str] = mapped_column(String(20), default="science")
+    # Sin `progression_curve` desde R7 (2026-09-23): la curva de un plan real es
+    # fija, la científica, y la decide `Macrociclo.curva`, no una columna.
     pool: Mapped[str] = mapped_column(String(2), default="50")  # "50" larga | "25" corta
     n_mac: Mapped[int] = mapped_column(Integer, default=1)      # número de macrociclo (1=primero)
     main_event: Mapped[str | None] = mapped_column(String(60))
@@ -219,7 +220,8 @@ class WeeklyPlan(Base):
     planned_km: Mapped[float] = mapped_column(Float)
     expected_time: Mapped[float] = mapped_column(Float)      # curva ideal original
     recalc_time: Mapped[float | None] = mapped_column(Float)  # curva recalculada
-    real_time: Mapped[float | None] = mapped_column(Float)
+    # Sin tiempo real: lo nadado vive en `resultados` y la semana lo deriva por
+    # atleta, prueba y fechas (R2 enmendada; la columna salió en C7).
     # Clave de `Fase` de esa semana, la que la ciencia puede leer. El nombre que
     # se enseña es el del tramo que la cubre (`plan_phases.name`) y no se copia.
     phase: Mapped[str] = mapped_column(String(20))

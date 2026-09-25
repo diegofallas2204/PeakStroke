@@ -91,7 +91,7 @@ export function AssignAthleteModal({ plan, onClose }: { plan: Plan | null; onClo
             distance: ev.distance, stroke: ev.stroke, current_time: current,
             goal_time: goal, total_weeks: plan.total_weeks,
             weeks_per_micro: plan.weeks_per_micro, total_km: plan.total_km,
-            curve: plan.progression_curve,
+            curve: 'science',
             n_mac: plan.n_mac,
             swimmer_age: selectedSwimmer?.age ?? undefined,
           })

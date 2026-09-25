@@ -11,10 +11,9 @@ dónde es del dominio (`entidades.resultado`); lo que pone este repositorio es l
 consulta, **una sola** para todas las semanas que se le pidan, en vez de una por
 semana.
 
-**Transición de R2.** `weekly_plans.real_time` sigue viva una versión y
-`apuntar_en_semana` la escribe **también**, para que el downgrade de la
-migración no pierda nada. Nadie la lee ya: todos los lectores pasan por
-`reales_por_semana`. Retirarla es la siguiente versión.
+**Ya no hay sombra.** `weekly_plans.real_time` convivió una versión como copia
+que se escribía y nadie leía, y C7 la retiró (migración `c7a1e0d5b2f4`): el
+tiempo de una semana existe **solo** aquí.
 """
 from __future__ import annotations
 
@@ -78,7 +77,7 @@ class RepositorioDeResultados:
         """`{weekly_plans.id: promedio en segundos}` de las semanas con algún resultado.
 
         La semana que no tiene ninguno **no está** en el diccionario, así que
-        `.get(w.id)` devuelve `None` igual que devolvía `w.real_time`. Las
+        `.get(w.id)` devuelve `None`: la semana no tiene tiempo. Las
         pruebas tienen que traer `weeks` y `athlete_plan` cargados.
 
         `piscina` es la del macrociclo: un tiempo nadado en otra entra en el
@@ -118,10 +117,7 @@ class RepositorioDeResultados:
         cuentan en el promedio que la celda enseña—: los retira y, si `tiempo` no
         es `None`, apunta uno nuevo con la fecha del lunes y la piscina del plan.
         Borrar el de la semana es `tiempo=None`. Retirar, no borrar: el tiempo
-        corregido sigue en la tabla.
-
-        Escribe además `semana.real_time`, la sombra de la transición de R2 que
-        mantiene reversible la migración. No confirma: lo hace quien llama.
+        corregido sigue en la tabla. No confirma: lo hace quien llama.
         """
         atleta = prueba.athlete_plan.swimmer_id
         filas = (await self.db.execute(self.acotar(select(Result)).where(
@@ -145,5 +141,4 @@ class RepositorioDeResultados:
                 result_date=semana.week_date, pool=piscina.value,
                 context=Contexto.CONTROL.value,
             ))
-        semana.real_time = tiempo
 

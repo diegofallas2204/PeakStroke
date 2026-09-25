@@ -4,8 +4,8 @@
 > partes. Cada bloque trae una explicación para leer y un **prompt listo para
 > copiar** en una sesión nueva de Claude Code.
 >
-> **Estado al 2026-09-22: A, B, C0–C6 y P3 hechos.** Siguen R7 y C7 (C7 empieza
-> retirando `real_time`). El estado vivo
+> **Estado al 2026-09-23: A, B, C0–C6, P3 y R7 hechos.** Sigue C7, que empieza
+> retirando `real_time` y necesita antes N1 y N2. El estado vivo
 > está en «Dónde estamos y qué sigue», justo abajo; el resto del documento
 > conserva cada bloque como se planeó y cómo quedó.
 
@@ -49,6 +49,17 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 
 ## Dónde estamos y qué sigue — medido el 2026-09-22
 
+> **Actualizado el 2026-09-25.** La **parte C está cerrada entera**: C8 y los
+> arreglos R4 y R5.4 que C0 le había asignado a C3 y nunca entraron. **D0 también
+> está cerrado**: auditoría append-only, cuatro vistas `v_admin_*`, R11 decidida
+> (opción C, 24 meses) y probado en PostgreSQL, lo que obligó a arreglar tres
+> migraciones y añadir `b2d7f5a8c1e4`. Todo va en el **PR #3 (`Preliminar` →
+> `main`)**, que estaba abierto al cerrar la sesión. 1069 tests.
+> **Lo siguiente es D1** (CLI de operaciones): antes del prompt, leer «Antes de
+> ejecutarlo», que tiene dos decisiones pendientes. Siguen abiertos R5.3 (orden de
+> las comprobaciones en `redeem`), los mutadores `dar_de_baja`/`inscribir` y las
+> pantallas de C7/C8.
+
 **Los pasos 1 a 6 del rediseño son código.** `app/dominio/` tiene `valores/`,
 `entidades/`, `roles/` y `servicios/`; el motor científico es **uno**
 (`app/domain/` borrado, `app/engine/` en dos módulos que nunca fueron motor); y
@@ -66,13 +77,18 @@ era el prototipo del 2026-06-02 (`app/services/progression_engine.py`,
 2026-06-12. Se unieron en la rama con `git merge -s ours --allow-unrelated-histories`
 (commit `674d5cc`): el árbol es el de la rama, sin tocar, y la historia de `main`
 queda como segundo padre. Eso hace posible el PR de la rama contra `main` en
-GitHub, que antes era imposible («entirely different commit histories»). **Cuando
-ese PR se fusione, se trabaja sobre `main`.** `Preliminar` es un antepasado viejo
-de la rama y no se tocó.
+GitHub, que antes era imposible («entirely different commit histories»). La rama
+se fusionó en `main` (PR #2) y en `Preliminar` (PR #1) el 2026-09-23 y después
+se borró.
+
+**Cómo se trabaja desde el 2026-09-23: en `Preliminar`.** Todo el trabajo del día
+a día va ahí. **A `main` solo pasa una fase completada** —cuando lo que se estaba
+montando está entero—, con un PR de `Preliminar` contra `main` y merge commit, y
+se sigue en `Preliminar` con la siguiente.
 
 | | |
 |---|---|
-| Tests backend | **959 en verde** (tras C6; eran 938) · `ruff check .` limpio |
+| Tests backend | **965 en verde** (tras R7; 938 antes de C6) · `ruff check .` limpio |
 | Backend | 10.695 líneas · 15 modelos · **4 archivos >300** (`valores/tiempo.py` 354, `valores/escalas.py` 340, `valores/zona.py` 312, `repositorios/macrociclos.py` 307) |
 | Frontend | 8.995 líneas (incluye la exportación a PDF, sin commitear) · **0 archivos >300** · `tsc -b` y `eslint .` limpios |
 | Snapshot del motor | 3 caminos · 92 casos · **regenerado una sola vez (P3) y solo por la etiqueta de fase**: ningún número se movió desde A0 |
@@ -89,9 +105,10 @@ macrociclos, y ese se deja: su división natural llega con C6-C7.
 | ~~1~~ | ~~**C5 · Repositorios**~~ | — | ✅ **HECHO el 2026-08-25.** Ver el bloque |
 | ~~1~~ | ~~**P3 · Las tres fases**~~ | — | ✅ **HECHO el 2026-09-22.** Ver el bloque P3 |
 | ~~1~~ | ~~**C6 · `Resultado`**~~ | — | ✅ **HECHO el 2026-09-22.** Ver el bloque |
-| 2 | **R7 · La curva sale de `plans`** | bajo | Migración + `PlanCreate`/`PlanResponse` + el desplegable del wizard |
-| 3 | **C7 · `Sesion`** | medio | **Empieza retirando `real_time`** (ver «Lo que falta» en C6). Trae consigo los mutadores de las entidades (`dar_de_baja`, `inscribir`), que C5 dejó fuera porque las escrituras siguen armando filas del ORM |
-| 4 | **C8 · `CargaDiaria` + Banister** | bajo | Necesita C7 |
+| ~~2~~ | ~~**R7 · La curva sale de `plans`**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque R7, tras C6 |
+| ~~3~~ | ~~**C7 · `Sesion`**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque. Los mutadores (`dar_de_baja`, `inscribir`) **no** entraron: no los necesita la sesión y siguen pendientes |
+| ~~4~~ | ~~**C8 · `CargaDiaria` + Banister**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque. Con C8 están hechos los ocho bloques de la parte C; siguen pendientes los mutadores (`dar_de_baja`, `inscribir`) |
+| ~~5~~ | ~~**C3 · R4 y R5.4**~~ | — | ✅ **HECHO el 2026-09-24.** Estaban asignados a C3 desde C0 y no habían entrado. **R5.3 (`redeem`) sigue abierta**: ver el bloque C3 |
 
 ### Cinco cabos sueltos concretos
 
@@ -102,9 +119,9 @@ macrociclos, y ese se deja: su división natural llega con C6-C7.
    vez de la forma fija de 15 semanas (movería números: pide su propia
    decisión), y pintar el aviso de `banda_de_aviso` en la tabla del plan (R6),
    que ya tiene la `Fase` de cada semana en la base.
-2. **R7 — `progression_curve` sigue siendo columna de `plans`.** El motor ya
-   recibe la curva por firma, que es lo que R7 pide de verdad; sacarla de la
-   tabla toca migración, dos schemas y el wizard.
+2. ~~**R7 — `progression_curve` sigue siendo columna de `plans`.**~~
+   ✅ **Cerrado el 2026-09-23**: la columna salió, y la curva de un plan real es
+   `Macrociclo.curva`, siempre la científica.
 3. **El estilo se sigue guardando crudo** (`"crol"` en vez de `"libre"`).
    Canonizarlo toca filas existentes: es migración de datos, y C5 se lo pasó a
    C6. **C6 no lo hizo**: la base de desarrollo ya guarda los cinco canónicos y
@@ -1211,7 +1228,23 @@ y `to_plan_response` a una vista.
 
 ---
 
-## C3 · Los roles
+## C3 · Los roles — ✅ HECHO (2026-08-17; R4 y R5.4 el 2026-09-24)
+
+### Cómo quedó
+
+La jerarquía (`app/dominio/roles/`, `Principal` compone el rol) entró el
+2026-08-17 en `6e48406`. **Los arreglos que C0 le asignó no entraron entonces**
+y se aplicaron el 2026-09-24, al revisar si la parte C estaba cerrada:
+
+- **R4**: `DELETE /plans/{id}` pasa a `require_team_owner`, y
+  `PATCH /plans/{id}` exige ser dueño **si cambia `main_event`** (cambiarlo, no
+  reenviarlo igual). No existía, ni existía en C0, ningún endpoint que cambie el
+  `goal_time` de una prueba: se fija al inscribir. El botón de borrar del
+  frontend se esconde a quien no es dueño.
+- **R5.4**: `_principal_for` usa `one_or_none()`. Un test simula la segunda
+  pertenencia (la `UNIQUE` impide crearla) y falla con `.first()`.
+- **R5.3 sigue abierta a propósito**: invertir los `elif` de `redeem` choca con
+  «revocado ≠ sin equipo» y pide decisión, no un arreglo mecánico.
 
 ### Qué pasa
 
@@ -1898,7 +1931,14 @@ Lo que hay que saber antes de tocarlo:
    canónicos, y la lectura pasa todo por `Estilo.desde_texto`, que acepta
    `"crol"`.
 
-### Lo que falta para retirar `real_time` — al EMPEZAR C7 (decidido 2026-09-22)
+### Lo que falta para retirar `real_time` — al EMPEZAR C7 (decidido 2026-09-22) — ✅ HECHO (2026-09-23, `b7a49c7`)
+
+> Puntos 1, 2 y 5 hechos (migración `c7a1e0d5b2f4`). Del 3 salió
+> `test_el_conteo_de_retirada_cuadra`, pero **la guarda de downgrade de
+> `bae825334065` se quedó**: sigue siendo cierta —un resultado que no cae en
+> ninguna semana no cabe en la columna vieja—. El 4 no hizo falta: la sesión no
+> trae entrada de tiempos, así que N1 y N2 siguen abiertas sin bloquear nada.
+
 
 El criterio de R2 («dos despliegues seguidos») no aplica a una aplicación local.
 Se sustituye por: **C7 arranca retirándola.**
@@ -1972,7 +2012,78 @@ Dime qué queda por hacer para poder retirar real_time en la siguiente versión.
 
 ---
 
-## C7 · `Sesion` (y `Serie`, **fuera del rediseño**)
+### R7 · La curva sale de `plans` — ✅ HECHO (2026-09-23)
+
+R7 se cerró el 2026-08-16 (§10.1 de `REDISENO.md`): **curva elegible en el
+simulador, fija en el plan real**, y `progression_curve` fuera de la tabla. C4
+dejó el parámetro en la firma del motor y aplazó la columna a un bloque propio
+(ver «Lo que NO entró» en C4). Este es ese bloque.
+
+**Qué se hizo:**
+
+- `Macrociclo.curva` pasa de campo a **propiedad** que devuelve siempre
+  `CURVA_DEL_PLAN` (`"science"`). Ya no se puede construir un macro con otra.
+  La clave está copiada en la entidad —el dominio no importa de lado— y
+  `tests/test_curva_del_plan.py` la compara con `Cientifica.clave`.
+- Migración `82135c6cb2d8`: borra `plans.progression_curve`. Avisa en el log de
+  los planes que tenían otra curva (su `expected_time` no se toca; el siguiente
+  recálculo usa la científica). El downgrade devuelve la columna `NOT NULL`, sin
+  `server_default`, con `'science'` en todas las filas — lo único recuperable.
+- `PlanCreate` y `PlanResponse` sin el campo. Un cliente viejo que lo mande no
+  rompe: Pydantic ignora el campo de más.
+- Frontend: fuera el desplegable y la fila de resumen del asistente, y la curva
+  de la ficha del plan y del selector de macrociclo. La vista previa de
+  factibilidad del alta simula con `'science'`. **El simulador conserva su
+  desplegable** de cinco curvas.
+
+**Medido:**
+
+| | |
+|---|---|
+| Tests | **965 en verde** (959 + 6) · `ruff`, `tsc -b` y `eslint .` limpios |
+| Contrato | El OpenAPI cambia **solo** en `progression_curve` de `PlanCreate` y `PlanResponse` |
+| Datos | Base de desarrollo: todas las tablas con el mismo conteo antes y después, 0 FKs rotas; las 24 respuestas GET (semanas, resumen, tabla del equipo) byte a byte iguales |
+| Migración | Subida, bajada y vuelta a subir contra una copia; `alembic check` sin diferencias |
+
+**Por qué recrear `plans` no arrastra nada.** `batch_alter_table` en SQLite copia,
+borra y renombra la tabla. La conexión de Alembic no enciende
+`PRAGMA foreign_keys` (ese listener es del motor de la aplicación), así que
+borrar la tabla vieja no cascadea a fases, competencias ni inscripciones. El test
+de la migración lo comprueba contando `plan_phases`.
+
+---
+
+## C7 · `Sesion` (y `Serie`, **fuera del rediseño**) — ✅ HECHO (2026-09-23)
+
+### Cómo quedó
+
+Dos commits en `Preliminar`: `b7a49c7` (paso 0, `real_time` fuera) y el de la
+sesión. Las decisiones del usuario al arrancar: **se apunta después de nadar**
+(opción A: el atleta o el entrenador), **se borra de verdad**, y **el RPE se
+guarda y C8 decide** qué carga sale de él.
+
+- Entidad `dominio/entidades/sesion.py`: `ritmo_medio()` y `carga(css)` (sTSS,
+  fuente en la nota 05), derivados, nunca guardados. Enmiendas al §5.11 en
+  REDISENO: sin FK a semana ni macro, sin `zonas_nadadas()`.
+- Tabla `sesiones` (migración `4cf6606404c4`), FK compuesta al nadador, CHECK
+  de metros, duración y RPE 1-10. Repositorio `RepositorioDeSesiones`, el
+  primero que **recibe** entidades (`guardar(Sesion)`).
+- Rebanada `api/v1/sesiones/`, prefijo `/api/v1/sessions`: `GET /` (con
+  `swimmer_id`, `desde`, `hasta`), `POST /`, `GET|PATCH|DELETE /{id}`. Sin
+  `require_coach`: el atleta apunta lo suyo; lo ajeno, 404.
+- **996 tests** (965 − 1 + 2 de la migración de `real_time` + 30 de sesiones).
+  OpenAPI contra `b7a49c7`: dos rutas y tres schemas nuevos, **nada viejo
+  cambiado** (el primer intento sí cambiaba: `SessionResponse` chocaba con el
+  de `auth`, de ahí `TrainingSession*`).
+
+**Qué hace falta en el frontend** (no construido): tipos en `lib/types/`
+(`sessions.ts`) y `api.sessions` en `lib/api.ts` con el mismo patrón que
+`aerobic`; un formulario de cuatro campos (fecha, metros, duración en `h:mm`,
+RPE 1-10 con su escala a la vista) que el atleta abra en dos toques después de
+nadar; una lista por atleta con editar y borrar (el borrado es real: confirmar);
+y dónde vive —¿sección propia o dentro de la ficha del atleta y de su vista de
+inicio?—. Una sección nueva toca `navConfig.ts` **y** `dominio/roles.Seccion`,
+que está pinada contra él.
 
 > **R1 — CERRADA el 2026-08-16.** `Sesion` entra, pero **después de que C1–C6
 > estén verdes y desplegados**: C1–C6 mueven comportamiento de sitio y este bloque
@@ -2050,7 +2161,48 @@ Dime qué hace falta en el frontend para que esto sea usable, sin construirlo.
 
 ---
 
-## C8 · Carga de entrenamiento (Banister)
+## C8 · Carga de entrenamiento (Banister) — ✅ HECHO (2026-09-23)
+
+### Cómo quedó
+
+Decisiones del usuario: **carga = sTSS** (opción A de tres: sTSS, sRPE de
+Foster, TRIMP por zonas —imposible sin series—); **diseño que aguante miles de
+usuarios** sin perder la ciencia; **día sin sesión = 0**; **umbrales de la nota
+05 unificados**; y, tras ver el primer ejemplo, **arranque en equilibrio** en
+vez de CTL₀ = 0 más 42 días de calentamiento, y **alerta de rampa**.
+
+- `dominio/servicios/banister.py`: `EstadoDeCarga.avanzar` (la EWMA de la nota
+  05, con `1 − e^(−1/τ)`), `estado_inicial`, `serie`, `css_vigente`,
+  `alertas` y `CargaAcumulada.calcular`, la definición de referencia.
+- `carga_diaria` (migración `d921148a01ad`), PK `(swimmer_id, load_date)`:
+  derivado materializado. `repositorios/carga.recalcular` es lo único que la
+  escribe, **incremental** desde el día que cambia (serie entera si el cambio
+  cae en los 14 días del arranque), dentro de la transacción de la escritura
+  que lo provoca, con `FOR UPDATE` sobre el nadador para PostgreSQL. Lo que va
+  de la última sesión a hoy se calcula al leer (solo decae): no hay tarea
+  nocturna. `tools/recalcular_carga.py` la reconstruye entera.
+- `GET /api/v1/training-load/{swimmer_id}?desde&hasta` (90 días por defecto,
+  dos años como tope).
+- **Medido** sobre la base del seed: leer 90 días, 9,7 ms de mediana (listar
+  sesiones, 12,9); apuntar una sesión, ~40 ms, casi todo el commit; rehacer 42
+  días en vez de 1 añade ~6 ms.
+- `seed.py`: 256 sesiones sintéticas (el `planned_km` de cada semana, 5 por
+  semana, IF por fase de Allen & Coggan, RPE vacío).
+- **1020 tests**. `test_carga.py` fija que la tabla es el cálculo desde cero
+  tras crear, mover, borrar y tests que entran y salen.
+
+**El ejemplo** (Carlos, 200 libre; S1-S6 del seed, S7-S12 el plan cumplido con
+el mismo generador): arranca en CTL = ATL = 57,9, no salta nada hasta el bloque
+de umbral —S7, 39,5 km a IF 0,85: TSB −8,9 al cierre, dos días bajo −25—, la
+descarga de S8 arrastra seis días de «fatiga sostenida» y el taper lleva el TSB
+a **+26,2 la semana del Nacional**, en la ventana de forma de la nota 05. Con
+CTL₀ = 0 el mismo atleta daba alertas todas las semanas de S7 a S11.
+
+**Qué hace falta en el frontend** (no construido): la curva CTL/ATL/TSB por
+atleta (Recharts, eje de fecha + `S#`), con la franja de calentamiento, las
+alertas marcadas y el aviso de «N sesiones sin CSS: haz un test»; y el estado de
+hoy de cada atleta en la tabla del equipo, que pide un endpoint de equipo (hoy
+solo hay el de un atleta).
 
 > **R1 — CERRADA: entra, después de C7.** Y C7 después de C1–C6. Banister depende
 > de `Sesion`, **no de `Serie`**: el sTSS diario sale de fecha + carga.
@@ -2166,9 +2318,77 @@ Leer no destruye; por eso mirar puede ser cómodo y tocar no necesita serlo.
 
 ---
 
-## D0 · La auditoría (va en PeakStroke, no en PSAdmin)
+## D0 · La auditoría (va en PeakStroke, no en PSAdmin) — ✅ HECHO (2026-09-24)
 
 **Prioridad: PRIMERO de la parte D, y útil por sí sola.**
+
+### Cómo quedó
+
+**R11 cerrada por el usuario: opción C, 24 meses.** De las tres que se le
+propusieron (A: solo la red truncada; B: IP completa N días y luego truncarla,
+que rompe el append-only; C: red truncada + HMAC con clave rotatoria), C es la
+única que deja correlacionar intentos sin que una IP completa exista en disco.
+Una regla "solo para menores" no se podía aplicar: en un login fallido todavía
+no se sabe de quién es la cuenta.
+
+- **Tabla `auditoria`** (migración `e3a9d0c41b7f`), un evento por fila, sin FKs,
+  actor denormalizado (id + correo de ese momento). **Append-only por trigger**
+  en SQLite y en PostgreSQL: `UPDATE` rechazado siempre, `DELETE` rechazado
+  sobre lo que tenga menos de 24 meses (y `TRUNCATE` en PostgreSQL).
+  `tools/purgar_auditoria.py` es la única escritura que borra, y se audita.
+- **Privacidad**: `ip_network` (/24 · /48), `ip_hash` (HMAC-SHA256 recortado,
+  clave por periodo de 30 días en `claves_de_auditoria`, **borrada al rotar**),
+  `user_agent` como familia. Límite escrito: con la clave del periodo en curso,
+  las huellas IPv4 de ese periodo se deshacen por fuerza bruta. La clave no está
+  en ninguna vista.
+- **21 tipos de evento** (`core/auditoria.TipoDeEvento`): los del prompt más
+  tres que el prompt no nombraba y son de seguridad —`cuenta.creada`,
+  `macrociclo.borrado` (borrado de verdad desde R4) y `codigo.canjeado` con
+  `fallo` (probar códigos)—, y `auditoria.purgada`.
+- **Nunca tumba la petición**: `auditar()` solo apunta; el middleware ASGI
+  escribe en su propia sesión cuando la respuesta ya salió, y un fallo deja un
+  `ERROR` con los eventos perdidos. **Medido** (base del seed, N = 400,
+  medianas): petición sin eventos +0,025 ms (ruido); con un evento, la respuesta
+  sale a los 5,3 ms igual que sin auditoría y el volcado termina 11 ms después.
+- **Vistas** `v_admin_accesos` · `v_admin_actividad` · `v_admin_cuentas` (con `status`: activa ·
+  revocada · sin_equipo · desactivada) · `v_admin_equipos` (conteos de personas;
+  **ni macrociclos ni tests**, que ya dicen cuánto entrena un club).
+  `test_auditoria_vistas.py` fija tablas leídas y columnas expuestas.
+- **1069 tests** (44 nuevos). `alembic check` limpio; subir, bajar, subir y
+  `seed.py` probados en una base desechable.
+
+**Dos arreglos que salieron de construirlo**: `seed.py` borra las vistas antes
+de `drop_all` (no están en el metadata), y `alembic/env.py` ya no apaga los
+loggers de la app al migrar dentro del proceso — con eso, el aviso de fallo de
+la auditoría salía mudo en los tests.
+
+**Lo que NO se hizo:**
+- ~~**La rama PostgreSQL de la migración no se ha ejecutado nunca.**~~ ✅
+  **Probada el 2026-09-25** en el PostgreSQL 17 del `docker-compose.yml`: los 7
+  eventos por el API con la IP anonimizada; `UPDATE`, `DELETE` reciente y
+  `TRUNCATE` rechazados por el trigger plpgsql; la purga solo se lleva lo
+  caducado; las claves rotan (savepoint) y las cuatro vistas responden. Volcar
+  un evento: 4,05 ms de mediana (11 en SQLite). **Y destapó que la cadena de
+  migraciones nunca había corrido en PostgreSQL**, y se rompía antes de D0:
+  - `bae825334065` (C6) y `c7a1e0d5b2f4` (C7) escribían booleanos como `1`;
+  - `82135c6cb2d8` (R7) usaba `IS NOT 'science'`, que solo existe en SQLite;
+  - `teams.id` **no tenía secuencia** —en PostgreSQL no se podía crear ningún
+    equipo— y **`fk_teams_owner_is_member` no existía** (una FK `use_alter`
+    dentro de `op.create_table` no se emite en PostgreSQL). Migración nueva
+    `b2d7f5a8c1e4`, que en SQLite no hace nada;
+  - `seed.py` reseteaba con `PRAGMA`; en PostgreSQL ahora hace
+    `DROP SCHEMA public CASCADE`.
+
+  Las tres migraciones se editaron en sitio (en SQLite el significado es el
+  mismo; ninguna base PostgreSQL las había aplicado). La suite sigue corriendo
+  solo en SQLite: nada vigila que esto no vuelva a pasar (ver R12 y D2).
+- ~~**La actividad no tiene vista.**~~ ✅ **Hecho el mismo día**
+  (migración `f4b8e1c2a9d3`, con el visto bueno del usuario): `v_admin_actividad`
+  es el complemento exacto de `v_admin_accesos` —un test comprueba que entre las
+  dos cubren todos los tipos sin solaparse— y **no lleva IP ni user-agent**: quien
+  actúa ahí está autenticado, y desde dónde entró lo dice su login. Un test
+  responde con ella «¿quién revocó a este atleta?».
+- Los 403 de los guards no se registran; solo el `dev.bypass`.
 
 ### Qué pasa
 
@@ -2276,6 +2496,45 @@ documento entero, y ya la tienes a medias en `tools/create_user.py`.
 ### Riesgo
 
 **Bajo.** Amplía un patrón que ya existe.
+
+### Antes de ejecutarlo — anotado al cerrar D0 (2026-09-25)
+
+El prompt de abajo se escribió antes de que D0 existiera. Lo que hoy es distinto,
+y dos decisiones que conviene tomar **antes** de escribir código:
+
+1. **Cómo audita un script ya está resuelto**: `async with
+   contexto_de_auditoria(...)` y dentro `auditar(TipoDeEvento.X, ...)`. Lo usa
+   `tools/purgar_auditoria.py`, que es el ejemplo a copiar. Al cerrar el contexto
+   se escribe todo lo apuntado.
+2. **DECIDIR: cómo se registra un actor que no es una cuenta.** El prompt pide
+   anotar «el usuario del sistema operativo y desde dónde», pero `auditar()`
+   solo sabe de `Principal`/`User` o de un `correo`. Y `user_agent` pasa por
+   `familia_de()`, que solo reconoce navegadores: `"tools/…"` queda como `otro`.
+   Opciones: un prefijo en `actor_email` (`os:diego@host`), el origen en
+   `detail`, o una columna `origin` nueva, que es migración y cambia las vistas.
+3. **Un tipo de evento nuevo cae solo en `v_admin_actividad`** (esa vista es
+   «todo lo que no es acceso»). Si alguno es de acceso —por ejemplo forzar la
+   revocación de sesiones o resetear una contraseña—, va en `TIPOS_DE_ACCESO` y
+   exige una **migración que recree las dos vistas de eventos**:
+   `test_auditoria_vistas.py` falla si el enum y las vistas no coinciden.
+4. **DECIDIR: el punto «cuentas de PSAdmin» depende de D2**, que es donde se
+   diseñan esas cuentas (tabla, 2FA, sesión propia). O se deja fuera de D1, o se
+   adelanta el diseño de la tabla.
+5. **`tools/create_user.py` incumple hoy dos requisitos del propio prompt**:
+   acepta `--password` como argumento (queda en el historial del shell) y no
+   audita. Unificarlo bajo el CLI tiene que arreglar las dos cosas.
+6. **Hay lógica que ya existe y no hay que duplicar.** Revocar/restaurar
+   (`api/v1/auth/service.update_member`), transferir
+   (`api/v1/equipos/service.transfer_ownership`), cortar sesiones
+   (`RepositorioDeUsuarios.revocar_sesiones`) y la regla «el dueño no se queda
+   sin acceso» (`api/v1/auth/members.update_member`). Esa regla vive hoy en el
+   **router**: el CLI la necesita, y es buen momento para bajarla a un sitio
+   común en vez de copiarla.
+7. Otros scripts que ya existen en `tools/`: `recalcular_carga.py`,
+   `purgar_auditoria.py` y `grafo_de_imports.py`. El README que pide el prompt
+   debería cubrirlos también.
+8. Línea base: **1069 tests** (SQLite). PostgreSQL 17 ya funciona (contenedor
+   `peakstroke-db`), pero la suite no corre en él.
 
 ### Prompt
 
@@ -2474,7 +2733,7 @@ cuáles siguen sin respuesta.
 | # | Decisión | Recomendación |
 |---|---|---|
 | **R10** | ¿Túnel SSH o red privada (Tailscale/WireGuard)? | **Tailscale** para dos personas: casi tan fuerte y mucho más cómodo. SSH si el segundo perfil es esporádico |
-| **R11** | Política de retención de la auditoría | **Pendiente.** Hay IPs y hay cuentas de menores. Hay que decidirlo, no heredarlo |
+| ~~**R11**~~ | Política de retención de la auditoría | ✅ **Cerrada el 2026-09-24: opción C, 24 meses.** Red truncada + HMAC con clave rotatoria de 30 días; ver D0 |
 | **R12** | ¿PSAdmin espera a PostgreSQL? | La barrera 4 (usuario de solo lectura) **solo es real en PostgreSQL**. D0 y D1 no dependen de eso; D2 y D3 sí. **R8 se cerró el 2026-08-16 como "SQLite, y el cambio va después de C6"**, así que D2 y D3 esperan a esa migración — que ahora tiene un disparador de despliegue, no de rediseño |
 
 > **Nota (2026-08-16).** R1–R8 están cerradas; ver C0 y la §10 de `docs/REDISENO.md`.

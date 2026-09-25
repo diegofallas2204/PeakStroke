@@ -20,7 +20,7 @@ from datetime import date, timedelta
 
 import pytest
 from conftest import API, World, como
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app.dominio.entidades import Resultado, de_la_semana, promedio, real_de_la_semana
 from app.dominio.valores import Piscina, Prueba, Tiempo
@@ -184,15 +184,13 @@ async def test_sacar_al_atleta_y_borrar_el_macro_no_toca_sus_tiempos(client, db,
 
 # ── 2. El contrato de PATCH /weeks, sobre resultados ─────────────────────────
 
-async def test_apuntar_crea_un_resultado_y_mantiene_la_sombra(client, db, world: World):
+async def test_apuntar_crea_un_resultado(client, db, world: World):
     semana = await _semana(db, world.carlos_event_id, 2)
     await _apuntar(client, world, semana.id, {"real_time": 128.0})
 
     [r] = await _resultados_de(db, world.carlos_swimmer_id)
     assert (r.time, r.result_date, r.pool, r.context) == (128.0, semana.week_date, "50", "control")
     assert (r.distance, r.stroke) == (200, "libre")
-    await db.refresh(semana)
-    assert semana.real_time == 128.0, "la sombra de la transición no se escribió"
 
 
 async def test_reapuntar_reemplaza_y_borrar_retira(client, db, world: World):
@@ -208,25 +206,6 @@ async def test_reapuntar_reemplaza_y_borrar_retira(client, db, world: World):
     semanas = await _apuntar(client, world, semana.id, {"clear_real_time": True})
     assert next(w for w in semanas if w["id"] == semana.id)["real_time"] is None
     assert await _resultados_de(db, world.carlos_swimmer_id) == []
-    await db.refresh(semana)
-    assert semana.real_time is None
-
-
-async def test_el_conteo_de_retirada_cuadra(client, db, world: World):
-    """El criterio para retirar `real_time`: resultados vivos == real_time no nulos."""
-    for n, t in ((1, 129.0), (2, 128.5), (3, 128.0)):
-        await _apuntar(client, world, (await _semana(db, world.carlos_event_id, n)).id,
-                       {"real_time": t})
-    await _apuntar(client, world, (await _semana(db, world.carlos_event_id, 2)).id,
-                   {"real_time": 128.2})
-    await _apuntar(client, world, (await _semana(db, world.carlos_event_id, 3)).id,
-                   {"clear_real_time": True})
-
-    vivos = (await db.execute(select(func.count()).select_from(Result)
-                              .where(Result.is_active.is_(True)))).scalar_one()
-    sombras = (await db.execute(select(func.count()).select_from(WeeklyPlan)
-                                .where(WeeklyPlan.real_time.is_not(None)))).scalar_one()
-    assert vivos == sombras == 2
 
 
 # ── 3. Varios por semana se promedian, y el promedio es lo que reancla ───────

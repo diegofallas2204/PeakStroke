@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { Plan } from '../../lib/types'
-import { CURVE_LABEL, PLAN_STATUS_META } from '../../lib/constants'
+import { PLAN_STATUS_META } from '../../lib/constants'
 import { Modal } from '../../components/ui/primitives'
 import { useSelectedPlanId, setSelectedPlan } from '../../hooks/useSelectedPlan'
 
@@ -104,7 +104,6 @@ export function MacroSwitcherModal({ open, onClose }: { open: boolean; onClose: 
                   />
                   <ProfileRow label="Microciclos" value={`cada ${current.weeks_per_micro} semanas`} />
                   <ProfileRow label="Kilometraje total" value={`${current.total_km} km`} />
-                  <ProfileRow label="Curva" value={CURVE_LABEL[current.progression_curve] ?? current.progression_curve} />
                   <ProfileRow label="Evento principal" value={current.main_event ?? '—'} />
                   <ProfileRow
                     label="Atletas"

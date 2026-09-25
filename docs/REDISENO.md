@@ -469,6 +469,9 @@ meta no).
 > reconocer que ya eran de dueño y estaban mal guardadas. Un rol más añadiría
 > una tercera pregunta a cada escritura, que es como se abrió el agujero del
 > scoping del atleta.
+>
+> **Aplicada el 2026-09-24.** «Cambiar la meta» es cambiar `main_event` en
+> `PATCH /plans/{id}`: el `goal_time` de una prueba no se edita por ninguna ruta.
 
 ---
 
@@ -716,6 +719,25 @@ semana.
 De este hueco cuelga todo lo que hoy no se puede construir. Sin `Sesion` no hay
 de dónde sacar el sTSS diario, y sin sTSS no hay Banister.
 
+> **`Sesion` construida el 2026-09-23 (C7)**, con tres enmiendas a lo de arriba:
+>
+> ```
+> Sesion:  atleta · fecha · distancia_m · duracion: Tiempo · rpe? (CR-10) · notas
+>          ritmo_medio() -> Ritmo         duración total / distancia; derivado
+>          carga(css: Ritmo) -> float     sTSS; derivado; `css` el vigente ESE día
+> ```
+>
+> 1. **Sin `macrociclo?` ni `semana?`.** `weekly_plans` va por prueba objetivo:
+>    con dos pruebas hay dos filas para la misma semana y `semana_id` no tiene a
+>    cuál apuntar. Misma razón que la enmienda de R2: se encuentran por fecha.
+> 2. **Sin `zonas_nadadas()`.** Sin series no se sabe qué se nadó en cada zona, y
+>    el reparto *planificado* presentado como nadado es el dato que miente.
+> 3. **Cómo se rellena: después de nadar** (opción A). La apunta el atleta o su
+>    entrenador; planificarla antes es el módulo de la nota 22 y depende de N5.
+>
+> Se **borra de verdad** (es un registro que su dueño corrige), y el RPE se
+> guarda sin decidir aún qué carga sale de él: eso es de C8.
+
 ### 5.12 `CargaDiaria` — nuevo (R1: tras 1-6)
 
 ```
@@ -726,6 +748,16 @@ atleta · fecha · stss · ctl · atl · tsb
 ```
 
 La nota 05 del vault, por fin construible.
+
+> **Construida el 2026-09-23 (C8)** como tabla `carga_diaria`, con dos enmiendas:
+> **sin columna `tsb`** (es CTL − ATL; una tercera columna podría discrepar), y
+> **sin `alerta_de_sobreentrenamiento()` en la fila**: las alertas miran rachas y
+> rampas de varios días, así que son de la serie (`banister.alertas`), no de un
+> día. Es un **derivado materializado**: lo escribe solo
+> `persistencia/repositorios/carga.recalcular`, en la misma transacción que la
+> sesión o el test que lo cambia, y un test comprueba que coincide con el cálculo
+> desde cero tras cualquier secuencia de escrituras. Se guarda por escala —muchas
+> lecturas, una escritura al día por atleta—, no porque sea un hecho.
 
 ### 5.13 Relaciones auxiliares
 
@@ -822,6 +854,22 @@ CargaAcumulada
   calcular(sesiones, desde, hasta) -> list[CargaDiaria]
   CTL = media exponencial 42 d · ATL = 7 d · TSB = CTL − ATL
 ```
+
+> **Construida el 2026-09-23 (C8)** en `dominio/servicios/banister.py`. Lo que
+> decidió el usuario, con los números delante:
+>
+> - **La carga es el sTSS** (`Sesion.carga(css)`, nota 05). El CSS es el del
+>   último test ≤ la fecha de la sesión; un T15 o un test libre solo a falta de
+>   otro (`TipoDeTest.mide_el_umbral`). Sin test previo, la sesión no entra y se
+>   cuenta aparte. Un día sin sesión es carga 0.
+> - **Arranque en equilibrio**: CTL₀ = ATL₀ = carga media de los primeros 14
+>   días. Con CTL₀ = 0, medido con el seed, un atleta que cumple su plan daba
+>   «fatiga sostenida» cada semana hasta el taper (la CTL tarda ~3τ en olvidar el
+>   cero). Es un supuesto —ya entrenaba a una carga parecida—, escrito como tal.
+> - **Alertas** (convención de la práctica, no ciencia revisada; umbrales de la
+>   nota 05 unificados): TSB < −25 advertencia, < −40 peligro, TSB < 0 más de 14
+>   días seguidos, y **rampa**: CTL +7 o más en una semana. Ninguna en los 14
+>   días del arranque.
 
 ---
 
@@ -987,7 +1035,7 @@ de las viejas.
 | **R4** | ¿El asistente necesita menos permisos dentro de un macro que sí lleva? | **No hay rol nuevo.** Pero **dos operaciones pasan de `require_coach` a `require_owner`**: borrar el macrociclo y cambiar la meta de una prueba objetivo | El argumento del documento (`entrenadores_del_macro` ya distingue) vale para **ver**, no para **escribir**: hoy el asistente puede borrar el macro que lleva. Un rol nuevo mete una tercera pregunta en cada escritura, que es como se abrió el agujero del scoping del atleta. Mover dos guards reconoce que esas acciones ya eran de dueño y estaban mal guardadas |
 | **R5** | ¿Una persona en más de un equipo? | **No** — más dos arreglos que entran en el rediseño (§10.2) | `Principal` vale porque `team_id` **no es una elección**. Con dos clubes pasa a ser estado de sesión: algo que se elige, se guarda, caduca y se desincroniza. Eso convierte la frontera de aislamiento de invariante en convención, justo lo que este rediseño está deshaciendo en todas partes. No se paga por un caso que todavía no existe |
 | **R6** | Al fusionar, ¿quién manda el kilometraje? | **Fases y forma de la ciencia, total del entrenador.** Las bandas de `WEEKLY_VOLUME_KM` quedan como **aviso**, nunca como valor por defecto ni como límite — y el aviso se enseña **solo en la tabla del plan**, no en el formulario de creación | Medido (§10.4). `ScienceEngine` no es más científico en volumen: es **peor**. Sube la carga la semana de la competencia y hace depender 15 km/semana de una décima de segundo. La normalización de `progression` no es una concesión al entrenador, es lo único que hoy protege el plan de esa inestabilidad. Lo valioso de `ScienceEngine` son **las cinco fases**, que son las que `F_FASE` sabe indexar y las que cierran P3 |
-| **R7** | ¿Curva elegible o fija en `Cientifica`? | **Elegible en el simulador; en el plan real, fija.** Y `progression_curve` **deja de ser columna de `plans`** — el parámetro se queda en la firma del motor | No es que las otras "solo comparen escenarios": **cambian el veredicto que ve el atleta** (§10.4). Dejar la columna y esconder el desplegable sería teatro, que CLAUDE.md ya prohíbe explícitamente |
+| **R7** | ¿Curva elegible o fija en `Cientifica`? | **Elegible en el simulador; en el plan real, fija.** Y `progression_curve` **deja de ser columna de `plans`** — el parámetro se queda en la firma del motor | No es que las otras "solo comparen escenarios": **cambian el veredicto que ve el atleta** (§10.4). Dejar la columna y esconder el desplegable sería teatro, que CLAUDE.md ya prohíbe explícitamente. **Construida el 2026-09-23**: `Macrociclo.curva` es una propiedad fija y la columna se borró (migración `82135c6cb2d8`) |
 | **R8** | ¿PostgreSQL desde el rediseño? | **SQLite.** Se cambia cuando haya una razón de **despliegue**, no de rediseño, y **después** del paso 6 | Los pasos 4 y 6 van a producir números y filas distintas. Cambiar de motor a la vez le da dos sospechosos a cada diferencia, y la red de 153 casos solo sirve con una variable en juego. La migración de `real_time` es la única cirugía sobre datos reales: hacerla una vez y luego mover la base entera duele menos que hacerla dos veces sobre dos motores |
 
 ### 10.2 Lo que estas decisiones cambian en el resto del documento
@@ -1016,6 +1064,8 @@ cuerpo; se listan aquí para que se vean juntas.
    consulta atiende al club equivocado **sin fallar**. `one_or_none()` cuesta lo
    mismo y convierte una fuga silenciosa en un error inmediato. `plans/access.py:73`
    ya tuvo que codificarse a la defensiva anticipando ese cambio.
+   **Aplicado el 2026-09-24.** El 3 (`redeem`) sigue sin aplicar: choca con
+   «revocado ≠ sin equipo» (CLAUDE.md) y se decide aparte.
 5. **El ejemplo de §4.1 se cambió** por el del atleta que asciende a entrenador.
    El anterior argumentaba desde dos casos que el propio modelo prohíbe.
 

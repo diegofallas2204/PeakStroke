@@ -124,3 +124,106 @@ async def test_el_coach_asistente_si_hace_cosas_de_coach(client, world: World):
         headers=como(world.assistant_email),
     )
     assert r.status_code == 201
+
+
+# ── R4: borrar el macro y cambiar su meta son de dueño ───────────────────────
+#
+# `plan_coaches` decide quién VE un macrociclo, no quién puede hacerlo
+# desaparecer ni moverle el objetivo. Hasta el 2026-09-24 las dos rutas pedían
+# solo `require_coach`, así que el asistente borraba el macro que llevaba.
+
+async def _macro_del_asistente(client, world: World) -> int:
+    r = await client.post(f"{API}/plans/", json={
+        "name": "Macro del Asistente", "start_date": "2026-09-07",
+        "total_weeks": 12, "total_km": 300, "main_event": "Regional",
+    }, headers=como(world.assistant_email))
+    assert r.status_code == 201
+    return r.json()["id"]
+
+
+async def test_el_asistente_no_borra_el_macro_que_lleva(client, world: World):
+    plan_id = await _macro_del_asistente(client, world)
+
+    r = await client.delete(f"{API}/plans/{plan_id}", headers=como(world.assistant_email))
+    assert r.status_code == 403
+    # Sigue ahí, y el dueño sí puede.
+    assert (await client.get(
+        f"{API}/plans/{plan_id}", headers=como(world.assistant_email),
+    )).status_code == 200
+    r = await client.delete(f"{API}/plans/{plan_id}", headers=como(world.owner_email))
+    assert r.status_code == 204
+
+
+async def test_el_asistente_no_cambia_la_meta_del_macro(client, world: World):
+    plan_id = await _macro_del_asistente(client, world)
+
+    r = await client.patch(
+        f"{API}/plans/{plan_id}", json={"main_event": "Nacional"},
+        headers=como(world.assistant_email),
+    )
+    assert r.status_code == 403
+
+    r = await client.patch(
+        f"{API}/plans/{plan_id}", json={"main_event": "Nacional"},
+        headers=como(world.owner_email),
+    )
+    assert r.status_code == 200
+    assert r.json()["main_event"] == "Nacional"
+
+
+async def test_el_asistente_sigue_editando_lo_demas(client, world: World):
+    """El guard mira si la meta CAMBIA, no si viaja: reenviar el formulario
+    entero con la misma meta no puede costarle un 403."""
+    plan_id = await _macro_del_asistente(client, world)
+
+    r = await client.patch(
+        f"{API}/plans/{plan_id}",
+        json={"status": "suspended", "notes": "Parón", "main_event": "Regional"},
+        headers=como(world.assistant_email),
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "suspended"
+
+
+async def test_el_macro_ajeno_sigue_siendo_404_antes_que_403(client, world: World):
+    """El asistente no lleva el macro del mundo: para él no existe. Cambiarle la
+    meta tiene que decir eso, no que su rol no alcanza."""
+    r = await client.patch(
+        f"{API}/plans/{world.plan_id}", json={"main_event": "Otro"},
+        headers=como(world.assistant_email),
+    )
+    assert r.status_code == 404
+
+
+# ── R5: dos pertenencias activas son un error, no un club al azar ────────────
+
+async def test_principal_falla_con_dos_pertenencias_activas(db, world: World):
+    """La `UNIQUE` de `team_members.user_id` impide crear la segunda de verdad,
+    así que se simula: la sesión devuelve la consulta de pertenencia duplicada.
+    Con `.first()` esto atendía la petición en uno de los dos clubes sin avisar.
+    """
+    from sqlalchemy import select, union_all
+    from sqlalchemy.exc import MultipleResultsFound
+
+    from app.core.dependencies import _principal_for
+    from app.persistencia.tablas.usuarios import User
+
+    owner = (await db.execute(
+        select(User).where(User.email == world.owner_email)
+    )).scalar_one()
+
+    class _SesionQueDuplica:
+        def __init__(self, real) -> None:
+            self._real = real
+            self._primera = True
+
+        async def execute(self, stmt, *args, **kwargs):
+            if self._primera:
+                self._primera = False
+                return await self._real.execute(union_all(stmt, stmt))
+            return await self._real.execute(stmt, *args, **kwargs)
+
+    # Con una sola fila, la misma consulta resuelve como siempre.
+    assert (await _principal_for(db, owner)).team_id == world.team_id
+    with pytest.raises(MultipleResultsFound):
+        await _principal_for(_SesionQueDuplica(db), owner)

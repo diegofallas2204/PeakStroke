@@ -10,10 +10,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencias import repo_de_equipos
+from app.core.auditoria import TipoDeEvento, auditar
 from app.core.database import get_db
 from app.core.dependencies import Principal
 from app.core.guards import require_coach
 from app.persistencia.repositorios import RepositorioDeEquipos
+from app.persistencia.tablas.equipos import TeamMember
 
 from . import service
 from .schemas import MemberCreate, MemberCreated, MemberResponse, UserUpdate
@@ -41,6 +43,10 @@ async def create_member(
     if await service.get_by_email(db, data.email) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Ya existe una cuenta con ese email")
     user, temporary = await service.create_member(db, data, principal.team_id)
+    auditar(
+        TipoDeEvento.CUENTA_CREADA, principal, objetivo=("user", user.id),
+        detalle=f"{user.email} como {data.role}",
+    )
     membership = await equipos.pertenencia(user.id)
     return MemberCreated(
         member=await service.get_member(db, user, membership),  # type: ignore[arg-type]
@@ -71,5 +77,23 @@ async def update_member(
             "Ese entrenador es el dueño del equipo. Transfiere la propiedad primero.",
         )
 
+    rol_antes, activa_antes = membership.role, membership.is_active
     await service.update_member(db, user, membership, data)
+    _auditar_cambios(principal, user.id, user.email, rol_antes, activa_antes, membership)
     return await service.get_member(db, user, membership)
+
+
+def _auditar_cambios(
+    principal: Principal, user_id: int, email: str,
+    rol_antes: str, activa_antes: bool, membership: TeamMember,
+) -> None:
+    """Un evento por cada cosa que cambió de verdad; renombrar no es seguridad."""
+    objetivo = ("user", user_id)
+    if membership.role != rol_antes:
+        auditar(
+            TipoDeEvento.ROL_CAMBIADO, principal, objetivo=objetivo,
+            detalle=f"{email}: {rol_antes} → {membership.role}",
+        )
+    if membership.is_active != activa_antes:
+        tipo = TipoDeEvento.MIEMBRO_RESTAURADO if membership.is_active             else TipoDeEvento.MIEMBRO_REVOCADO
+        auditar(tipo, principal, objetivo=objetivo, detalle=email)

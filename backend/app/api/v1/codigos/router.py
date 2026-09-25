@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencias import repo_de_atletas, repo_de_codigos
+from app.core.auditoria import TipoDeEvento, auditar
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.guards import require_coach
@@ -76,6 +77,10 @@ async def create_code(
         code = await service.issue(codigos, swimmer, principal.id)
     except LinkCodeError as e:
         raise HTTPException(e.status, str(e)) from None
+    auditar(
+        TipoDeEvento.CODIGO_EMITIDO, principal, objetivo=("link_code", code.id),
+        detalle=f"para la ficha {swimmer.id}",
+    )
     return _to_response(code, swimmer.name)
 
 
@@ -106,6 +111,13 @@ async def invite(
         )
     except LinkCodeError as e:
         raise HTTPException(e.status, str(e)) from None
+    auditar(
+        TipoDeEvento.CODIGO_EMITIDO, principal, objetivo=("link_code", code.id),
+        detalle=(
+            f"invitación a {code.invited_email} para la ficha {swimmer.id}"
+            + ("; cuenta creada" if temporal is not None else "")
+        ),
+    )
     return InviteResponse(
         link_code=_to_response(code, swimmer.name),
         account_created=temporal is not None,
@@ -123,6 +135,7 @@ async def revoke_code(
     if code is None:
         raise HTTPException(404, "Código no encontrado")
     await codigos.revocar(code)
+    auditar(TipoDeEvento.CODIGO_REVOCADO, principal, objetivo=("link_code", code.id))
 
 
 @router.get("/mine", response_model=list[JoinRequestResponse])
@@ -161,7 +174,14 @@ async def redeem(
     try:
         swimmer, team = await service.redeem(db, codigos, data.code, user)
     except LinkCodeError as e:
+        # Los canjes fallidos también: muchos seguidos desde la misma cuenta son
+        # alguien probando códigos.
+        auditar(TipoDeEvento.CODIGO_CANJEADO, user, fallo=True, detalle=str(e))
         raise HTTPException(e.status, str(e)) from None
+    auditar(
+        TipoDeEvento.CODIGO_CANJEADO, user, equipo=team.id,
+        objetivo=("swimmer", swimmer.id),
+    )
     return RedeemResponse(
         swimmer_id=swimmer.id, swimmer_name=swimmer.name,
         team_id=team.id, team_name=team.name,

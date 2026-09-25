@@ -65,6 +65,13 @@ async def _principal_for(db: AsyncSession, user: User) -> Principal:
     `team_members.is_active`, y ese sí se comprueba tres líneas más arriba.
     Confundirlos dejaría a un atleta dado de baja sin poder ni consultar su
     propio histórico.
+
+    **`one_or_none()`, no `.first()`** (R5, aplicada el 2026-09-24). Hoy la
+    `UNIQUE` de `team_members.user_id` hace imposible una segunda pertenencia,
+    pero el día que se quite —"un cambio de una línea"— `.first()` sin
+    `ORDER BY` atendería la petición en un club cualquiera **sin fallar**, y el
+    `team_id` es la frontera de todo el aislamiento. Así esa fuga silenciosa se
+    convierte en un error inmediato (`MultipleResultsFound`, un 500).
     """
     stmt = (
         select(TeamMember, Swimmer.id)
@@ -75,7 +82,7 @@ async def _principal_for(db: AsyncSession, user: User) -> Principal:
         )
         .where(TeamMember.user_id == user.id, TeamMember.is_active.is_(True))
     )
-    fila = (await db.execute(stmt)).first()
+    fila = (await db.execute(stmt)).one_or_none()
     if fila is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

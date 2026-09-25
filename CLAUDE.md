@@ -35,8 +35,12 @@ cd backend && .venv\Scripts\python -m alembic current
 cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "Ana" --role coach
 ```
 
+## Ramas
+- **Se trabaja en `Preliminar`.** Todo commit del día a día va ahí
+- **`main` recibe solo fases completadas**: cuando lo que se está montando está entero, PR de `Preliminar` contra `main` con merge commit (no squash), y se sigue en `Preliminar` con lo siguiente. Nunca commitear directo en `main`
+
 ## Reglas de código (NO negociables)
-- **Un agregado se reparte en tres capas, no en una carpeta** (paso 5 del rediseño, 2026-08-25): su tabla en `app/persistencia/tablas/<agregado>.py`, su repositorio en `app/persistencia/repositorios/<agregado>.py`, y su router + schemas + presentación en `app/api/v1/<agregado>/`. **`app/modules/` ya no existe.** Hoy hay siete agregados —`atletas` · `codigos` · `equipos` · `macrociclos` · `resultados` · `tests_aerobicos` · `usuarios`— y ocho rebanadas de API (seis de ellos + `simulador`, que no tiene tabla, + `vistas`). `resultados` (C6) no tiene rebanada propia: lo leen `macrociclos` y `vistas` por su repositorio
+- **Un agregado se reparte en tres capas, no en una carpeta** (paso 5 del rediseño, 2026-08-25): su tabla en `app/persistencia/tablas/<agregado>.py`, su repositorio en `app/persistencia/repositorios/<agregado>.py`, y su router + schemas + presentación en `app/api/v1/<agregado>/`. **`app/modules/` ya no existe.** Hoy hay ocho agregados —`atletas` · `codigos` · `equipos` · `macrociclos` · `resultados` · `sesiones` · `tests_aerobicos` · `usuarios`— más la tabla derivada `carga_diaria`, y diez rebanadas de API (siete de ellos + `carga`, de solo lectura, + `simulador`, que no tiene tabla, + `vistas`). `resultados` (C6) no tiene rebanada propia: lo leen `macrociclos` y `vistas` por su repositorio. `sesiones` (C7) es el primero cuyo repositorio **recibe y devuelve entidades** (`guardar(Sesion)`), no filas
 - **`app/api/v1/vistas/` son pantallas compuestas, NO agregados**: el tablero, la tabla del equipo y la comparación no tienen modelo, no escriben y no imponen ninguna regla. Leen de los repositorios y dan forma. Cuando el tablero era `modules/dashboard/` parecía un módulo de dominio y se comportaba como tal — importaba `plans.access`, `plans.service` y tres modelos para poder preguntar en qué semana iba un plan
 - **Feature backend nueva:** una tabla, un repositorio y una rebanada de API. Si no tiene tabla propia (como el simulador) es solo la rebanada; si no impone reglas ni escribe, es una vista
 - `router.py` nunca tiene lógica de negocio — recibe, delega al service, retorna
@@ -92,11 +96,13 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
   un borde de una décima que cambia el volumen prescrito un 45 % (defecto 1 de §10.4,
   cerrado el 2026-08-17). El alta en el macrociclo y el recálculo pasan los dos el
   mismo dato — si solo lo pasara uno, el atleta tendría dos niveles según la puerta
-- **Curva de progresión por defecto = `"science"`** (distribución F_FASE, back-loaded,
-  pico en taper). Fuente única: `dominio/servicios/curvas.py::Cientifica`, que
-  deriva sus tramos de `MACRO_15_FASES` y `Fase.f_fase`. Sigmoide/exp/log/lineal
-  solo comparan escenarios —pero **cambian el veredicto que ve el atleta**: el
-  mismo nado sale `AHEAD` con la científica y `BEHIND` con la exponencial—. La mejora
+- **La curva de un plan real es SIEMPRE la científica** (R7, 2026-09-23): `Macrociclo.curva`
+  es una propiedad fija, `plans` ya no tiene `progression_curve` y el asistente no la
+  ofrece. Distribución F_FASE, back-loaded, pico en taper; fuente única
+  `dominio/servicios/curvas.py::Cientifica`, que deriva sus tramos de `MACRO_15_FASES`
+  y `Fase.f_fase`. Sigmoide/exp/log/lineal **solo existen en el simulador**, porque
+  cambian el veredicto que ve el atleta: el mismo nado sale `AHEAD` con la científica
+  y `BEHIND` con la exponencial. La mejora
   por MACROCICLO (`I_max × N/5`) ≠ la anual: la temporada son ~3 macros encadenados
   con degradación `MACROCYCLE_DEGRADATION = 0.60`. Validado en notas 16/17 del vault
 - **Las fases del macrociclo son las cinco de `Fase`** (P3, 2026-09-22):
@@ -107,6 +113,12 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
   existen: dan 422. Las fases por defecto las da el motor
   (`servicios/plan.fases_por_defecto`, la forma de `MACRO_15_FASES` escalada) y el
   asistente las pide a `GET /plans/default-phases` — no hay copia en el frontend
+- **Carga de entrenamiento = sTSS de la sesión** (`Sesion.carga(css)`), con el CSS
+  del último test ≤ esa fecha (T15/libre solo a falta de otro). Banister en
+  `dominio/servicios/banister.py`: la serie arranca **en equilibrio** (CTL₀ = ATL₀
+  = media de los primeros 14 días; con CTL₀ = 0 las alertas salían falsas durante
+  meses), y las alertas son TSB < −25 / < −40, TSB < 0 más de 14 días y CTL +7 en
+  una semana — convención de la práctica, no ciencia revisada, y en escala sTSS
 - **Proyección anual**: `MOTOR.proyectar_temporada()` (3 macros) → `POST
   /api/v1/simulator/season`. Estilo y piscina no entran: solo lee el techo
   realista de cada macro, que es de la distancia y el nivel
@@ -224,6 +236,8 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
 - **`plan_coaches` decide visibilidad**: un entrenador que no esté en la lista no
   ve ni edita ese macrociclo. **Excepción: el dueño**, que llega a todos — sin eso
   los planes de un entrenador que se va quedarían huérfanos
+- **Ver no es poder borrar** (R4, 2026-09-24): borrar un macrociclo y cambiar
+  su meta (`main_event`) son **de dueño**, aunque el asistente lo lleve
 - **Toda consulta pasa por `Principal`** (`core/principal.py`): usuario +
   pertenencia + propiedad. `RepositorioDeMacrociclos.acotar()` es la única
   puerta a los macrociclos; nada la esquiva. El repositorio **se construye con
@@ -245,10 +259,50 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   `resultados`, con FK al nadador y **ninguna** al plan, así que ni sacar a
   alguien del macro ni borrar el macro lo tocan. La semana **no** guarda su
   tiempo: promedia los resultados del atleta en esa prueba y esa semana,
-  convertidos a la piscina del macro. `weekly_plans.real_time` es una sombra que
-  se escribe y **no se lee**; se retira al empezar C7. No leerla nunca
+  convertidos a la piscina del macro. `weekly_plans.real_time` **ya no existe**
+  (C7, migración `c7a1e0d5b2f4`)
+- **La sesión guarda hechos, no derivados** (C7, 2026-09-23): `sesiones` lleva
+  fecha, metros, duración total (descansos incluidos) y RPE CR-10 del atleta.
+  El ritmo medio y la carga (sTSS) se calculan al leer, y las zonas y
+  prescripciones no se guardan en ningún sitio. Cuelga del atleta y **no apunta
+  a la semana ni al macro**: se encuentran por fecha. **Es la excepción a «nada
+  se borra»**: se borra de verdad, porque es un registro que su dueño corrige y
+  la carga de C8 se recalcula desde lo que haya
+- **`carga_diaria` es un derivado materializado** (C8, 2026-09-23): sTSS del día,
+  CTL y ATL de Banister. **La escribe solo `persistencia/repositorios/carga.recalcular`**,
+  y la llaman —antes de confirmar, en la misma transacción— las cuatro escrituras
+  que la cambian: guardar/borrar sesión y alta/baja de test aeróbico (el test fija
+  el CSS). Una escritura nueva que toque sesiones o tests **tiene que llamarla**;
+  `tests/test_carga.py` comprueba que la tabla es el cálculo desde cero
 - `ondelete=CASCADE` solo donde hay composición real (plan → fases, test →
   parciales). El resto usa el defecto, que impide borrar mientras algo lo referencie
+
+## Auditoría (D0, 2026-09-24)
+- **Un evento de seguridad = `auditar(TipoDeEvento.X, quien, ...)`** (`core/auditoria.py`),
+  llamado en el router **después** de que la operación se confirme. Es síncrona y
+  no toca la base: apunta en el contexto de la petición, y `MiddlewareDeAuditoria`
+  lo escribe en una sesión propia **cuando la respuesta ya salió**. Si escribir
+  falla, la petición ya terminó bien y el log recibe un `ERROR` con los eventos
+  perdidos. Medido: +0,03 ms en una petición sin eventos; con uno, la respuesta
+  sale igual de rápido y el volcado ocupa ~11 ms del proceso después
+- **Una operación nueva que sea de seguridad** (acceso, pertenencia, propiedad,
+  bajas, borrados de verdad) **añade su `TipoDeEvento` y su `auditar`**. Si es de
+  acceso, va también en `TIPOS_DE_ACCESO` y en el filtro de las dos vistas de
+  eventos (`test_auditoria_vistas.py` compara los tres)
+- `auditoria` es **append-only por trigger**: la base rechaza `UPDATE`, y `DELETE`
+  de lo que tenga menos de 24 meses. La única escritura que borra es
+  `tools/purgar_auditoria.py` (cron mensual). Sin FKs: el rastro sobrevive a lo
+  que describe, y el correo del actor va denormalizado
+- **Una IP nunca llega entera al disco** (R11, opción C): red truncada (/24, /48)
+  + HMAC con una clave que rota cada 30 días y se BORRA al rotar
+  (`claves_de_auditoria`). El user-agent, solo como familia («Chrome · Windows»).
+  `X-Forwarded-For` se ignora hasta que haya un proxy de confianza
+- **`v_admin_accesos` · `v_admin_actividad` · `v_admin_cuentas` · `v_admin_equipos`
+  son el único contrato de lectura de PSAdmin.** Ninguna lee tablas deportivas
+  ni la de claves; `test_auditoria_vistas.py` fija qué tablas lee y qué columnas
+  expone cada una. Accesos y actividad se reparten los tipos de evento sin
+  solaparse (un test lo comprueba), y actividad no lleva IP. Cambiar una vista es
+  una migración, no un `CREATE VIEW` a mano
 
 ## Esquema de base de datos
 - **Alembic es la única fuente del esquema.** `init_db()` ya no hace `create_all()`:
@@ -265,13 +319,29 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
 - Toda tabla o columna nueva requiere su migración; `--autogenerate` compara contra
   los modelos importados en `alembic/env.py` (si no está importado ahí, es invisible)
 - `render_as_batch=True` para SQLite (no sabe hacer `ALTER COLUMN`)
+- **Las vistas no están en el metadata**: `seed.py` las borra aparte antes de
+  `drop_all` (si no, la migración que las crea revienta con "view already
+  exists"). Y `env.py` llama a `fileConfig(..., disable_existing_loggers=False)`:
+  con el valor por defecto, migrar dentro del proceso (tests, seed) apagaba
+  todos los loggers de la app
 - Reglas de portabilidad SQLite→PostgreSQL: nada de `JSONB`/`citext`/enums nativos,
   emails normalizados a minúsculas en el service, `DateTime(timezone=True)` siempre
+- **El SQL crudo de una migración tiene que valer en los dos motores** (la cadena
+  corrió por primera vez en PostgreSQL el 2026-09-25 y se rompió en tres sitios):
+  booleanos como `TRUE`/`WHERE is_active`, nunca `1`/`= 1`; nada de `IS NOT 'x'`
+  (solo SQLite); lo que sea de un motor, detrás de `op.get_bind().dialect.name`.
+  Y en `op.create_table`, **una FK con `use_alter=True` no se crea en PostgreSQL**,
+  y una clave primaria que forma parte de una FK compuesta necesita
+  `autoincrement=True` también en la migración — si no, nace sin secuencia (le
+  pasó a `teams`, arreglado en `b2d7f5a8c1e4`)
 
 ## Camino al SaaS (parcialmente montado)
 - DB: SQLite en local; `docker-compose.yml` (raíz) trae PostgreSQL 17 listo para
-  cuando toque desplegar — basta `pip install asyncpg` y apuntar
-  `PEAKSTROKE_DATABASE_URL`. El código no cambia
+  cuando toque desplegar — `docker compose up -d db`, `pip install asyncpg` y
+  apuntar `PEAKSTROKE_DATABASE_URL`. **Probado el 2026-09-25**: la cadena de
+  migraciones sube y baja entera, `alembic check` limpio y `seed.py` corre
+  (resetea con `DROP SCHEMA public CASCADE`). Hizo falta arreglar tres
+  migraciones y añadir una; la suite de tests sigue corriendo solo en SQLite
 - Falta el módulo `billing/` (Stripe) y los tier guards:
   `core/tier_limits.py` + dependencia `require_feature()`
 

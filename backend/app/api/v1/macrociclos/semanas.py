@@ -13,8 +13,7 @@ Es el promedio de los `Resultado` del atleta en esa prueba y esos siete días,
 convertidos a la piscina del macro, y sale de
 `RepositorioDeResultados.reales_por_semana`. Por eso un
 tiempo que no cae en ninguna semana del plan no reancla nada: nunca llega aquí.
-`WeeklyPlan.real_time` se sigue escribiendo una versión más, como sombra para
-que la migración sea reversible, pero este archivo ya no la lee.
+La columna `weekly_plans.real_time` ya no existe (C7).
 
 Los datos del macrociclo —piscina, curva, n_mac, fecha de inicio— salen de la
 entidad, no de la fila: `event.athlete_plan.plan.pool` ata este archivo a la

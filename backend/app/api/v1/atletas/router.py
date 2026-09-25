@@ -8,6 +8,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.dependencias import repo_de_atletas, repo_de_usuarios
+from app.core.auditoria import TipoDeEvento, auditar
 from app.core.guards import require_coach
 from app.core.principal import Principal
 from app.persistencia.repositorios import RepositorioDeAtletas, RepositorioDeUsuarios
@@ -85,7 +86,9 @@ async def deactivate_swimmer(
     vez de 204 para que la UI pueda reflejar el nuevo estado.
     """
     fila = await _fila_o_404(repo, swimmer_id)
-    return service.to_response(await repo.cambiar_alta(fila, False))
+    respuesta = service.to_response(await repo.cambiar_alta(fila, False))
+    auditar(TipoDeEvento.NADADOR_BAJA, coach, objetivo=("swimmer", swimmer_id))
+    return respuesta
 
 
 @router.post("/{swimmer_id}/reactivate", response_model=SwimmerResponse)
@@ -95,4 +98,6 @@ async def reactivate_swimmer(
     repo: RepositorioDeAtletas = Depends(repo_de_atletas),
 ):
     fila = await _fila_o_404(repo, swimmer_id)
-    return service.to_response(await repo.cambiar_alta(fila, True))
+    respuesta = service.to_response(await repo.cambiar_alta(fila, True))
+    auditar(TipoDeEvento.NADADOR_RESTAURADO, coach, objetivo=("swimmer", swimmer_id))
+    return respuesta

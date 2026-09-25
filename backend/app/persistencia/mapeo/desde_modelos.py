@@ -32,8 +32,10 @@ from app.dominio.entidades import (
     FaseDelMacro,
     Macrociclo,
     Resultado,
+    Sesion,
     TestAerobico,
 )
+from app.dominio.servicios.banister import MedicionDeCss
 from app.dominio.valores import (
     Especialidad,
     EstadoDeMacro,
@@ -43,12 +45,14 @@ from app.dominio.valores import (
     ModoDeIngreso,
     Piscina,
     Prueba,
+    Ritmo,
     Tiempo,
     TipoDeTest,
 )
 from app.persistencia.tablas.atletas import Swimmer
 from app.persistencia.tablas.planes import Competition, Plan, PlanPhase
 from app.persistencia.tablas.resultados import Result
+from app.persistencia.tablas.sesiones import SwimSession
 from app.persistencia.tablas.tests_aerobicos import AerobicTest
 
 
@@ -114,7 +118,6 @@ def macrociclo_desde_fila(fila: Plan) -> Macrociclo:
         nombre=fila.name,
         semanas_por_micro=fila.weeks_per_micro,
         km_totales=fila.total_km,
-        curva=fila.progression_curve,
         piscina=Piscina.desde_texto(fila.pool),
         n_mac=fila.n_mac,
         prueba_principal=fila.main_event,
@@ -170,4 +173,24 @@ def resultado_desde_fila(fila: Result) -> Resultado:
         piscina=Piscina.desde_texto(fila.pool),
         contexto=Contexto.desde_texto(fila.context),
         competencia_id=fila.competition_id,
+    )
+
+
+def sesion_desde_fila(fila: SwimSession) -> Sesion:
+    return Sesion(
+        id=fila.id,
+        atleta_id=fila.swimmer_id,
+        fecha=fila.session_date,
+        distancia_m=fila.distance_m,
+        duracion=Tiempo(fila.duration_s),
+        rpe=fila.rpe,
+        notas=fila.notes,
+    )
+
+
+def medicion_desde_test(fila: AerobicTest) -> MedicionDeCss:
+    """El umbral que mide un test, y si lo mide de verdad (`mide_el_umbral`)."""
+    return MedicionDeCss(
+        fecha=fila.test_date, ritmo=Ritmo(fila.avg_per100),
+        preferente=TipoDeTest.desde_texto(fila.test_type).mide_el_umbral,
     )

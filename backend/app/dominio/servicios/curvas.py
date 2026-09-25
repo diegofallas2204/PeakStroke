@@ -46,10 +46,11 @@ class Curva(ABC):
     def desde_clave(cls, clave: str | None) -> Curva:
         """La curva de esa clave. Una desconocida cae en la científica.
 
-        Cae en vez de reventar a propósito: la clave llega hoy de una columna de
-        texto libre (`plans.progression_curve`), y un plan viejo con una clave
-        que ya no existe tiene que poder seguir viéndose. Caer en la científica
-        es caer en la que la literatura respalda, no en una cualquiera.
+        Cae en vez de reventar a propósito: la clave llega del simulador como
+        texto, y hasta R7 (2026-09-23) llegaba además de una columna de texto
+        libre (`plans.progression_curve`). Caer en la científica es caer en la
+        que la literatura respalda, no en una cualquiera — y es también la única
+        que usa un plan real (`Macrociclo.curva`).
         """
         return _CATALOGO.get((clave or "").strip().lower(), _CIENTIFICA)
 

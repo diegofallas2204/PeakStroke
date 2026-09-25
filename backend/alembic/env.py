@@ -28,7 +28,11 @@ config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # `disable_existing_loggers=False`: los tests y `seed.py` migran DENTRO del
+    # proceso de la app, y con el valor por defecto `fileConfig` apagaba todos
+    # los loggers ya importados — el aviso de que la auditoría no pudo escribir
+    # (D0) incluido. Un aviso que se silencia solo es peor que no tenerlo.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 

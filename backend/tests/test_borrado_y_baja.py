@@ -204,8 +204,12 @@ async def test_sacar_a_un_atleta_no_borra_sus_semanas(client, db, world: World):
     evento = await db.get(AthleteEvent, world.carlos_event_id)
     assert evento is not None, "el evento del atleta se borró"
 
-    await db.refresh(semana)
-    assert semana.real_time == 128.0, "el tiempo real registrado desapareció"
+    from app.persistencia.tablas.resultados import Result
+
+    tiempos = (await db.execute(
+        select(Result.time).where(Result.swimmer_id == world.carlos_swimmer_id)
+    )).scalars().all()
+    assert tiempos == [128.0], "el tiempo real registrado desapareció"
 
 
 async def test_sacarlo_lo_quita_de_las_vistas(client, db, world: World):

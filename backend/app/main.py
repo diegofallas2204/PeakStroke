@@ -8,9 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.atletas.router import router as swimmers_router
 from app.api.v1.auth.router import router as auth_router
+from app.api.v1.carga.router import router as training_load_router
 from app.api.v1.codigos.router import router as link_codes_router
 from app.api.v1.equipos.router import router as teams_router
 from app.api.v1.macrociclos.router import router as plans_router
+from app.api.v1.sesiones.router import router as sessions_router
 from app.api.v1.simulador.router import router as simulator_router
 from app.api.v1.tests.router import router as aerobic_router
 from app.api.v1.vistas.router import router as dashboard_router
@@ -18,6 +20,7 @@ from app.api.v1.vistas.router import router as dashboard_router
 # Importado por su efecto: registra todos los modelos en Base.metadata para que
 # SQLAlchemy pueda resolver las FKs entre módulos (p. ej. swimmers -> teams).
 from app.core import model_registry  # noqa: F401
+from app.core.auditoria import MiddlewareDeAuditoria
 from app.core.config import settings
 from app.core.database import init_db
 from app.core.dev_identity import DEV_BYPASS_HEADER, DEV_USER_HEADER
@@ -30,6 +33,10 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title=settings.app_name, version=settings.version, lifespan=lifespan)
+
+# La auditoría envuelve cada petición: apunta durante y escribe al terminar, ya
+# enviada la respuesta. Ver `core/auditoria.py`.
+app.add_middleware(MiddlewareDeAuditoria)
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,6 +63,10 @@ app.include_router(swimmers_router, prefix="/api/v1/swimmers", tags=["swimmers"]
 app.include_router(link_codes_router, prefix="/api/v1/link-codes", tags=["link-codes"])
 app.include_router(plans_router, prefix="/api/v1/plans", tags=["plans"])
 app.include_router(aerobic_router, prefix="/api/v1/aerobic-tests", tags=["aerobic-tests"])
+app.include_router(sessions_router, prefix="/api/v1/sessions", tags=["sessions"])
+app.include_router(
+    training_load_router, prefix="/api/v1/training-load", tags=["training-load"],
+)
 app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(simulator_router, prefix="/api/v1/simulator", tags=["simulator"])
 

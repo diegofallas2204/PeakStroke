@@ -5,9 +5,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarRange, Plus, Trash2, UserPlus, Flag, CheckCircle2, PauseCircle, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { Plan } from '../../lib/types'
-import { CURVE_LABEL, SPECIALTY_LABEL, PLAN_STATUS_META } from '../../lib/constants'
+import { SPECIALTY_LABEL, PLAN_STATUS_META } from '../../lib/constants'
 import { toClock } from '../../lib/format'
 import { usePageEnter } from '../../hooks/usePageEnter'
+import { useIsOwner } from '../../hooks/useSession'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card, Chip, EmptyState, Spinner } from '../../components/ui/primitives'
 import { PlanWizard } from './PlanWizard'
@@ -17,6 +18,8 @@ export function PlansPage() {
   const [showWizard, setShowWizard] = useState(false)
   const [assignTo, setAssignTo] = useState<Plan | null>(null)
   const queryClient = useQueryClient()
+  // Borrar un macro es de dueño (R4): el backend ya lo niega al asistente.
+  const isOwner = useIsOwner()
 
   const { data: plans, isLoading } = useQuery({ queryKey: ['plans'], queryFn: api.plans.list })
 
@@ -80,7 +83,7 @@ export function PlansPage() {
                   </div>
                   <p className="mt-1 text-[11.5px] text-text-dim">
                     Inicio {plan.start_date} · {plan.total_weeks} semanas · micros de {plan.weeks_per_micro} ·{' '}
-                    {plan.total_km} km · curva {CURVE_LABEL[plan.progression_curve]}
+                    {plan.total_km} km
                     {plan.main_event && <> · objetivo: <span className="text-text">{plan.main_event}</span></>}
                   </p>
                 </div>
@@ -98,13 +101,15 @@ export function PlansPage() {
                   <button className="btn btn-ghost" onClick={() => setAssignTo(plan)}>
                     <UserPlus size={13} /> Agregar atleta
                   </button>
-                  <button
-                    className="btn btn-danger !px-3"
-                    onClick={() => confirm(`¿Eliminar "${plan.name}" y todos sus planes semanales?`) && removePlan.mutate(plan.id)}
-                    aria-label="Eliminar macrociclo"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  {isOwner && (
+                    <button
+                      className="btn btn-danger !px-3"
+                      onClick={() => confirm(`¿Eliminar "${plan.name}" y todos sus planes semanales?`) && removePlan.mutate(plan.id)}
+                      aria-label="Eliminar macrociclo"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
                 </div>
               </div>
 

@@ -12,9 +12,12 @@ Lo importan `app/main.py` (arranque de la app) y `alembic/env.py` (autogenerate)
 **Todo módulo con modelos nuevos tiene que añadirse aquí.**
 """
 from app.persistencia.tablas import atletas as _atletas  # noqa: F401
+from app.persistencia.tablas import auditoria as _auditoria  # noqa: F401
+from app.persistencia.tablas import carga as _carga  # noqa: F401
 from app.persistencia.tablas import codigos as _codigos  # noqa: F401
 from app.persistencia.tablas import equipos as _equipos  # noqa: F401
 from app.persistencia.tablas import planes as _planes  # noqa: F401
 from app.persistencia.tablas import resultados as _resultados  # noqa: F401
+from app.persistencia.tablas import sesiones as _sesiones  # noqa: F401
 from app.persistencia.tablas import tests_aerobicos as _tests  # noqa: F401
 from app.persistencia.tablas import usuarios as _usuarios  # noqa: F401

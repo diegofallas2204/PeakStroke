@@ -7,7 +7,8 @@
 #   set PEAKSTROKE_DATABASE_URL=postgresql+asyncpg://peakstroke:peakstroke@localhost:5432/peakstroke
 #   cd backend && alembic upgrade head && python seed.py
 #
-# Requiere Docker Desktop, que a 2026-08-03 no está instalado en la máquina.
+# Probado entero el 2026-09-25 (migraciones arriba y abajo, alembic check y
+# seed.py). Para pararlo sin perder datos: docker compose stop db
 
 services:
   db:

@@ -56,7 +56,8 @@ class PlanCreate(BaseModel):
     total_weeks: int = Field(ge=8, le=24)
     weeks_per_micro: int = Field(default=4, ge=3, le=6)
     total_km: float = Field(gt=0)
-    progression_curve: str = "science"
+    # Sin curva (R7): la de un plan real es siempre la científica. Un cliente
+    # viejo que la siga mandando no rompe: Pydantic ignora el campo de más.
     pool: Literal["25", "50"] = "50"
     n_mac: int = Field(default=1, ge=1, le=10)
     main_event: str | None = None
@@ -136,7 +137,6 @@ class PlanResponse(BaseModel):
     total_weeks: int
     weeks_per_micro: int
     total_km: float
-    progression_curve: str
     pool: str = "50"
     n_mac: int = 1
     main_event: str | None

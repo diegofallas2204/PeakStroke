@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencias import repo_de_equipos
+from app.core.auditoria import TipoDeEvento, auditar
 from app.core.database import get_db
 from app.core.guards import require_coach, require_team_owner
 from app.core.principal import Principal
@@ -67,6 +68,11 @@ async def transfer_ownership(
         equipo = await service.transfer_ownership(repo, equipo, data.new_owner_id)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    auditar(
+        TipoDeEvento.PROPIEDAD_TRANSFERIDA, principal,
+        objetivo=("user", data.new_owner_id),
+        detalle=f"de la cuenta {principal.id} a la {data.new_owner_id}",
+    )
     # `is_owner` del principal ya no vale: quien pregunta acaba de dejar de serlo.
     return await service.to_response(db, repo, equipo, principal)
 

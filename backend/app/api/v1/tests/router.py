@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencias import repo_de_macrociclos, repo_de_tests
+from app.core.auditoria import TipoDeEvento, auditar
 from app.core.database import get_db
 from app.core.guards import require_coach
 from app.core.principal import Principal
@@ -133,6 +134,8 @@ async def deactivate_test(
     ("quitar este test"), igual que en `swimmers`.
     """
     await repo.cambiar_alta(await _test_or_404(repo, test_id), False)
+    # Sin `require_coach`: un atleta puede retirar su propio test, y el actor es él.
+    auditar(TipoDeEvento.TEST_BAJA, repo.principal, objetivo=("aerobic_test", test_id))
 
 
 @router.post("/{test_id}/reactivate", response_model=AerobicTestResponse)
@@ -149,4 +152,6 @@ async def reactivate_test(
     archivo es una decisión sobre el histórico del club.
     """
     test = await _test_or_404(repo, test_id)
-    return service.to_response(await repo.cambiar_alta(test, True))
+    respuesta = service.to_response(await repo.cambiar_alta(test, True))
+    auditar(TipoDeEvento.TEST_RESTAURADO, coach, objetivo=("aerobic_test", test_id))
+    return respuesta

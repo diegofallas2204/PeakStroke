@@ -15,6 +15,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auditoria import TipoDeEvento, auditar
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import Principal, get_current_principal, get_current_user
@@ -114,7 +115,12 @@ async def change_password(
     sí se quedan fuera, que es justo lo que se pretende.
     """
     if not await service.authenticate(db, principal.user.email, data.current_password):
+        auditar(
+            TipoDeEvento.PASSWORD_CAMBIADA, principal, fallo=True,
+            detalle="password_actual_incorrecta",
+        )
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La contraseña actual no es correcta")
     await service.set_password(db, principal.user, data.new_password)
     await service.revoke_sessions(db, principal.user)
+    auditar(TipoDeEvento.PASSWORD_CAMBIADA, principal, detalle="se revocan las demás sesiones")
     return await _issue_session(db, response, principal.user)

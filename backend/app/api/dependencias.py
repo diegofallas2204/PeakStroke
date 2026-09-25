@@ -19,10 +19,12 @@ from app.core.dependencies import get_current_principal
 from app.core.principal import Principal
 from app.persistencia.repositorios import (
     RepositorioDeAtletas,
+    RepositorioDeCarga,
     RepositorioDeCodigos,
     RepositorioDeEquipos,
     RepositorioDeMacrociclos,
     RepositorioDeResultados,
+    RepositorioDeSesiones,
     RepositorioDeTests,
     RepositorioDeUsuarios,
 )
@@ -40,6 +42,20 @@ async def repo_de_resultados(
     principal: Principal = Depends(get_current_principal),
 ) -> RepositorioDeResultados:
     return RepositorioDeResultados(db, principal)
+
+
+async def repo_de_carga(
+    db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+) -> RepositorioDeCarga:
+    return RepositorioDeCarga(db, principal)
+
+
+async def repo_de_sesiones(
+    db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+) -> RepositorioDeSesiones:
+    return RepositorioDeSesiones(db, principal)
 
 
 async def repo_de_atletas(
