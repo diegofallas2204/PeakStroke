@@ -2352,8 +2352,25 @@ loggers de la app al migrar dentro del proceso — con eso, el aviso de fallo de
 la auditoría salía mudo en los tests.
 
 **Lo que NO se hizo:**
-- **La rama PostgreSQL de la migración no se ha ejecutado nunca** (Docker
-  Desktop instalado pero sin el daemon). Probarla antes de D2.
+- ~~**La rama PostgreSQL de la migración no se ha ejecutado nunca.**~~ ✅
+  **Probada el 2026-09-25** en el PostgreSQL 17 del `docker-compose.yml`: los 7
+  eventos por el API con la IP anonimizada; `UPDATE`, `DELETE` reciente y
+  `TRUNCATE` rechazados por el trigger plpgsql; la purga solo se lleva lo
+  caducado; las claves rotan (savepoint) y las cuatro vistas responden. Volcar
+  un evento: 4,05 ms de mediana (11 en SQLite). **Y destapó que la cadena de
+  migraciones nunca había corrido en PostgreSQL**, y se rompía antes de D0:
+  - `bae825334065` (C6) y `c7a1e0d5b2f4` (C7) escribían booleanos como `1`;
+  - `82135c6cb2d8` (R7) usaba `IS NOT 'science'`, que solo existe en SQLite;
+  - `teams.id` **no tenía secuencia** —en PostgreSQL no se podía crear ningún
+    equipo— y **`fk_teams_owner_is_member` no existía** (una FK `use_alter`
+    dentro de `op.create_table` no se emite en PostgreSQL). Migración nueva
+    `b2d7f5a8c1e4`, que en SQLite no hace nada;
+  - `seed.py` reseteaba con `PRAGMA`; en PostgreSQL ahora hace
+    `DROP SCHEMA public CASCADE`.
+
+  Las tres migraciones se editaron en sitio (en SQLite el significado es el
+  mismo; ninguna base PostgreSQL las había aplicado). La suite sigue corriendo
+  solo en SQLite: nada vigila que esto no vuelva a pasar (ver R12 y D2).
 - ~~**La actividad no tiene vista.**~~ ✅ **Hecho el mismo día**
   (migración `f4b8e1c2a9d3`, con el visto bueno del usuario): `v_admin_actividad`
   es el complemento exacto de `v_admin_accesos` —un test comprueba que entre las

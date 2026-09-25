@@ -99,7 +99,7 @@ def upgrade() -> None:
             (team_id, swimmer_id, distance, stroke, time, result_date, pool,
              context, competition_id, is_active)
         SELECT ap.team_id, ap.swimmer_id, e.distance, e.stroke, w.real_time,
-               w.week_date, p.pool, 'control', NULL, 1
+               w.week_date, p.pool, 'control', NULL, TRUE
         FROM weekly_plans w
         JOIN athlete_events e ON e.id = w.athlete_event_id
         JOIN athlete_plans ap ON ap.id = e.athlete_plan_id
@@ -120,7 +120,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     conn = op.get_bind()
     vivos = conn.execute(
-        sa.text("SELECT count(*) FROM resultados WHERE is_active = 1"),
+        sa.text("SELECT count(*) FROM resultados WHERE is_active"),
     ).scalar_one()
     en_columna = conn.execute(sa.text(_REAL_TIMES)).scalar_one()
     if vivos > en_columna:

@@ -326,11 +326,22 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   todos los loggers de la app
 - Reglas de portabilidad SQLite→PostgreSQL: nada de `JSONB`/`citext`/enums nativos,
   emails normalizados a minúsculas en el service, `DateTime(timezone=True)` siempre
+- **El SQL crudo de una migración tiene que valer en los dos motores** (la cadena
+  corrió por primera vez en PostgreSQL el 2026-09-25 y se rompió en tres sitios):
+  booleanos como `TRUE`/`WHERE is_active`, nunca `1`/`= 1`; nada de `IS NOT 'x'`
+  (solo SQLite); lo que sea de un motor, detrás de `op.get_bind().dialect.name`.
+  Y en `op.create_table`, **una FK con `use_alter=True` no se crea en PostgreSQL**,
+  y una clave primaria que forma parte de una FK compuesta necesita
+  `autoincrement=True` también en la migración — si no, nace sin secuencia (le
+  pasó a `teams`, arreglado en `b2d7f5a8c1e4`)
 
 ## Camino al SaaS (parcialmente montado)
 - DB: SQLite en local; `docker-compose.yml` (raíz) trae PostgreSQL 17 listo para
-  cuando toque desplegar — basta `pip install asyncpg` y apuntar
-  `PEAKSTROKE_DATABASE_URL`. El código no cambia
+  cuando toque desplegar — `docker compose up -d db`, `pip install asyncpg` y
+  apuntar `PEAKSTROKE_DATABASE_URL`. **Probado el 2026-09-25**: la cadena de
+  migraciones sube y baja entera, `alembic check` limpio y `seed.py` corre
+  (resetea con `DROP SCHEMA public CASCADE`). Hizo falta arreglar tres
+  migraciones y añadir una; la suite de tests sigue corriendo solo en SQLite
 - Falta el módulo `billing/` (Stripe) y los tier guards:
   `core/tier_limits.py` + dependencia `require_feature()`
 

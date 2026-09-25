@@ -195,6 +195,15 @@ async def reset_schema() -> None:
     tablas del metadata, así que sin esto Alembic creería que el esquema sigue
     al día sobre una base ya vacía y no aplicaría nada.
     """
+    if engine.dialect.name != "sqlite":
+        # PostgreSQL: el esquema entero de una vez. Se lleva tablas, vistas, la
+        # función del trigger de `auditoria` y `alembic_version`, y no tiene que
+        # resolver el ciclo teams ↔ team_members.
+        async with engine.begin() as conn:
+            await conn.exec_driver_sql("DROP SCHEMA public CASCADE")
+            await conn.exec_driver_sql("CREATE SCHEMA public")
+        await engine.dispose()
+        return
     async with engine.begin() as conn:
         # Con las FKs activas (lo están desde `core/database.py`) no hay ningún
         # orden de borrado válido: teams y team_members se referencian en ciclo.

@@ -88,7 +88,7 @@ def _semanas_y_promedios(conn) -> tuple[list, dict[int, float]]:
     por_atleta_y_prueba: dict[tuple, list[tuple[date, float]]] = defaultdict(list)
     for atleta, distancia, estilo, tiempo, fecha, piscina in conn.execute(sa.text(
         "SELECT swimmer_id, distance, stroke, time, result_date, pool "
-        "FROM resultados WHERE is_active = 1"
+        "FROM resultados WHERE is_active"
     )):
         # Se guarda ya en larga: dividir por el factor de origen es la mitad de
         # la conversión que no depende del destino.

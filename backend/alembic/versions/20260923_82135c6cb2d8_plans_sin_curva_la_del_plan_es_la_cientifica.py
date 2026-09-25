@@ -45,7 +45,8 @@ _log = logging.getLogger("alembic.runtime.migration")
 def upgrade() -> None:
     otras = op.get_bind().execute(sa.text(
         "SELECT id, name, progression_curve FROM plans "
-        "WHERE progression_curve IS NOT 'science'"
+        # `IS NOT 'x'` (distinto, contando el nulo) solo existe en SQLite.
+        "WHERE progression_curve IS NULL OR progression_curve <> 'science'"
     )).all()
     if otras:
         _log.warning(
