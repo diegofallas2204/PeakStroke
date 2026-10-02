@@ -126,7 +126,7 @@ Orden: **gstack primero**, luego el resto por grupo.
 
 | Skill | Qué hace |
 |---|---|
-| `/run-gstack` | Corre la sesión de desarrollo de PeakStroke de principio a fin encadenando los skills de gstack en orden, con puertas de seguridad y QA que no se pueden saltar. |
+| `/run-gstack` | Corre la sesión de desarrollo de principio a fin encadenando los skills de gstack en orden, con puertas de seguridad y QA que no se pueden saltar. Genérico con un perfil por proyecto (`perfiles/peakstroke.md`) y un equipo pequeño de agentes: Verificador de estado (`haiku`) y Revisor independiente (`opus`, en frío). Modo `bloque` para ejecutar un bloque del plan de trabajo y modo `equipo` para diseñar agentes para otro flujo. |
 | `/peakstroke` | Carga el contexto del proyecto PeakStroke desde el vault de Obsidian. |
 | `/ro` | Lee el vault de Obsidian (`E:\Obsidian`) y construye el entendimiento del proyecto antes de trabajar. |
 | `/wo` | Escribe al vault de Obsidian lo importante de la sesión como notas y nodos de conocimiento, y actualiza la memoria. |
