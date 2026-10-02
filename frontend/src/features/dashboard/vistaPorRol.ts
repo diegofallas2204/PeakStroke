@@ -14,6 +14,8 @@
 // semanal. El enlace apunta a la vista final y no a `/comparacion`, que solo
 // existe ya como redirect para marcadores viejos.
 const PROGRESION = '/plan-semanal?vista=progresion'
+// `?nueva=1` abre el formulario al llegar: Entrenamiento lo lee una vez y lo quita.
+const APUNTAR_SESION = '/entrenamiento?nueva=1'
 
 export type Vista = {
   /** Primera tarjeta: para el entrenador es cuánta gente lleva; para el atleta, cuántas pruebas tiene. */
@@ -27,6 +29,11 @@ export type Vista = {
   muestraColumnaAtleta: boolean
   /** Acción principal de la cabecera. `null` = ninguna. */
   accion: { texto: string; a: string } | null
+  /**
+   * Lo que se hace a diario, por delante de la acción principal. Al atleta,
+   * apuntar lo que nadó: dos toques desde su inicio. `null` = ninguna.
+   */
+  accionRapida: { texto: string; a: string } | null
   vacio: { titulo: string; pista: string; accion: { texto: string; a: string } | null }
 }
 
@@ -43,6 +50,7 @@ const ENTRENADOR: Vista = {
   tituloTabla: (semana) => `Estado por atleta · Semana ${semana}`,
   muestraColumnaAtleta: true,
   accion: { texto: 'Tabla del equipo', a: '/equipo' },
+  accionRapida: null,
   vacio: {
     titulo: 'Sin macrociclo activo',
     pista: 'Crea tu primer macrociclo para empezar a planificar la temporada.',
@@ -63,12 +71,14 @@ const ATLETA: Vista = {
   tituloTabla: (semana) => `Mis pruebas · Semana ${semana}`,
   muestraColumnaAtleta: false,
   accion: { texto: 'Ver mi plan semanal', a: '/plan-semanal' },
+  accionRapida: { texto: 'Apuntar sesión', a: APUNTAR_SESION },
   vacio: {
     titulo: 'Todavía no estás en ningún macrociclo',
-    // Sin botón: no es algo que el atleta pueda resolver por su cuenta, y
-    // ofrecerle una acción que no le corresponde solo genera un clic frustrado.
-    pista: 'Cuando tu entrenador te inscriba en uno, aquí verás tu plan y tu progresión.',
-    accion: null,
+    // El macro no es algo que el atleta pueda resolver por su cuenta, así que
+    // no hay botón para eso. Sí para apuntar lo que nadó: las sesiones cuelgan
+    // del atleta, no del macrociclo, y cuentan aunque no esté en ninguno.
+    pista: 'Cuando tu entrenador te inscriba en uno, aquí verás tu plan y tu progresión. Mientras tanto, puedes apuntar lo que nadas.',
+    accion: { texto: 'Apuntar sesión', a: APUNTAR_SESION },
   },
 }
 

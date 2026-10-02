@@ -126,11 +126,20 @@ def test_lo_que_un_atleta_no_escribe(recurso):
     assert Entrenador().puede_escribir(recurso)
 
 
-@pytest.mark.parametrize("recurso", [Recurso.SEMANA, Recurso.TEST_AEROBICO])
+@pytest.mark.parametrize("recurso", [Recurso.SEMANA, Recurso.TEST_AEROBICO, Recurso.SESION])
 def test_lo_que_un_atleta_si_escribe(recurso):
-    """Las dos escrituras que los routers dejan pasar sin `require_coach`:
-    apuntar el tiempo real de su semana y registrar sus tests aeróbicos."""
+    """Las tres escrituras que los routers dejan pasar sin `require_coach`:
+    apuntar el tiempo real de su semana, registrar sus tests aeróbicos y
+    apuntar lo que nadó cada día (C7)."""
     assert AtletaRol().puede_escribir(recurso)
+
+
+@pytest.mark.parametrize("rol", [Entrenador(), EntrenadorEnJefe(), AtletaRol()],
+                         ids=lambda r: type(r).__name__)
+def test_entrenamiento_lo_ven_los_dos_roles(rol: Rol):
+    """El atleta apunta sus sesiones y el entrenador las de sus atletas: la
+    sección es de los dos, como Base aeróbica."""
+    assert Seccion.ENTRENAMIENTO in rol.secciones_visibles()
 
 
 def test_el_atleta_no_ve_la_tabla_del_equipo():

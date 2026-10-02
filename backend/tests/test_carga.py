@@ -287,6 +287,8 @@ async def test_la_curva_llega_a_hasta_decayendo_y_avisa_del_calentamiento(client
     cuerpo = r.json()
     assert cuerpo["history_start"] == str(dia)
     assert cuerpo["warming_up"] is True
+    # La franja la calcula el servidor: el frontend no copia los 14 días.
+    assert cuerpo["warmup_until"] == str(dia + timedelta(DIAS_DE_CALENTAMIENTO))
     assert cuerpo["sessions_without_css"] == 1
     dias = cuerpo["days"]
     assert [d["date"] for d in (dias[0], dias[-1])] == [str(dia), str(hasta)]
@@ -302,7 +304,7 @@ async def test_la_curva_ajena_da_404_y_sin_sesiones_sale_vacia(client, world: Wo
     r = await client.get(f"{API}/training-load/{world.carlos_swimmer_id}",
                          headers=como(world.owner_email))
     assert r.status_code == 200
-    assert (r.json()["days"], r.json()["history_start"]) == ([], None)
+    assert (r.json()["days"], r.json()["history_start"], r.json()["warmup_until"]) == ([], None, None)
 
 
 async def test_rango_invalido_da_422(client, world: World):

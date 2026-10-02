@@ -48,3 +48,48 @@ export function tryToSeconds(value: string): number | null {
 export function signed(n: number, decimals = 2): string {
   return `${n > 0 ? '+' : ''}${n.toFixed(decimals)}`
 }
+
+/** Segundos -> 'h:mm' ('0:45', '1:30'). Para duraciones de sesión. */
+export function toHoursMinutes(seconds: number | null | undefined): string {
+  if (seconds == null || Number.isNaN(seconds) || seconds < 0) return '—'
+  const totalMin = Math.round(seconds / 60)
+  return `${Math.floor(totalMin / 60)}:${String(totalMin % 60).padStart(2, '0')}`
+}
+
+/**
+ * 'h:mm' -> segundos; un número suelto se lee como MINUTOS ('90' = 1:30).
+ * `null` si no es una duración positiva. Los minutos de 'h:mm' van de 0 a 59:
+ * '1:75' es un error de tecleo, no una hora y tres cuartos.
+ */
+export function parseHoursMinutes(value: string): number | null {
+  const raw = value.trim()
+  if (/^\d+$/.test(raw)) {
+    const min = Number(raw)
+    return min > 0 ? min * 60 : null
+  }
+  const m = /^(\d+):(\d{1,2})$/.exec(raw)
+  if (!m) return null
+  const [h, min] = [Number(m[1]), Number(m[2])]
+  if (min > 59) return null
+  const total = (h * 60 + min) * 60
+  return total > 0 ? total : null
+}
+
+/** Fecha local -> 'YYYY-MM-DD', sin pasar por UTC (que de noche da mañana). */
+export function isoDay(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mm}-${dd}`
+}
+
+/** 'YYYY-MM-DD' -> '3 ago'. Para ejes y listas donde el año sobra. */
+export function toDayMonth(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString('es', { day: 'numeric', month: 'short' })
+}
+
+/** 'YYYY-MM-DD' -> 'DD/MM'. El formato de fecha de los ejes (CLAUDE.md). */
+export function toDDMM(iso: string): string {
+  const [, m, d] = iso.split('-')
+  return `${d}/${m}`
+}

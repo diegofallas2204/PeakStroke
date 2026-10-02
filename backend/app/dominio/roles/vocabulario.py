@@ -46,6 +46,7 @@ class Recurso(Enum):
     SEMANA = "semana"                    # la semana de una prueba objetivo
     PARON_DE_SEMANA = "paron_de_semana"  # `disabled` / `disable_reason` de esa semana
     TEST_AEROBICO = "test_aerobico"
+    SESION = "sesion"                    # lo que el atleta nadó un día (C7)
     EQUIPO = "equipo"                    # el club: miembros, códigos, tabla del equipo
 
 
@@ -66,6 +67,7 @@ class Seccion(Enum):
     MACROCICLOS = "/macrociclos"
     ATLETAS = "/atletas"
     BASE_AEROBICA = "/pruebas"
+    ENTRENAMIENTO = "/entrenamiento"
     PLAN_SEMANAL = "/plan-semanal"
     TABLA_DEL_EQUIPO = "/equipo"
     SIMULADOR = "/simulador"

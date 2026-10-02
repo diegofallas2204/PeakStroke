@@ -19,6 +19,8 @@ const SwimmersPage = lazy(() =>
   import('./features/swimmers/SwimmersPage').then((m) => ({ default: m.SwimmersPage })))
 const AerobicPage = lazy(() =>
   import('./features/aerobic/AerobicPage').then((m) => ({ default: m.AerobicPage })))
+const TrainingPage = lazy(() =>
+  import('./features/training/TrainingPage').then((m) => ({ default: m.TrainingPage })))
 const WeeklyPage = lazy(() =>
   import('./features/weekly/WeeklyPage').then((m) => ({ default: m.WeeklyPage })))
 const TeamPage = lazy(() =>
@@ -59,6 +61,7 @@ export default function App() {
                 <Route path="/macrociclos" element={<PlansPage />} />
                 <Route path="/atletas" element={<SwimmersPage />} />
                 <Route path="/pruebas" element={<AerobicPage />} />
+                <Route path="/entrenamiento" element={<TrainingPage />} />
                 <Route path="/plan-semanal" element={<WeeklyPage />} />
                 <Route path="/equipo" element={<TeamPage />} />
                 {/* Comparación se fusionó dentro de Plan semanal como la vista

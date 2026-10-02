@@ -348,3 +348,27 @@ el texto renderizado es **byte a byte idéntico** al de antes (6045 chars, mismo
 parámetros por defecto, y se ejercitaron a mano las ramas alternativas — autocorrección de
 estilo/especialidad al pasar a 400m (Tier 1), curva sigmoidal con la científica de
 referencia, meta dentro del techo (sin extensión) y modo simple.
+
+## TODO-19 — Estado de carga de cada atleta en la tabla del equipo (P2)
+
+Lo que quedó del frontend de C8 (2026-10-01). La sección Entrenamiento enseña la
+curva de UN atleta; la tabla del equipo debería enseñar el TSB de hoy y el aviso
+de cada uno. Pide un endpoint de equipo (`GET /training-load/team?hasta=`): hoy
+solo existe `/training-load/{swimmer_id}`, y llamarlo N veces desde la tabla es
+N peticiones. Va acotado como todo (`RepositorioDeCarga.acotar`) y `require_coach`
+como la tabla. Zona de `/cso` comprehensive por ser una lectura cruzada de atletas.
+
+## TODO-20 — `DELETE /sessions/{id}` no se audita (P3, decisión)
+
+`sesiones` es la excepción a «nada se borra» (C7) y su borrado no llama a
+`auditar`. CLAUDE.md, «Auditoría», pide `TipoDeEvento` para los «borrados de
+verdad». Lo destapó el Revisor independiente el 2026-10-01: preexistente, pero la
+sección Entrenamiento es la primera que pone el botón en manos del usuario.
+Decidir si corregir una sesión propia es un evento de seguridad (probablemente
+sí cuando borra el entrenador lo de un atleta, no cuando el atleta corrige lo suyo).
+
+## TODO-21 — Base aeróbica y Dashboard desbordan en móvil (P3)
+
+Medido el 2026-10-01 a 375 px: `/pruebas` mide 889 px de ancho y `/` 940
+(grids fijos como `grid-cols-[300px_1fr]` y `grid-cols-3`). `PageHeader` ya hace
+`flex-wrap` en sus acciones; lo que falta son esos grids, con prefijos `lg:`.

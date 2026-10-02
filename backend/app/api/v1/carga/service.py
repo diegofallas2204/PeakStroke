@@ -46,6 +46,7 @@ async def curva(
     return TrainingLoadResponse(
         swimmer_id=swimmer_id, desde=desde, hasta=hasta, history_start=inicio,
         warming_up=hasta < inicio + timedelta(days=DIAS_DE_CALENTAMIENTO),
+        warmup_until=inicio + timedelta(days=DIAS_DE_CALENTAMIENTO),
         sessions_without_css=sin_css,
         days=[
             LoadDay(

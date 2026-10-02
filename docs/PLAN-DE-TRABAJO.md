@@ -49,6 +49,14 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 
 ## Dónde estamos y qué sigue — medido el 2026-09-22
 
+> **Actualizado el 2026-10-01.** El PR #3 se **fusionó** en `main` el 2026-09-25.
+> **Las pantallas de C7/C8 están hechas**: sección **Entrenamiento**
+> (`/entrenamiento`, los dos roles, violeta) con apuntar/corregir/borrar sesiones
+> y la curva CTL/ATL/TSB con calentamiento, avisos y el aviso de «sin CSS»; y
+> «Apuntar sesión» en el inicio del atleta (dos toques, `?nueva=1`). 1073 tests.
+> Del frontend de C8 queda **el estado de carga en la tabla del equipo**, que pide
+> un endpoint de equipo (TODO-19). Siguen abiertos D1, R5.3 y los mutadores.
+
 > **Actualizado el 2026-09-25.** La **parte C está cerrada entera**: C8 y los
 > arreglos R4 y R5.4 que C0 le había asignado a C3 y nunca entraron. **D0 también
 > está cerrado**: auditoría append-only, cuatro vistas `v_admin_*`, R11 decidida
@@ -2076,7 +2084,9 @@ guarda y C8 decide** qué carga sale de él.
   cambiado** (el primer intento sí cambiaba: `SessionResponse` chocaba con el
   de `auth`, de ahí `TrainingSession*`).
 
-**Qué hace falta en el frontend** (no construido): tipos en `lib/types/`
+**Qué hace falta en el frontend** — ✅ **HECHO el 2026-10-01** en la sección
+Entrenamiento (`features/training/`); se decidió **sección propia** para los dos
+roles, más «Apuntar sesión» en el inicio del atleta. Lo que se pedía: tipos en `lib/types/`
 (`sessions.ts`) y `api.sessions` en `lib/api.ts` con el mismo patrón que
 `aerobic`; un formulario de cuatro campos (fecha, metros, duración en `h:mm`,
 RPE 1-10 con su escala a la vista) que el atleta abra en dos toques después de
@@ -2198,7 +2208,10 @@ descarga de S8 arrastra seis días de «fatiga sostenida» y el taper lleva el T
 a **+26,2 la semana del Nacional**, en la ventana de forma de la nota 05. Con
 CTL₀ = 0 el mismo atleta daba alertas todas las semanas de S7 a S11.
 
-**Qué hace falta en el frontend** (no construido): la curva CTL/ATL/TSB por
+**Qué hace falta en el frontend** — la curva ✅ **HECHA el 2026-10-01** (sección
+Entrenamiento; el eje va en DD/MM **sin** `S#`, que pediría los planes del atleta,
+y la franja de calentamiento llega del servidor en `warmup_until`); **la tabla del
+equipo sigue pendiente** (TODO-19). Lo que se pedía: la curva CTL/ATL/TSB por
 atleta (Recharts, eje de fecha + `S#`), con la franja de calentamiento, las
 alertas marcadas y el aviso de «N sesiones sin CSS: haz un test»; y el estado de
 hoy de cada atleta en la tabla del equipo, que pide un endpoint de equipo (hoy
