@@ -13,16 +13,23 @@ sus `Resultado`, y sale en una sola consulta por pantalla de
 """
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dominio.entidades import Macrociclo
 from app.dominio.servicios.kilometraje import km_por_zona
 from app.dominio.servicios.motor import MOTOR
-from app.persistencia.repositorios import RepositorioDeMacrociclos, RepositorioDeResultados
+from app.persistencia.repositorios import (
+    RepositorioDeCarga,
+    RepositorioDeMacrociclos,
+    RepositorioDeResultados,
+)
 from app.persistencia.tablas.atletas import Swimmer
 from app.persistencia.tablas.planes import AthleteEvent
 
+from .carga_del_equipo import dia_de_la_carga, estados
 from .schemas import (
     AthleteStatusRow,
     CompetitionInfo,
@@ -192,7 +199,7 @@ def _team_progression(
 
 async def team_week(
     db: AsyncSession, repo: RepositorioDeMacrociclos, resultados: RepositorioDeResultados,
-    macro: Macrociclo, week_number: int,
+    macro: Macrociclo, week_number: int, carga: RepositorioDeCarga,
 ) -> TeamWeekResponse:
     """La tabla de la semana del equipo. Solo llega aquí un entrenador.
 
@@ -207,6 +214,10 @@ async def team_week(
     reales = await resultados.reales_por_semana(events, macro.piscina)
     fase = macro.fase_de(week_number)
     phase = fase.nombre if fase is not None and fase.contiene(week_number) else None
+    cargas = await estados(
+        carga, {e.athlete_plan.swimmer_id for e in events},
+        dia_de_la_carga(macro.lunes_de(week_number), date.today()),
+    )
     rows = []
     for event in events:
         swimmer = swimmers.get(event.athlete_plan.swimmer_id)
@@ -214,17 +225,20 @@ async def team_week(
         week = next((w for w in event.weeks if w.week_number == week_number), None)
         if week is None:
             rows.append(TeamWeekZones(
-                event_id=event.id, week_id=None, name=swimmer.name if swimmer else "—",
+                event_id=event.id, swimmer_id=event.athlete_plan.swimmer_id,
+                week_id=None, name=swimmer.name if swimmer else "—",
                 specialty=specialty, event_label=event_label(event),
                 expected_time=None, pace_100m=None, real_time=None, status=None,
                 zones=None, zone_km=None, planned_km=None,
+                load=cargas.get(event.athlete_plan.swimmer_id),
             ))
             continue
         effective = week.recalc_time if week.recalc_time is not None else week.expected_time
         pace = effective / (event.distance / 100)
         real = reales.get(week.id)
         rows.append(TeamWeekZones(
-            event_id=event.id, week_id=week.id, name=swimmer.name if swimmer else "—",
+            event_id=event.id, swimmer_id=event.athlete_plan.swimmer_id,
+            week_id=week.id, name=swimmer.name if swimmer else "—",
             specialty=specialty, event_label=event_label(event),
             expected_time=week.expected_time, pace_100m=round(pace, 2),
             real_time=real,
@@ -233,6 +247,7 @@ async def team_week(
             zones=MOTOR.zonas(pace, event.distance, event.stroke, macro.piscina.value),
             zone_km=km_por_zona(week.planned_km, distancia=event.distance, especialidad=specialty),
             planned_km=week.planned_km, disabled=week.disabled,
+            load=cargas.get(event.athlete_plan.swimmer_id),
         ))
     return TeamWeekResponse(
         week_number=week_number,

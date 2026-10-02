@@ -71,8 +71,24 @@ class DashboardSummary(BaseModel):
     competitions: list[CompetitionInfo]
 
 
+class LoadSnapshot(BaseModel):
+    """El estado de carga de un atleta un día: lo que pinta la tabla del equipo."""
+
+    date: date
+    ctl: float
+    atl: float
+    tsb: float
+    # "advertencia" | "peligro", o `None` sin aviso o durante el calentamiento.
+    alert: str | None = None
+    reasons: list[str] = []
+    # Menos de 14 días de historia ese día: la curva se estima, sin alertas.
+    warming_up: bool
+
+
 class TeamWeekZones(BaseModel):
     event_id: int
+    # Para enlazar la fila con el atleta (su curva en Entrenamiento).
+    swimmer_id: int | None = None
     week_id: int | None
     name: str
     specialty: str
@@ -85,6 +101,9 @@ class TeamWeekZones(BaseModel):
     zone_km: dict | None
     planned_km: float | None
     disabled: bool = False
+    # Carga del atleta al cierre de la semana (sin pasar de hoy). `None` si no
+    # tiene serie ese día o la semana aún no ha empezado.
+    load: LoadSnapshot | None = None
 
 
 class TeamWeekResponse(BaseModel):

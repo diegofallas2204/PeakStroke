@@ -8,12 +8,16 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencias import repo_de_macrociclos, repo_de_resultados
+from app.api.dependencias import repo_de_carga, repo_de_macrociclos, repo_de_resultados
 from app.core.database import get_db
 from app.core.guards import require_coach
 from app.core.principal import Principal
 from app.dominio.entidades import Macrociclo
-from app.persistencia.repositorios import RepositorioDeMacrociclos, RepositorioDeResultados
+from app.persistencia.repositorios import (
+    RepositorioDeCarga,
+    RepositorioDeMacrociclos,
+    RepositorioDeResultados,
+)
 
 from . import tablero
 from .schemas import DashboardSummary, TeamWeekResponse
@@ -53,6 +57,7 @@ async def team_week(
     coach: Principal = Depends(require_coach),
     repo: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
     resultados: RepositorioDeResultados = Depends(repo_de_resultados),
+    carga: RepositorioDeCarga = Depends(repo_de_carga),
     db: AsyncSession = Depends(get_db),
 ):
     """La semana de **todo el equipo**: una herramienta de entrenador.
@@ -69,4 +74,4 @@ async def team_week(
     macro = await _resolver_macro(repo, plan_id)
     week_number = week or macro.semana_actual() or 1
     week_number = max(1, min(week_number, macro.semanas))
-    return await tablero.team_week(db, repo, resultados, macro, week_number)
+    return await tablero.team_week(db, repo, resultados, macro, week_number, carga)

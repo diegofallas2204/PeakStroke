@@ -54,8 +54,9 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 > (`/entrenamiento`, los dos roles, violeta) con apuntar/corregir/borrar sesiones
 > y la curva CTL/ATL/TSB con calentamiento, avisos y el aviso de «sin CSS»; y
 > «Apuntar sesión» en el inicio del atleta (dos toques, `?nueva=1`). 1073 tests.
-> Del frontend de C8 queda **el estado de carga en la tabla del equipo**, que pide
-> un endpoint de equipo (TODO-19). Siguen abiertos D1, R5.3 y los mutadores.
+> **Y el estado de carga en la tabla del equipo** (TODO-19, mismo día): columna
+> «Forma (TSB)» al cierre de la semana mirada, dentro de `team-week`. 1079 tests.
+> Con eso el frontend de C7/C8 está entero. Siguen abiertos D1, R5.3 y los mutadores.
 
 > **Actualizado el 2026-09-25.** La **parte C está cerrada entera**: C8 y los
 > arreglos R4 y R5.4 que C0 le había asignado a C3 y nunca entraron. **D0 también
@@ -2210,8 +2211,8 @@ CTL₀ = 0 el mismo atleta daba alertas todas las semanas de S7 a S11.
 
 **Qué hace falta en el frontend** — la curva ✅ **HECHA el 2026-10-01** (sección
 Entrenamiento; el eje va en DD/MM **sin** `S#`, que pediría los planes del atleta,
-y la franja de calentamiento llega del servidor en `warmup_until`); **la tabla del
-equipo sigue pendiente** (TODO-19). Lo que se pedía: la curva CTL/ATL/TSB por
+y la franja de calentamiento llega del servidor en `warmup_until`); y la tabla del
+equipo ✅ **HECHA el mismo día** (TODO-19, dentro de `team-week`). Lo que se pedía: la curva CTL/ATL/TSB por
 atleta (Recharts, eje de fecha + `S#`), con la franja de calentamiento, las
 alertas marcadas y el aviso de «N sesiones sin CSS: haz un test»; y el estado de
 hoy de cada atleta en la tabla del equipo, que pide un endpoint de equipo (hoy

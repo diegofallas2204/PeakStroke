@@ -23,6 +23,7 @@ recalcula.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, timedelta
 
 from sqlalchemy import delete, func, select
@@ -30,9 +31,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.principal import Principal
 from app.dominio.servicios.banister import (
+    DIAS_NEGATIVOS_SEGUIDOS,
     DIAS_PARA_EQUILIBRIO,
+    Alerta,
     DiaDeCarga,
     MedicionDeCss,
+    alertas,
     carga_por_dia,
     estado_inicial,
     serie,
@@ -109,6 +113,20 @@ async def recalcular(db: AsyncSession, *, team_id: int, swimmer_id: int, desde: 
     await db.flush()
 
 
+@dataclass(frozen=True, slots=True)
+class CurvaDeCarga:
+    """La curva de un atleta en `[desde, hasta]`, lista para enseñar.
+
+    `dias` empieza en `desde` (o en el primer día con carga, si es posterior) y
+    llega a `hasta` aunque no haya nada guardado: sin carga, CTL y ATL solo
+    decaen. `alertas` va por fecha y solo trae los días que avisan.
+    """
+
+    inicio: date
+    dias: list[DiaDeCarga]
+    alertas: dict[date, Alerta]
+
+
 class RepositorioDeCarga:
     """La carga que alcanza un `Principal`: su equipo y, si es atleta, la suya."""
 
@@ -140,6 +158,34 @@ class RepositorioDeCarga:
         ultimo = (await self.db.execute(
             base.order_by(DailyLoad.load_date.desc()).limit(1))).scalar_one()
         return primero.load_date, _dia(ultimo)
+
+    async def curva(self, swimmer_id: int, desde: date, hasta: date) -> CurvaDeCarga | None:
+        """Lo guardado, más el decaimiento hasta `hasta`, con sus alertas.
+
+        `carga_diaria` llega hasta el último día con carga. De ahí a `hasta` no
+        hay nada guardado y no hace falta: se calcula con la misma recurrencia
+        (`banister.serie` con cargas vacías). Así la curva llega a hoy sin un
+        proceso que escriba una fila por atleta cada noche.
+
+        Vive aquí y no en la rebanada `carga` porque la leen dos: la curva de un
+        atleta y la tabla del equipo (`vistas`), que no pueden importarse entre
+        sí. `None` si no hay serie o empieza después de `hasta`.
+        """
+        extremos = await self.extremos(swimmer_id)
+        if extremos is None or extremos[0] > hasta:
+            return None
+        inicio, ultimo = extremos
+        # Se leen además los días anteriores que decide la racha de TSB negativo.
+        ventana = max(desde - timedelta(days=DIAS_NEGATIVOS_SEGUIDOS), inicio)
+        dias = await self.dias(swimmer_id, ventana, hasta)
+        if ultimo.fecha < hasta:
+            dias += [d for d in serie({}, ultimo.fecha + timedelta(days=1), hasta, ultimo.estado)
+                     if d.fecha >= ventana]
+        return CurvaDeCarga(
+            inicio=inicio,
+            dias=[d for d in dias if d.fecha >= desde],
+            alertas={a.fecha: a for a in alertas(dias, inicio)},
+        )
 
     async def sesiones_sin_css(self, swimmer_id: int) -> int:
         """Las sesiones anteriores al primer test: no tienen CSS y no cuentan."""

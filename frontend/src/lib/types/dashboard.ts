@@ -1,6 +1,7 @@
 // Resumen del equipo y la semana de equipo (`/dashboard/...`).
 
 import type { PhaseInput } from './plans'
+import type { LoadSnapshot } from './training'
 import type { Zones } from './zones'
 
 export interface TeamWeekPoint {
@@ -59,6 +60,8 @@ export interface DashboardSummary {
 
 export interface TeamWeekRow {
   event_id: number
+  /** Para enlazar con la curva del atleta en Entrenamiento. */
+  swimmer_id: number | null
   week_id: number | null
   name: string
   specialty: string
@@ -71,6 +74,8 @@ export interface TeamWeekRow {
   zone_km: Record<string, number> | null
   planned_km: number | null
   disabled: boolean
+  /** Carga al cierre de la semana (sin pasar de hoy). `null` sin serie o semana futura. */
+  load: LoadSnapshot | null
 }
 
 export interface TeamWeek {

@@ -4,7 +4,8 @@
 // página no decide nada de permisos.
 //
 // `?nueva=1` abre el formulario directamente: es el «Apuntar sesión» del inicio
-// del atleta, para que apuntar después de nadar sean dos toques.
+// del atleta, para que apuntar después de nadar sean dos toques. `?atleta=<id>`
+// llega desde la tabla del equipo y elige a ese atleta.
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
@@ -38,7 +39,8 @@ function rangoDeFechas(dias: number): { desde: string; hasta: string } {
 export function TrainingPage() {
   const [params, setParams] = useSearchParams()
   const pideNueva = params.get('nueva') === '1'
-  const [swimmerId, setSwimmerId] = useState<number | null>(null)
+  const pedido = Number(params.get('atleta')) || null
+  const [swimmerId, setSwimmerId] = useState<number | null>(pedido)
   const [rango, setRango] = useState<Rango>('90')
   const [form, setForm] = useState<{ open: boolean; session: TrainingSession | null }>(
     { open: pideNueva, session: null },
@@ -47,7 +49,10 @@ export function TrainingPage() {
   const { data: swimmers, isLoading: loadingSwimmers } = useQuery({
     queryKey: ['swimmers', ''], queryFn: () => api.swimmers.list(),
   })
-  const activeSwimmer = swimmerId ?? swimmers?.[0]?.id ?? null
+  // El pedido por URL solo vale si está en la lista (que ya viene acotada): un
+  // id ajeno o dado de baja cae al primero, no a una pantalla de 404.
+  const elegido = swimmers?.some((s) => s.id === swimmerId) ? swimmerId : null
+  const activeSwimmer = elegido ?? swimmers?.[0]?.id ?? null
   const { desde, hasta } = rangoDeFechas(Number(rango))
 
   const { data: sessions, isLoading: loadingSessions } = useQuery({

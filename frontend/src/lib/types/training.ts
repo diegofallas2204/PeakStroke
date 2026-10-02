@@ -53,3 +53,15 @@ export interface TrainingLoad {
   sessions_without_css: number
   days: LoadDay[]
 }
+
+/** El estado de carga de un atleta un día: lo que pinta la tabla del equipo. */
+export interface LoadSnapshot {
+  date: string
+  ctl: number
+  atl: number
+  tsb: number
+  alert: LoadAlertLevel | null
+  reasons: LoadAlertReason[]
+  /** Menos de 14 días de historia ese día: sin alertas todavía. */
+  warming_up: boolean
+}

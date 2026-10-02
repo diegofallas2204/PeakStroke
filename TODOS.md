@@ -349,7 +349,17 @@ parámetros por defecto, y se ejercitaron a mano las ramas alternativas — auto
 estilo/especialidad al pasar a 400m (Tier 1), curva sigmoidal con la científica de
 referencia, meta dentro del techo (sin extensión) y modo simple.
 
-## TODO-19 — Estado de carga de cada atleta en la tabla del equipo (P2)
+## ~~TODO-19 — Estado de carga de cada atleta en la tabla del equipo~~ — CERRADO 2026-10-01
+
+**Cómo quedó** (decisiones del usuario): no hay endpoint nuevo. Cada fila de
+`/dashboard/team-week` trae `swimmer_id` y `load` (CTL, ATL, TSB, aviso) **al
+cierre de la semana que se mira**, sin pasar de hoy; semana futura → `null`. La
+tabla pinta «Forma (TSB)» con el punto del color del aviso, y el nombre enlaza a
+`/entrenamiento?atleta=<id>`. El cálculo subió a `RepositorioDeCarga.curva`
+(lo leen `carga` y `vistas`, que no se importan). Tres consultas por atleta:
+~50 ms con 11 filas en la base de desarrollo. El PDF no cambia.
+
+Lo que decía el TODO al abrirse:
 
 Lo que quedó del frontend de C8 (2026-10-01). La sección Entrenamiento enseña la
 curva de UN atleta; la tabla del equipo debería enseñar el TSB de hoy y el aviso
