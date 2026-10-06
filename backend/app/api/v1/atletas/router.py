@@ -11,6 +11,7 @@ from app.api.dependencias import repo_de_atletas, repo_de_usuarios
 from app.core.auditoria import TipoDeEvento, auditar
 from app.core.guards import require_coach
 from app.core.principal import Principal
+from app.dominio.entidades import Atleta
 from app.persistencia.repositorios import RepositorioDeAtletas, RepositorioDeUsuarios
 from app.persistencia.tablas.atletas import Swimmer
 
@@ -23,6 +24,20 @@ router = APIRouter()
 async def _fila_o_404(repo: RepositorioDeAtletas, swimmer_id: int) -> Swimmer:
     fila = await repo.fila_de(swimmer_id)
     if fila is None:
+        raise HTTPException(404, "Atleta no encontrado")
+    return fila
+
+
+async def _atleta_o_404(repo: RepositorioDeAtletas, swimmer_id: int) -> Atleta:
+    atleta = await repo.por_id(swimmer_id)
+    if atleta is None:
+        raise HTTPException(404, "Atleta no encontrado")
+    return atleta
+
+
+async def _guardar_o_404(repo: RepositorioDeAtletas, atleta: Atleta) -> Swimmer:
+    fila = await repo.guardar(atleta)
+    if fila is None:   # dejó de ser visible entre leerla y guardarla
         raise HTTPException(404, "Atleta no encontrado")
     return fila
 
@@ -44,12 +59,9 @@ async def create_swimmer(
     coach: Principal = Depends(require_coach),
     repo: RepositorioDeAtletas = Depends(repo_de_atletas),
 ):
-    return service.to_response(await repo.crear(
-        team_id=coach.team_id, nombre=data.name, nacimiento=data.birth_date,
-        genero=data.gender, especialidad=data.specialty,
-        estilo_principal=data.main_stroke, peso_kg=data.weight_kg,
-        altura_cm=data.height_cm, notas=data.notes,
-    ))
+    fila = await repo.guardar(service.nueva_desde(data))
+    assert fila is not None   # una ficha nueva siempre es del equipo de quien la crea
+    return service.to_response(fila)
 
 
 @router.get("/{swimmer_id}", response_model=SwimmerResponse)
@@ -67,10 +79,12 @@ async def update_swimmer(
     coach: Principal = Depends(require_coach),
     repo: RepositorioDeAtletas = Depends(repo_de_atletas),
 ):
-    fila = await _fila_o_404(repo, swimmer_id)
-    return service.to_response(
-        await repo.actualizar(fila, data.model_dump(exclude_unset=True)),
-    )
+    atleta = await _atleta_o_404(repo, swimmer_id)
+    try:
+        atleta = service.aplicar(atleta, data)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return service.to_response(await _guardar_o_404(repo, atleta))
 
 
 @router.delete("/{swimmer_id}", response_model=SwimmerResponse)
@@ -83,11 +97,14 @@ async def deactivate_swimmer(
 
     Se mantiene el verbo DELETE porque es la acción que expresa el cliente
     ("quitar del equipo"), pero la respuesta devuelve el atleta actualizado en
-    vez de 204 para que la UI pueda reflejar el nuevo estado.
+    vez de 204 para que la UI pueda reflejar el nuevo estado. Repetirla no
+    falla y no se audita otra vez: no cambió nada.
     """
-    fila = await _fila_o_404(repo, swimmer_id)
-    respuesta = service.to_response(await repo.cambiar_alta(fila, False))
-    auditar(TipoDeEvento.NADADOR_BAJA, coach, objetivo=("swimmer", swimmer_id))
+    atleta = await _atleta_o_404(repo, swimmer_id)
+    cambio = atleta.dar_de_baja()
+    respuesta = service.to_response(await _guardar_o_404(repo, atleta))
+    if cambio:
+        auditar(TipoDeEvento.NADADOR_BAJA, coach, objetivo=("swimmer", swimmer_id))
     return respuesta
 
 
@@ -97,7 +114,9 @@ async def reactivate_swimmer(
     coach: Principal = Depends(require_coach),
     repo: RepositorioDeAtletas = Depends(repo_de_atletas),
 ):
-    fila = await _fila_o_404(repo, swimmer_id)
-    respuesta = service.to_response(await repo.cambiar_alta(fila, True))
-    auditar(TipoDeEvento.NADADOR_RESTAURADO, coach, objetivo=("swimmer", swimmer_id))
+    atleta = await _atleta_o_404(repo, swimmer_id)
+    cambio = atleta.restaurar()
+    respuesta = service.to_response(await _guardar_o_404(repo, atleta))
+    if cambio:
+        auditar(TipoDeEvento.NADADOR_RESTAURADO, coach, objetivo=("swimmer", swimmer_id))
     return respuesta

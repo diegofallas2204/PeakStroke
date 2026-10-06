@@ -20,6 +20,7 @@ from datetime import timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.dominio.entidades import Atleta
 from app.persistencia.repositorios import (
     RepositorioDeAtletas,
     RepositorioDeCodigos,
@@ -142,11 +143,12 @@ async def invite(
     # fichas de la misma persona en la lista de atletas.
     swimmer = await codigos.ficha_pendiente(normalizado, team_id)
     if swimmer is None:
-        swimmer = await atletas.crear(
-            team_id=team_id, nombre=data.name, nacimiento=data.birth_date,
-            genero=data.gender, especialidad=data.specialty,
-            estilo_principal=data.main_stroke, notas=data.notes,
-        )
+        swimmer = await atletas.guardar(Atleta.nueva(
+            data.name, nacimiento=data.birth_date, genero=data.gender,
+            especialidad=data.specialty, estilo_principal=data.main_stroke,
+            notas=data.notes,
+        ))
+        assert swimmer is not None   # una ficha nueva siempre es del equipo de quien invita
 
     usuarios = RepositorioDeUsuarios(db)
     temporal: str | None = None

@@ -62,6 +62,7 @@ from app.api.v1.tests.service import create_test  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.database import AsyncSessionLocal, Base, engine, get_db  # noqa: E402
 from app.core.dependencies import Principal  # noqa: E402
+from app.dominio.entidades import Atleta  # noqa: E402
 from app.main import app  # noqa: E402
 from app.persistencia.repositorios import (  # noqa: E402
     RepositorioDeAtletas,
@@ -256,12 +257,12 @@ async def world(db: AsyncSession) -> World:
     tests_repo = RepositorioDeTests(db, como_owner)
 
     async def nadador(nombre: str, user_id: int | None):
-        s = await atletas.crear(
-            team_id=team.id, nombre=nombre, nacimiento=date(2008, 5, 1),
-            genero="F", especialidad="medio_fondo", estilo_principal="libre",
-        )
+        s = await atletas.guardar(Atleta.nueva(
+            nombre, nacimiento=date(2008, 5, 1), genero="F",
+            especialidad="medio_fondo", estilo_principal="libre",
+        ))
         if user_id is not None:
-            s.user_id = user_id
+            s.user_id = user_id   # lo que haría el canje del código
             await db.commit()
         return s
 

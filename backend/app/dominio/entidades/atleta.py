@@ -67,6 +67,50 @@ class Atleta(PorIdentidad):
     notas: str | None = None
     activo: bool = True
 
+    @classmethod
+    def nueva(
+        cls, nombre: str, *, nacimiento: date | None = None, genero: str | None = None,
+        especialidad: str = "medio_fondo", estilo_principal: str = "libre",
+        peso_kg: float | None = None, altura_cm: float | None = None,
+        notas: str | None = None,
+    ) -> Atleta:
+        """Una ficha sin guardar, desde los textos con que llega (API, invitación, seed).
+
+        Los catálogos se leen con su `desde_texto`, que acepta los alias: lo que
+        se guarda después es la clave canónica («crol» entra y sale «libre»).
+        Es la única forma de construir una ficha nueva desde fuera del dominio,
+        para que el alta del entrenador, la invitación por correo y el seed
+        creen la misma.
+        """
+        return cls(
+            nombre=nombre, nacimiento=nacimiento,
+            genero=Genero.desde_texto(genero) if genero else None,
+            especialidad=Especialidad.desde_texto(especialidad),
+            estilo_principal=Estilo.desde_texto(estilo_principal),
+            peso_kg=peso_kg, altura_cm=altura_cm, notas=notas,
+        )
+
+    # ── Ciclo de vida ────────────────────────────────────────────────────────
+    #
+    # Las dos son **idempotentes** y devuelven si cambiaron algo (decisión del
+    # usuario, 2026-10-05): dar de baja a quien ya lo está no es un error —un
+    # doble clic no debería darlo—, y quien llama audita solo cuando hubo cambio.
+    # Ninguna toca sus macrociclos ni su histórico: una baja archiva la ficha
+    # deportiva, no borra a la persona ni le quita la cuenta (eso es la
+    # pertenencia al equipo, otro agregado).
+
+    def dar_de_baja(self) -> bool:
+        """Archiva la ficha. `True` si estaba activa."""
+        cambia = self.activo
+        self.activo = False
+        return cambia
+
+    def restaurar(self) -> bool:
+        """La vuelve a la lista del equipo. `True` si estaba de baja."""
+        cambia = not self.activo
+        self.activo = True
+        return cambia
+
     def edad_en(self, fecha: date | None = None) -> int | None:
         """Edad en años cumplidos en `fecha` (hoy si no se indica).
 

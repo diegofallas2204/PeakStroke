@@ -48,7 +48,7 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal, Base, engine
 from app.core.dependencies import Principal
 from app.core.security import hash_password
-from app.dominio.entidades import Sesion
+from app.dominio.entidades import Atleta, Sesion
 from app.dominio.valores import Tiempo
 from app.persistencia.repositorios import (
     RepositorioDeAtletas,
@@ -267,11 +267,10 @@ async def seed() -> None:
 
         swimmers = []
         for name, birth, gender, specialty, stroke, weight, height in (*SWIMMERS, *SWIMMERS_EXTRA):
-            swimmers.append(await atletas.crear(
-                team_id=team.id, nombre=name, nacimiento=birth, genero=gender,
-                especialidad=specialty, estilo_principal=stroke,
-                peso_kg=weight, altura_cm=height,
-            ))
+            swimmers.append(await atletas.guardar(Atleta.nueva(
+                name, nacimiento=birth, genero=gender, especialidad=specialty,
+                estilo_principal=stroke, peso_kg=weight, altura_cm=height,
+            )))
 
         # Todos los atletas del equipo a cargo del entrenador de desarrollo.
         for swimmer in swimmers:
@@ -287,13 +286,16 @@ async def seed() -> None:
             ("sinplan@peakstroke.dev", swimmers[-2]),
             ("debaja@peakstroke.dev", swimmers[-1]),
         ):
-            swimmer.user_id = accounts[email].id
+            swimmer.user_id = accounts[email].id   # lo que haría el canje del código
+        await db.commit()
         # La ficha de baja, con la cuenta intacta: dar de baja a un nadador
         # archiva su perfil deportivo, no le revoca el acceso (eso es
         # `team_members.is_active`). Confundir las dos cosas es fácil, y este
-        # dato hace que la diferencia se vea al desarrollar.
-        swimmers[-1].is_active = False
-        await db.commit()
+        # dato hace que la diferencia se vea al desarrollar. Por la misma puerta
+        # que el API: la entidad y `guardar`.
+        de_baja = await atletas.por_id(swimmers[-1].id)
+        de_baja.dar_de_baja()
+        await atletas.guardar(de_baja)
 
         start = plan_start_date(date.today())
         plan = await create_plan(repo, PlanCreate(

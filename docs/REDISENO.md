@@ -6,7 +6,7 @@
 >
 > | # | Dónde | Qué falta | Tipo | Estado |
 > |---|---|---|---|---|
-> | 1 | §5.3 `Atleta` | `dar_de_baja()` / `restaurar()` | código | ⬜ pendiente |
+> | 1 | §5.3 `Atleta` | `dar_de_baja()` / `restaurar()` | código | ✅ **hecho 2026-10-05**: idempotentes; crear, editar, baja y alta pasan por `Atleta` y `RepositorioDeAtletas.guardar`. **Excepción**: ligar la cuenta (`user_id`) sigue en el canje del código (`codigos`), que es el punto 5 |
 > | 2 | §5.4 `Macrociclo` + §5.6 `Inscripcion` | la entidad `Inscripcion` (con `dar_de_baja()` / `restaurar()`) y `Macrociclo.inscribir()` | código | ⬜ pendiente |
 > | 3 | §5.7 `PruebaObjetivo` | la entidad, con `mejora_pedida()` y `factibilidad()` | código | ⬜ pendiente |
 > | 4 | §5.8 `Semana` | la entidad, con `zonas()`, `real()` y `desviacion()` derivados | código | ⬜ pendiente |
@@ -555,9 +555,14 @@ por un `CodigoDeVinculacion` canjeado.
 > tenerlo, porque parece que funciona. Entran con su repositorio. El paso 2
 > construyó solo el comportamiento de consulta.
 >
-> **⬜ Pendiente al 2026-10-05** (cabecera, puntos 1-2): el repositorio ya existe
-> desde el paso 5, así que la razón de esperar se fue; no entraron en C5, C6, C7
-> ni C8 porque ninguno los necesitaba.
+> **Al 2026-10-05** (cabecera, puntos 1-2): el repositorio ya existe desde el
+> paso 5, así que la razón de esperar se fue; no entraron en C5, C6, C7 ni C8
+> porque ninguno los necesitaba. **`Atleta` ✅ hecho ese día**: `dar_de_baja()` y
+> `restaurar()` son idempotentes y devuelven si cambiaron (se audita solo el
+> cambio), `Atleta.nueva(...)` construye la ficha desde los textos del API con
+> los alias canonizados, y `RepositorioDeAtletas.guardar(atleta)` es la única
+> escritura —no toca `usuario_id`, que es del canje—. **⬜ `inscribir()` sigue
+> pendiente** con `Inscripcion` (punto 2).
 
 ### 5.4 `Macrociclo` (Plan)
 
