@@ -1,24 +1,33 @@
 # PeakStroke — Modelo del rediseño
 
-> **Estado al 2026-10-05: los ocho pasos del §9 son código** (el 7 y el 8 el
-> 2026-09-23; sus pantallas el 2026-10-01). **Lo que falta, en el orden de este
-> documento:**
+> **Estado al 2026-10-05 (cierre de sesión): los ocho pasos del §9 son código**
+> (el 7 y el 8 el 2026-09-23; sus pantallas el 2026-10-01). Cada sección lleva en
+> su encabezado ✅ (construida, con fecha) o ⬜ (falta). **Lo que falta, en el
+> orden de este documento:**
 >
-> | # | Dónde | Qué falta | Tipo | Estado |
+> | # | Dónde | Qué | Tipo | Estado |
 > |---|---|---|---|---|
-> | 1 | §5.3 `Atleta` | `dar_de_baja()` / `restaurar()` | código | ✅ **hecho 2026-10-05**: idempotentes; crear, editar, baja y alta pasan por `Atleta` y `RepositorioDeAtletas.guardar`. **Excepción**: ligar la cuenta (`user_id`) sigue en el canje del código (`codigos`), que es el punto 5 |
-> | 2 | §5.4 `Macrociclo` + §5.6 `Inscripcion` | la entidad `Inscripcion` (con `dar_de_baja()` / `restaurar()`) y `Macrociclo.inscribir()` | código | ✅ **hecho 2026-10-05**: idempotentes; `inscribir()` exige ficha del club y activa (y devolver también: es inscribir otra vez); `RepositorioDeInscripciones` (compone al de macrociclos) con `por_id` acotado. Las pruebas y semanas siguen como filas (puntos 3-4) |
-> | 3 | §5.7 `PruebaObjetivo` | la entidad, con `mejora_pedida()` y `factibilidad()` | código | ⬜ pendiente |
+> | — | §5.1 `Usuario` | la entidad: `revocar_sesiones()`, `rotar_refresh()`, `cambiar_password()` (hoy en `auth/service.py`) | código | ⬜ pendiente |
+> | — | §5.2 `Equipo` + `Pertenencia` | las entidades: `transferir_propiedad()`, `es_jefe()`, `rol_de_dominio()`, `revocar()`/`restaurar()` | código | ⬜ pendiente |
+> | 1 | §5.3 `Atleta` | `dar_de_baja()` / `restaurar()` | código | ✅ 2026-10-05 (`b3f13d9`) |
+> | 2 | §5.4 + §5.6 `Inscripcion` | la entidad y `Macrociclo.inscribir()` | código | ✅ 2026-10-05 (`37a6a0e`) |
+> | 3 | §5.7 `PruebaObjetivo` | la entidad, con `mejora_pedida()` y `factibilidad()` | código | ⬜ pendiente — **el siguiente** |
 > | 4 | §5.8 `Semana` | la entidad, con `zonas()`, `real()` y `desviacion()` derivados | código | ⬜ pendiente |
-> | 5 | §10.2 punto 3 | **R5.3**: el orden de las comprobaciones en `redeem` | decisión + código | ⬜ pendiente, pide decisión |
+> | — | §5.13 `CodigoDeVinculacion` | `es_servible()`, `canjear(usuario)`, `revocar()` como comportamiento | código | ⬜ pendiente — va con R5.3 (`redeem`) |
+> | — | §7.2 fila 6 | `CHECK` en zona, nivel, perfil, estilo, especialidad, tipo_de_test, piscina, estado y modo_de_ingreso | migración | ⬜ a medias: hoy solo fase, rol y `resultados` |
+> | — | §7.2 fila 9 | nombres de tabla en español | migración | ⬜ pendiente (pide decisión: es renombrar todo el esquema) |
+> | 5 | §10.2 punto 3 | **R5.3**: el orden de las comprobaciones en `redeem` | decisión + código | ⬜ pide decisión |
 > | 6 | §10.3 | **N1** y **N2**: qué entra en el promedio semanal | decisión | ⬜ abiertas |
 > | 7 | §10.3 | **N3** y **N5**: sesiones por semana y sesión estructurada | decisión | ⬜ abiertas, del módulo diario (fuera del rediseño) |
 >
-> Los puntos 1-4 son un solo frente: hasta que `Inscripcion`, `PruebaObjetivo`
-> y `Semana` sean entidades, **las escrituras arman filas del ORM desde
-> `api/v1/`** (CLAUDE.md) y los mutadores no tienen a quién devolver un agregado
-> que el repositorio guarde. **N4 está cerrada**: el PDF se arma en el cliente
-> (construido el 2026-08-25).
+> **Corrección del cierre:** el marcado de la mañana del 2026-10-05 omitió §5.1,
+> §5.2, §5.13 y las filas 6 y 9 de §7.2 —se revisó solo lo que el plan de trabajo
+> nombraba, no el documento entero—. Las filas «—» son esas; la numeración de
+> las demás se conserva porque los commits la citan.
+>
+> Hasta que `PruebaObjetivo` y `Semana` sean entidades, **sus escrituras arman
+> filas del ORM desde `api/v1/`** (CLAUDE.md). **N4 está cerrada**: el PDF se arma
+> en el cliente (construido el 2026-08-25).
 >
 > Lo que sigue debajo es la historia del documento, en orden de fecha.
 >
@@ -178,7 +187,7 @@ reaparece, pero la solución de forma sigue siendo `Prueba` (§C1).
 
 ---
 
-## 2. Estructura
+## 2. Estructura — ✅ construida 2026-08-25 (paso 5)
 
 ```
 backend/app/
@@ -252,7 +261,7 @@ Esto es lo que mata P5: `vistas/dashboard` deja de importar
 
 ---
 
-## 3. Objetos de valor
+## 3. Objetos de valor — ✅ construidos 2026-08-16 (paso 1)
 
 Inmutables (`frozen=True`), sin identidad, comparables por valor.
 
@@ -373,7 +382,7 @@ queda como texto libre solo para la interfaz.
 
 ---
 
-## 4. Los roles
+## 4. Los roles — ✅ construidos 2026-08-17 (paso 3; `Administrador` solo como hueco, R3)
 
 ### 4.1 La decisión
 
@@ -503,7 +512,7 @@ meta no).
 Identidad + ciclo de vida. El nombre nuevo va primero; entre paréntesis, cómo se
 llama hoy.
 
-### 5.1 `Usuario` (User)
+### 5.1 `Usuario` (User) — ⬜ sin construir
 
 ```
 correo · nombre · hash · activo · version_de_token · rotacion_de_refresh
@@ -517,7 +526,7 @@ cambiar_password(nueva)     rehash + revocar_sesiones()
 Sin cambios de modelo. Solo recupera el comportamiento que hoy está en
 `auth/service.py`.
 
-### 5.2 `Equipo` (Team) y `Pertenencia` (TeamMember)
+### 5.2 `Equipo` (Team) y `Pertenencia` (TeamMember) — ⬜ sin construir
 
 ```
 Equipo:       nombre · dueño_id · activo
@@ -533,7 +542,7 @@ Pertenencia:  usuario · equipo · rol · activa · desde
 confundirlos deja entrar a quien acabas de echar. Sigue exigiendo
 `incluir_inactivas=True` explícito para separarlos.
 
-### 5.3 `Atleta` (Swimmer)
+### 5.3 `Atleta` (Swimmer) — ✅ 2026-08-16 (consultas) y 2026-10-05 (mutadores)
 
 ```
 equipo · nombre · usuario_id? · nacimiento · genero
@@ -561,13 +570,13 @@ por un `CodigoDeVinculacion` canjeado.
 > `restaurar()` son idempotentes y devuelven si cambiaron (se audita solo el
 > cambio), `Atleta.nueva(...)` construye la ficha desde los textos del API con
 > los alias canonizados, y `RepositorioDeAtletas.guardar(atleta)` es la única
-> escritura —no toca `usuario_id`, que es del canje—. **⬜ `inscribir()` sigue
-> pendiente** con `Inscripcion` (punto 2). **✅ Hecho ese mismo día**:
+> escritura —no toca `usuario_id`, que es del canje—. `inscribir()` llegó con
+> `Inscripcion` (punto 2), **✅ ese mismo día**:
 > `Macrociclo.inscribir(atleta, base, fuente)` comprueba que la ficha es de su
 > club y está activa (`InscripcionImposible`, el 409); «un atleta, un macrociclo
 > vivo» se quedó en `api/v1/macrociclos/inscripcion.py`, decisión del usuario.
 
-### 5.4 `Macrociclo` (Plan)
+### 5.4 `Macrociclo` (Plan) — ✅ 2026-08-16 (consultas) y 2026-10-05 (`inscribir`)
 
 ```
 equipo · nombre · inicio · semanas · semanas_por_micro · km_totales
@@ -596,7 +605,7 @@ Raíz del agregado de planificación. Absorbe las funciones sueltas de
 > siempre quiere las dos mitades — el nombre para enseñarlo y la `Fase` para
 > calcular.
 
-### 5.5 `FaseDelMacro` (PlanPhase) y `Competencia` (Competition)
+### 5.5 `FaseDelMacro` (PlanPhase) y `Competencia` (Competition) — ✅ 2026-08-16 (`fase` obligatoria desde P3, 2026-09-22)
 
 ```
 FaseDelMacro:  nombre (texto libre, UI) · fase: Fase (clave de dominio) ·
@@ -662,7 +671,7 @@ C6): a la piscina del macro, con el factor corta/larga de `Piscina.factor`
 —el mismo que usan las zonas—. La fila guarda lo que marcó el reloj; se
 convierte al leer (`Resultado.tiempo_en`).
 
-### 5.9 `TestAerobico` (AerobicTest) y `Parcial` (AerobicSplit)
+### 5.9 `TestAerobico` (AerobicTest) y `Parcial` (AerobicSplit) — ✅ 2026-08-16
 
 ```
 TestAerobico:  atleta · macrociclo? · tipo · fecha · repeticiones · distancia_rep
@@ -684,7 +693,7 @@ guarda el tiempo nadado"* es una regla que hay que acordarse de aplicar en
 **deja de poder violarse**. Ese es el fallo que infló la base aeróbica un 114 %:
 pasa de regla documentada a invariante del tipo.
 
-### 5.10 `Resultado` — nuevo
+### 5.10 `Resultado` — nuevo — ✅ 2026-09-22 (C6)
 
 ```
 atleta · prueba: Prueba · tiempo: Tiempo · fecha · piscina
@@ -732,7 +741,7 @@ Es el patrón correcto que el resto del esquema no siguió.
 > que una aplicación local puede cumplir: **se retira al empezar C7**. Detalle
 > en el bloque C6 de `docs/PLAN-DE-TRABAJO.md`.
 
-### 5.11 `Sesion` y `Serie` — nuevo (R1: `Sesion` tras 1-6; `Serie` fuera)
+### 5.11 `Sesion` y `Serie` — nuevo (R1: `Sesion` tras 1-6; `Serie` fuera) — ✅ `Sesion` 2026-09-23 (C7); `Serie` fuera
 
 ```
 Sesion:  atleta · fecha · macrociclo? · semana? · km_totales · notas · rpe?
@@ -773,7 +782,7 @@ de dónde sacar el sTSS diario, y sin sTSS no hay Banister.
 > Se **borra de verdad** (es un registro que su dueño corrige), y el RPE se
 > guarda sin decidir aún qué carga sale de él: eso es de C8.
 
-### 5.12 `CargaDiaria` — nuevo (R1: tras 1-6)
+### 5.12 `CargaDiaria` — nuevo (R1: tras 1-6) — ✅ 2026-09-23 (C8)
 
 ```
 atleta · fecha · stss · ctl · atl · tsb
@@ -794,7 +803,7 @@ La nota 05 del vault, por fin construible.
 > desde cero tras cualquier secuencia de escrituras. Se guarda por escala —muchas
 > lecturas, una escritura al día por atleta—, no porque sea un hecho.
 
-### 5.13 Relaciones auxiliares
+### 5.13 Relaciones auxiliares — ⬜ el ciclo de vida de `CodigoDeVinculacion` sin construir
 
 ```
 CodigoDeVinculacion (LinkCode)     ficha ↔ cuenta; caduca, se gasta, dos lados
@@ -810,7 +819,7 @@ tres columnas que hay que comprobar a mano.
 
 ## 6. Servicios de dominio
 
-### 6.1 `MotorCientifico` — uno solo
+### 6.1 `MotorCientifico` — uno solo — ✅ 2026-08-17 (paso 4)
 
 Absorbe y **elimina**: `domain/engine.py::ScienceEngine`,
 `engine/progression.py`, `engine/envelope.py`, `engine/feasibility.py`,
@@ -859,7 +868,7 @@ La fusión es: **la ciencia de `ScienceEngine`, la parametrización de
 `RATIO_DESCANSO`. Un solo sitio, y `MAX_SEMANAS_EXTENSION` deja de tener dos
 valores.
 
-### 6.2 `Curva` — patrón Strategy
+### 6.2 `Curva` — patrón Strategy — ✅ 2026-08-17 (`servicios/curvas.py`; fija en el plan real desde R7, 2026-09-23)
 
 ```
 Curva (abstracta)
@@ -882,7 +891,7 @@ ediciones en tres archivos. Con Strategy es un archivo.
 > científica y `BEHIND` con la exponencial (§10.4). Dejar la columna y esconder
 > el desplegable sería teatro, que CLAUDE.md ya prohíbe.
 
-### 6.3 `CargaAcumulada` — Banister (R1: tras 1-6)
+### 6.3 `CargaAcumulada` — Banister (R1: tras 1-6) — ✅ 2026-09-23 (C8)
 
 ```
 CargaAcumulada
@@ -946,6 +955,14 @@ codigos_de_vinculacion ── atletas · pertenencias · usuarios
 | 7 | ~~`usuarios.es_staff`~~ — **R3: no se añade nada.** Solo el hueco en la jerarquía de `Rol` | admin no cabe en `pertenencias`, pero tampoco se construye |
 | 8 | Un solo registro de modelos | hoy hay que acordarse en `model_registry.py`, `alembic/env.py` y `seed.py`; olvidarlo revienta al primer INSERT |
 | 9 | Nombres de tabla en español, coherentes con el dominio | hoy mezcla `swimmers`/`plans` con conceptos en español |
+
+> **Estado al 2026-10-05:** ✅ 1 (C7, `real_time` retirada) · ✅ 2 (C6) · ✅ 3
+> (C7; `series` fuera) · ✅ 4 (C8) · ✅ 5 (P3) · ✅ 7 (no se añadió nada) · ✅ 8
+> (`core/model_registry.py`, importado por `alembic/env.py` y `seed.py`) ·
+> ⬜ **6 a medias** (hay `CHECK` en fase, rol y `resultados`; faltan zona, nivel,
+> perfil, estilo, especialidad, tipo_de_test, piscina, estado y modo_de_ingreso) ·
+> ⬜ **9** (las tablas siguen en inglés salvo las nuevas: renombrar es una
+> migración de todo el esquema y pide decisión).
 
 ### 7.3 Lo que NO cambia
 
