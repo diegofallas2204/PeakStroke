@@ -280,8 +280,14 @@ async def test_volver_a_inscribirlo_recupera_todo(client, db, world: World):
     assert registrada["real_time"] == 129.5, "el histórico no volvió con él"
 
 
-async def test_sacar_dos_veces_al_mismo_es_404(client, db, world: World):
+async def test_sacar_dos_veces_al_mismo_no_falla_y_sigue_fuera(client, db, world: World):
+    """Hasta el 2026-10-05 la segunda baja era 404. El usuario decidió (C9 punto
+    2) que sacar y devolver sean idempotentes, como la ficha: un doble clic no da
+    error. Lo que no puede cambiar es el efecto —sigue fuera, con su histórico—;
+    que la segunda no se audite lo fija `test_inscripcion_entidad.py`."""
     ap_id = await _inscripcion_de(db, world.plan_id, world.carlos_swimmer_id)
     ruta = f"{API}/plans/{world.plan_id}/athletes/{ap_id}"
     assert (await client.delete(ruta, headers=como(world.owner_email))).status_code == 204
-    assert (await client.delete(ruta, headers=como(world.owner_email))).status_code == 404
+    assert (await client.delete(ruta, headers=como(world.owner_email))).status_code == 204
+    plan = await client.get(f"{API}/plans/{world.plan_id}", headers=como(world.owner_email))
+    assert world.carlos_swimmer_id not in [a["swimmer_id"] for a in plan.json()["athletes"]]

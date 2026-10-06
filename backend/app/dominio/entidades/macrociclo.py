@@ -16,8 +16,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from ..valores import EstadoDeMacro, Fase, Piscina
+from ..valores import EstadoDeMacro, Fase, Piscina, Ritmo
+from .atleta import Atleta
 from .base import PorIdentidad
+from .inscripcion import Inscripcion, InscripcionImposible
 
 # Estados que el entrenador pone a mano y mandan tal cual sobre la fecha.
 _OVERRIDES_MANUALES = (EstadoDeMacro.SUSPENDIDO, EstadoDeMacro.BORRADOR, EstadoDeMacro.TERMINADO)
@@ -128,6 +130,31 @@ class Macrociclo(PorIdentidad):
         simulador, que compara escenarios y no le da un veredicto a nadie.
         """
         return CURVA_DEL_PLAN
+
+    def inscribir(
+        self, atleta: Atleta, base_aerobica: Ritmo | None = None,
+        fuente_de_base: str | None = None,
+    ) -> Inscripcion:
+        """La inscripción de `atleta` en este macrociclo, sin guardar.
+
+        Comprueba lo que el macrociclo puede saber por sí mismo: que la ficha es
+        de su club y que sigue activa. Hasta el 2026-10-05 nadie lo miraba al
+        inscribir —la lista de asignables escondía las fichas de baja, pero el
+        POST las aceptaba—. **«Un atleta, un macrociclo vivo» no es de aquí**:
+        pide las inscripciones de todo el equipo y la impone
+        `api/v1/macrociclos/inscripcion.py` antes de llamar.
+        """
+        if atleta.equipo_id != self.equipo_id:
+            raise InscripcionImposible("Ese atleta no es de este club")
+        if not atleta.activo:
+            raise InscripcionImposible(
+                f"La ficha de {atleta} está dada de baja: restáurala antes de inscribirla",
+            )
+        assert atleta.id is not None, "se inscribe una ficha guardada"
+        return Inscripcion(
+            atleta_id=atleta.id, macrociclo_id=self.id,
+            base_aerobica=base_aerobica, fuente_de_base=fuente_de_base,
+        )
 
     def duracion_en_semanas(self) -> int:
         return self.semanas

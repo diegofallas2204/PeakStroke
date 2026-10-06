@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from .atleta import Atleta, anios_cumplidos
 from .base import PorIdentidad
+from .inscripcion import Inscripcion, InscripcionImposible
 from .macrociclo import Competencia, FaseDelMacro, Macrociclo, lunes_de
 from .resultado import (
     DIAS_DE_UNA_SEMANA,
@@ -37,6 +38,8 @@ __all__ = [
     "PorIdentidad",
     # atleta
     "Atleta", "anios_cumplidos",
+    # inscripción
+    "Inscripcion", "InscripcionImposible",
     # macrociclo
     "Macrociclo", "FaseDelMacro", "Competencia", "lunes_de",
     # resultado

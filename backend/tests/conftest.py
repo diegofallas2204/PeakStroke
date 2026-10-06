@@ -67,6 +67,7 @@ from app.main import app  # noqa: E402
 from app.persistencia.repositorios import (  # noqa: E402
     RepositorioDeAtletas,
     RepositorioDeEquipos,
+    RepositorioDeInscripciones,
     RepositorioDeMacrociclos,
     RepositorioDeTests,
 )
@@ -280,7 +281,8 @@ async def world(db: AsyncSession) -> World:
 
     eventos = {}
     for swimmer in (sofia_sw, carlos_sw, sin_cuenta_sw):
-        ap = await add_athlete(db, repo, macro, AddAthleteRequest(
+        ap = await add_athlete(RepositorioDeInscripciones(repo), macro,
+                               await atletas.por_id(swimmer.id), AddAthleteRequest(
             swimmer_id=swimmer.id, aerobic_base=75.0, aerobic_base_source="t30",
             events=[EventInput(
                 priority=1, distance=200, stroke="libre",

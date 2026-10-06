@@ -16,10 +16,11 @@ El segundo se añadió el 2026-08-06. `acotar` deja pasar el plan entero a
 cualquiera inscrito en él, así que por sí solo permitía que un atleta leyera y
 sobrescribiera las semanas de sus compañeros.
 
-**Por qué algunos métodos devuelven filas y no entidades.** `Inscripcion`,
-`PruebaObjetivo` y `Semana` (§5.6-5.8) no existen todavía: las construyen los
-pasos 6-8. Hasta entonces lo que cuelga del macrociclo sale como fila del ORM y
-el nombre lo dice (`fila_de`, `pruebas_de`, `semana`). El macrociclo en sí
+**Por qué algunos métodos devuelven filas y no entidades.** `PruebaObjetivo` y
+`Semana` (§5.7-5.8) no existen todavía: son los puntos 3 y 4 de C9 (la
+`Inscripcion` ya es entidad desde el 2026-10-05, en `inscripciones.py`).
+Hasta entonces lo que cuelga del macrociclo sale como fila del ORM y el nombre
+lo dice (`fila_de`, `pruebas_de`, `semana`). El macrociclo en sí
 **siempre** sale como entidad.
 """
 from __future__ import annotations
@@ -237,52 +238,22 @@ class RepositorioDeMacrociclos:
         stmt = self.principal.scope_to_own_swimmer(stmt, AthletePlan.swimmer_id)
         return list((await self.db.execute(stmt)).scalars())
 
-    async def inscripcion(self, athlete_plan_id: int) -> AthletePlan | None:
-        return await self.db.get(AthletePlan, athlete_plan_id)
-
-    async def inscritos_en(self, plan_id: int) -> set[int]:
-        """Los `swimmer_id` con inscripción viva en ese macrociclo."""
-        stmt = select(AthletePlan.swimmer_id).where(
-            AthletePlan.plan_id == plan_id, AthletePlan.is_active.is_(True),
-        )
-        return set((await self.db.execute(stmt)).scalars())
-
-    async def inscripciones_vivas(self) -> list[tuple[int, Macrociclo]]:
-        """(swimmer_id, macrociclo) de cada inscripción activa del equipo.
-
-        Devuelve **todas** sin juzgar cuáles reservan al atleta: eso es la regla
-        de «un atleta, un macrociclo vivo» y vive en
-        `api/v1/macrociclos/inscripcion.py`, que es donde está explicada.
-
-        Pares y no un diccionario a propósito. Colapsar aquí por nadador daría
-        por buena justo la invariante que el llamador viene a comprobar: si
-        alguien apareciera en dos macrociclos, el último leído taparía al otro y
-        el bloqueo dependería del orden de las filas.
-        """
-        stmt = (
-            select(AthletePlan.swimmer_id, Plan)
-            .join(Plan, Plan.id == AthletePlan.plan_id)
-            .where(
-                Plan.team_id == self.principal.team_id,
-                AthletePlan.is_active.is_(True),
-            )
-        )
-        return [
-            (swimmer_id, macrociclo_desde_fila(fila))
-            for swimmer_id, fila in (await self.db.execute(stmt)).all()
-        ]
+    # Las inscripciones (`inscripcion`, `inscritos_en`, `inscripciones_vivas`)
+    # se mudaron a `inscripciones.py` el 2026-10-05 (C9): este archivo pasaba
+    # de 300 líneas y esa era su división natural.
 
     # ── Escritura ────────────────────────────────────────────────────────────
 
-    async def guardar(self, fila: Plan | AthletePlan) -> None:
+    async def guardar(self, fila: Plan) -> None:
         self.db.add(fila)
         await self.db.commit()
 
     async def confirmar(self) -> None:
         """Persiste lo que ya está en la sesión.
 
-        Es lo poco que hoy se puede: `Inscripcion` y `Semana` no son entidades
-        todavía (§5.6-5.8), así que no hay agregado que guardar entero.
+        Es lo poco que hoy se puede: `PruebaObjetivo` y `Semana` no son
+        entidades todavía (§5.7-5.8, puntos 3 y 4 de C9). `Inscripcion` ya lo es
+        y se guarda por `RepositorioDeInscripciones.guardar`.
         """
         await self.db.commit()
 

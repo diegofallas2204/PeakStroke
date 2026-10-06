@@ -30,6 +30,7 @@ from app.dominio.entidades import (
     Competencia,
     Contexto,
     FaseDelMacro,
+    Inscripcion,
     Macrociclo,
     Resultado,
     Sesion,
@@ -50,7 +51,7 @@ from app.dominio.valores import (
     TipoDeTest,
 )
 from app.persistencia.tablas.atletas import Swimmer
-from app.persistencia.tablas.planes import Competition, Plan, PlanPhase
+from app.persistencia.tablas.planes import AthletePlan, Competition, Plan, PlanPhase
 from app.persistencia.tablas.resultados import Result
 from app.persistencia.tablas.sesiones import SwimSession
 from app.persistencia.tablas.tests_aerobicos import AerobicTest
@@ -193,4 +194,17 @@ def medicion_desde_test(fila: AerobicTest) -> MedicionDeCss:
     return MedicionDeCss(
         fecha=fila.test_date, ritmo=Ritmo(fila.avg_per100),
         preferente=TipoDeTest.desde_texto(fila.test_type).mide_el_umbral,
+    )
+
+
+def inscripcion_desde_fila(fila: AthletePlan) -> Inscripcion:
+    return Inscripcion(
+        id=fila.id,
+        atleta_id=fila.swimmer_id,
+        macrociclo_id=fila.plan_id,
+        # Una base que no es un ritmo válido (0, negativa) no se inventa: se lee
+        # como «sin base», que es lo que el motor ya hace con ella.
+        base_aerobica=Ritmo(fila.aerobic_base) if fila.aerobic_base and fila.aerobic_base > 0 else None,
+        fuente_de_base=fila.aerobic_base_source,
+        activa=fila.is_active,
     )

@@ -30,12 +30,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dominio.entidades import Macrociclo
 from app.dominio.valores import EstadoDeMacro
-from app.persistencia.repositorios import RepositorioDeMacrociclos
+from app.persistencia.repositorios import RepositorioDeInscripciones
 from app.persistencia.tablas.atletas import Swimmer
 
 
 async def live_enrollments(
-    repo: RepositorioDeMacrociclos, *, excluding_plan_id: int | None = None,
+    repo: RepositorioDeInscripciones, *, excluding_plan_id: int | None = None,
 ) -> dict[int, Macrociclo]:
     """swimmer_id → el macrociclo vivo que ya lo tiene inscrito.
 
@@ -53,7 +53,7 @@ async def live_enrollments(
 
 
 async def blocking_plan(
-    repo: RepositorioDeMacrociclos, swimmer_id: int, *, target_plan_id: int,
+    repo: RepositorioDeInscripciones, swimmer_id: int, *, target_plan_id: int,
 ) -> Macrociclo | None:
     """El macrociclo que impide inscribir a ese atleta, si lo hay."""
     ocupados = await live_enrollments(repo, excluding_plan_id=target_plan_id)
@@ -61,7 +61,7 @@ async def blocking_plan(
 
 
 async def blocking_plan_for(
-    repo: RepositorioDeMacrociclos, athlete_plan_id: int,
+    repo: RepositorioDeInscripciones, athlete_plan_id: int,
 ) -> Macrociclo | None:
     """Lo mismo, para una inscripción que se quiere **reactivar**.
 
@@ -69,24 +69,28 @@ async def blocking_plan_for(
     entrado en otro macrociclo, y sin esta comprobación el `restore` sería la
     puerta trasera de la regla que `add_athlete` cierra por delante.
     """
-    ap = await repo.inscripcion(athlete_plan_id)
-    if ap is None:
+    inscripcion = await repo.por_id(athlete_plan_id)
+    if inscripcion is None or inscripcion.macrociclo_id is None:
         return None
-    return await blocking_plan(repo, ap.swimmer_id, target_plan_id=ap.plan_id)
+    return await blocking_plan(
+        repo, inscripcion.atleta_id, target_plan_id=inscripcion.macrociclo_id,
+    )
 
 
 async def assignable_swimmers(
-    db: AsyncSession, repo: RepositorioDeMacrociclos, macro: Macrociclo,
+    db: AsyncSession, repo: RepositorioDeInscripciones, macro: Macrociclo,
 ) -> list[Swimmer]:
     """Las fichas activas del equipo que hoy pueden entrar en `macro`.
 
-    Fuera quedan las dadas de baja, las que ya están en este macrociclo y las
-    comprometidas con otro que sigue vivo. Es la misma condición que comprueba
+    Fuera quedan las dadas de baja, las que ya están en este macrociclo —vivas o
+    de baja en él— y las comprometidas con otro que sigue vivo. Es la misma condición que comprueba
     `blocking_plan` al inscribir: la lista no es una sugerencia de la interfaz,
     es la regla enseñada por adelantado.
     """
     ocupados = await live_enrollments(repo, excluding_plan_id=macro.id)
-    ya_dentro = await repo.inscritos_en(macro.id)
+    # También los de baja en ESTE macrociclo: a esos se les devuelve
+    # (`restore`), no se les reinscribe, y el POST lo rechaza con 409.
+    ya_dentro = await repo.inscritos_en(macro.id, incluir_de_baja=True)
     stmt = (
         select(Swimmer)
         .where(Swimmer.team_id == macro.equipo_id, Swimmer.is_active.is_(True))

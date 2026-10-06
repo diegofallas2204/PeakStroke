@@ -7,7 +7,8 @@ endpoint se acuerde de comprobarlo.
 Dos formas de pedir el mismo plan, y la diferencia es deliberada:
 `repo.por_id()` devuelve el **`Macrociclo`** —lo que se usa para decidir—, y
 `repo.fila_de()` devuelve la fila con la nómina cargada, que es lo que hace
-falta para pintar la respuesta mientras `Inscripcion` no sea una entidad.
+falta para pintar la respuesta (sus pruebas y semanas siguen siendo filas hasta
+los puntos 3 y 4 de C9). La nómina en sí está en `router_nomina.py`.
 """
 from __future__ import annotations
 
@@ -17,19 +18,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencias import repo_de_macrociclos, repo_de_resultados
 from app.core.auditoria import TipoDeEvento, auditar
 from app.core.database import get_db
-from app.core.dates import age_at
 from app.core.guards import exigir_o_bypass, require_coach, require_team_owner
 from app.core.principal import Principal
-from app.dominio.entidades import Macrociclo
 from app.dominio.roles import Recurso
 from app.dominio.servicios.motor import fases_por_defecto
 from app.persistencia.repositorios import RepositorioDeMacrociclos, RepositorioDeResultados
-from app.persistencia.tablas.planes import Plan
 
-from . import inscripcion, nomina, semanas, service
+from . import semanas, service
+from .resolver import fila_o_404
+from .router_nomina import router as router_nomina
 from .schemas import (
-    AddAthleteRequest,
-    AssignableAthlete,
     PhaseInput,
     PlanCreate,
     PlanResponse,
@@ -41,18 +39,8 @@ from .schemas import (
 router = APIRouter()
 
 
-async def _fila_o_404(repo: RepositorioDeMacrociclos, plan_id: int) -> Plan:
-    fila = await repo.fila_de(plan_id)
-    if fila is None:
-        raise HTTPException(404, "Macrociclo no encontrado")
-    return fila
-
-
-async def _macro_o_404(repo: RepositorioDeMacrociclos, plan_id: int) -> Macrociclo:
-    macro = await repo.por_id(plan_id)
-    if macro is None:
-        raise HTTPException(404, "Macrociclo no encontrado")
-    return macro
+# La nómina (quién entra, sale y vuelve) vive en `router_nomina.py` desde el
+# 2026-10-05; se incluye al final de este archivo con el mismo prefijo.
 
 
 @router.get("/", response_model=list[PlanResponse])
@@ -99,7 +87,7 @@ async def get_plan(
     repo: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
     db: AsyncSession = Depends(get_db),
 ):
-    fila = await _fila_o_404(repo, plan_id)
+    fila = await fila_o_404(repo, plan_id)
     return await service.to_plan_response(db, fila, repo.principal)
 
 
@@ -110,7 +98,7 @@ async def update_plan(
     repo: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
     db: AsyncSession = Depends(get_db),
 ):
-    fila = await _fila_o_404(repo, plan_id)
+    fila = await fila_o_404(repo, plan_id)
     # Cambiar la meta del macro es de dueño (R4), el resto de la edición no:
     # un asistente activa, suspende y anota los macros que lleva. Se mira si el
     # valor CAMBIA, no si viaja, para que reenviar el formulario entero con la
@@ -142,7 +130,7 @@ async def delete_plan(
     una fecha, no una parte del macrociclo. Que el entrenador decida qué hacer
     con ellos es más barato que descubrir que se evaporaron.
     """
-    bloqueantes = await service.delete_plan(repo, await _fila_o_404(repo, plan_id))
+    bloqueantes = await service.delete_plan(repo, await fila_o_404(repo, plan_id))
     if bloqueantes:
         raise HTTPException(409, (
             f"Este macrociclo tiene {bloqueantes} test(s) aeróbico(s) asociados. "
@@ -150,98 +138,6 @@ async def delete_plan(
         ))
     # Es un borrado de verdad, no una baja: el registro es lo único que queda.
     auditar(TipoDeEvento.MACROCICLO_BORRADO, dueno, objetivo=("plan", plan_id))
-
-
-@router.get("/{plan_id}/assignable-athletes", response_model=list[AssignableAthlete])
-async def assignable_athletes(
-    plan_id: int,
-    coach: Principal = Depends(require_coach),
-    repo: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
-    db: AsyncSession = Depends(get_db),
-):
-    """Los atletas que hoy pueden entrar en este macrociclo.
-
-    Existe para que el formulario no ofrezca lo que el POST va a rechazar. La
-    regla la impone `add_athlete` de todas formas: esto es la cortesía, no la
-    cerradura (ver `inscripcion.py`).
-    """
-    macro = await _macro_o_404(repo, plan_id)
-    return [
-        AssignableAthlete(
-            id=s.id, name=s.name, specialty=s.specialty, main_stroke=s.main_stroke,
-            age=age_at(s.birth_date, macro.inicio),
-        )
-        for s in await inscripcion.assignable_swimmers(db, repo, macro)
-    ]
-
-
-@router.post("/{plan_id}/athletes", response_model=PlanResponse, status_code=201)
-async def add_athlete(
-    plan_id: int, data: AddAthleteRequest,
-    coach: Principal = Depends(require_coach),
-    repo: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
-    db: AsyncSession = Depends(get_db),
-):
-    macro = await _macro_o_404(repo, plan_id)
-    if data.swimmer_id in await repo.inscritos_en(plan_id):
-        raise HTTPException(409, "El atleta ya está asignado a este macrociclo")
-    # Un atleta, un macrociclo vivo. El bloqueo aplica también al dueño del
-    # equipo: no es una cuestión de permisos sino de que ese plan no existe.
-    ocupado = await inscripcion.blocking_plan(repo, data.swimmer_id, target_plan_id=plan_id)
-    if ocupado is not None:
-        raise HTTPException(409, (
-            f"Ese atleta ya está en el macrociclo «{ocupado.nombre}». "
-            "Sácalo de ahí antes de inscribirlo en otro."
-        ))
-    await nomina.add_athlete(db, repo, macro, data)
-    return await service.to_plan_response(db, await _fila_o_404(repo, plan_id), coach)
-
-
-@router.delete("/{plan_id}/athletes/{athlete_plan_id}", status_code=204)
-async def remove_athlete(
-    plan_id: int, athlete_plan_id: int,
-    coach: Principal = Depends(require_coach),
-    repo: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
-):
-    """Saca al atleta del macrociclo. **No borra su histórico**: lo da de baja.
-
-    Se mantiene el verbo DELETE porque es la acción que expresa el cliente
-    ("quitar del macrociclo"), igual que en `swimmers`. Sus semanas y tiempos
-    reales siguen en la base, y `POST .../restore` vuelve a inscribirlo con todo.
-    """
-    await _macro_o_404(repo, plan_id)
-    if not await nomina.remove_athlete(repo, plan_id, athlete_plan_id):
-        raise HTTPException(404, "Atleta no encontrado en este macrociclo")
-    auditar(
-        TipoDeEvento.INSCRIPCION_BAJA, coach, objetivo=("athlete_plan", athlete_plan_id),
-        detalle=f"del macrociclo {plan_id}",
-    )
-
-
-@router.post("/{plan_id}/athletes/{athlete_plan_id}/restore", status_code=204)
-async def restore_athlete(
-    plan_id: int, athlete_plan_id: int,
-    coach: Principal = Depends(require_coach),
-    repo: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
-):
-    """Vuelve a inscribir a un atleta dado de baja, con su histórico intacto.
-
-    Sacar a alguien de un macrociclo es la clase de clic que se da por error, y
-    volver a inscribirlo desde cero no reconstruye lo que nadó.
-    """
-    await _macro_o_404(repo, plan_id)
-    ocupado = await inscripcion.blocking_plan_for(repo, athlete_plan_id)
-    if ocupado is not None:
-        raise HTTPException(409, (
-            f"Ese atleta entró mientras tanto en el macrociclo «{ocupado.nombre}». "
-            "Sácalo de ahí antes de devolverlo a este."
-        ))
-    if not await nomina.restore_athlete(repo, plan_id, athlete_plan_id):
-        raise HTTPException(404, "No hay ninguna inscripción dada de baja con ese id")
-    auditar(
-        TipoDeEvento.INSCRIPCION_RESTAURADA, coach,
-        objetivo=("athlete_plan", athlete_plan_id), detalle=f"al macrociclo {plan_id}",
-    )
 
 
 @router.get("/events/{event_id}/weeks", response_model=list[WeekResponse])
@@ -282,3 +178,6 @@ async def update_week(
     if event is None:
         raise HTTPException(404, "Semana no encontrada")
     return await semanas.event_weeks_response(db, resultados, event)
+
+
+router.include_router(router_nomina)

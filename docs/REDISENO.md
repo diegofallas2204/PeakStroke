@@ -7,7 +7,7 @@
 > | # | Dónde | Qué falta | Tipo | Estado |
 > |---|---|---|---|---|
 > | 1 | §5.3 `Atleta` | `dar_de_baja()` / `restaurar()` | código | ✅ **hecho 2026-10-05**: idempotentes; crear, editar, baja y alta pasan por `Atleta` y `RepositorioDeAtletas.guardar`. **Excepción**: ligar la cuenta (`user_id`) sigue en el canje del código (`codigos`), que es el punto 5 |
-> | 2 | §5.4 `Macrociclo` + §5.6 `Inscripcion` | la entidad `Inscripcion` (con `dar_de_baja()` / `restaurar()`) y `Macrociclo.inscribir()` | código | ⬜ pendiente |
+> | 2 | §5.4 `Macrociclo` + §5.6 `Inscripcion` | la entidad `Inscripcion` (con `dar_de_baja()` / `restaurar()`) y `Macrociclo.inscribir()` | código | ✅ **hecho 2026-10-05**: idempotentes; `inscribir()` exige ficha del club y activa (y devolver también: es inscribir otra vez); `RepositorioDeInscripciones` (compone al de macrociclos) con `por_id` acotado. Las pruebas y semanas siguen como filas (puntos 3-4) |
 > | 3 | §5.7 `PruebaObjetivo` | la entidad, con `mejora_pedida()` y `factibilidad()` | código | ⬜ pendiente |
 > | 4 | §5.8 `Semana` | la entidad, con `zonas()`, `real()` y `desviacion()` derivados | código | ⬜ pendiente |
 > | 5 | §10.2 punto 3 | **R5.3**: el orden de las comprobaciones en `redeem` | decisión + código | ⬜ pendiente, pide decisión |
@@ -562,7 +562,10 @@ por un `CodigoDeVinculacion` canjeado.
 > cambio), `Atleta.nueva(...)` construye la ficha desde los textos del API con
 > los alias canonizados, y `RepositorioDeAtletas.guardar(atleta)` es la única
 > escritura —no toca `usuario_id`, que es del canje—. **⬜ `inscribir()` sigue
-> pendiente** con `Inscripcion` (punto 2).
+> pendiente** con `Inscripcion` (punto 2). **✅ Hecho ese mismo día**:
+> `Macrociclo.inscribir(atleta, base, fuente)` comprueba que la ficha es de su
+> club y está activa (`InscripcionImposible`, el 409); «un atleta, un macrociclo
+> vivo» se quedó en `api/v1/macrociclos/inscripcion.py`, decisión del usuario.
 
 ### 5.4 `Macrociclo` (Plan)
 
@@ -605,7 +608,7 @@ Competencia:   nombre · semana · dias · es_principal
 El desdoble `nombre` / `fase` es lo que cierra P3: el entrenador puede llamarle
 "Construcción" a lo que el motor conoce como `base_especifica`.
 
-### 5.6 `Inscripcion` (AthletePlan) — ⬜ sin construir (cabecera, punto 2)
+### 5.6 `Inscripcion` (AthletePlan) — ✅ construida 2026-10-05 (cabecera, punto 2)
 
 ```
 atleta · macrociclo · base_aerobica: Ritmo? · fuente_de_base · activa

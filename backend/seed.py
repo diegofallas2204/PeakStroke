@@ -53,6 +53,7 @@ from app.dominio.valores import Tiempo
 from app.persistencia.repositorios import (
     RepositorioDeAtletas,
     RepositorioDeEquipos,
+    RepositorioDeInscripciones,
     RepositorioDeMacrociclos,
     RepositorioDeResultados,
     RepositorioDeSesiones,
@@ -262,6 +263,7 @@ async def seed() -> None:
         )
         atletas = RepositorioDeAtletas(db, principal)
         repo = RepositorioDeMacrociclos(db, principal)
+        inscripciones = RepositorioDeInscripciones(repo)
         resultados = RepositorioDeResultados(db, principal)
         tests_repo = RepositorioDeTests(db, principal)
 
@@ -313,7 +315,7 @@ async def seed() -> None:
         macro = await repo.recargar(plan.id)
 
         for idx, events, aerobic_base in EVENTS:
-            await add_athlete(db, repo, macro, AddAthleteRequest(
+            await add_athlete(inscripciones, macro, await atletas.por_id(swimmers[idx].id), AddAthleteRequest(
                 swimmer_id=swimmers[idx].id, aerobic_base=aerobic_base,
                 aerobic_base_source="t30",
                 events=[EventInput(

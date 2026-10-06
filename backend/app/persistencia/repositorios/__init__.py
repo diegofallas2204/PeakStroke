@@ -15,6 +15,7 @@ from .auditoria import RepositorioDeAuditoria
 from .carga import RepositorioDeCarga
 from .codigos import RepositorioDeCodigos
 from .equipos import RepositorioDeEquipos
+from .inscripciones import RepositorioDeInscripciones
 from .macrociclos import RepositorioDeMacrociclos
 from .resultados import RepositorioDeResultados
 from .sesiones import RepositorioDeSesiones
@@ -27,6 +28,7 @@ __all__ = [
     "RepositorioDeCarga",
     "RepositorioDeCodigos",
     "RepositorioDeEquipos",
+    "RepositorioDeInscripciones",
     "RepositorioDeMacrociclos",
     "RepositorioDeResultados",
     "RepositorioDeSesiones",
