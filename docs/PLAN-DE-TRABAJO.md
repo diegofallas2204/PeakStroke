@@ -118,6 +118,9 @@ macrociclos, y ese se deja: su división natural llega con C6-C7.
 | ~~3~~ | ~~**C7 · `Sesion`**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque. Los mutadores (`dar_de_baja`, `inscribir`) **no** entraron: no los necesita la sesión y siguen pendientes |
 | ~~4~~ | ~~**C8 · `CargaDiaria` + Banister**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque. Con C8 están hechos los ocho bloques de la parte C; siguen pendientes los mutadores (`dar_de_baja`, `inscribir`) |
 | ~~5~~ | ~~**C3 · R4 y R5.4**~~ | — | ✅ **HECHO el 2026-09-24.** Estaban asignados a C3 desde C0 y no habían entrado. **R5.3 (`redeem`) sigue abierta**: ver el bloque C3 |
+| 6 | **C9 · Mutadores y las tres entidades de escritura** (§5.3-5.8 de REDISENO) | medio | En el orden del modelo: `Atleta.dar_de_baja/restaurar` → `Inscripcion` + `Macrociclo.inscribir` → `PruebaObjetivo` → `Semana`. Con ellas las escrituras dejan de armar filas del ORM en `api/v1/`. Marcado el 2026-10-05 en la cabecera de REDISENO |
+| 7 | **R5.3 · El orden en `redeem`** (§10.2 punto 3) | bajo, zona de seguridad | Pide decisión: choca con «revocado ≠ sin equipo» |
+| 8 | **N1 y N2** (§10.3) | — | Decisiones de producto sobre el promedio semanal. N3 y N5 son del módulo diario, fuera del rediseño; N4 cerrada (PDF en cliente) |
 
 ### Cinco cabos sueltos concretos
 

@@ -1,7 +1,30 @@
 # PeakStroke — Modelo del rediseño
 
-> **Estado: MODELO CERRADO, sin construir.** La beta actual sigue intacta y
-> funcionando. Este documento es el modelo objetivo para la versión limpia.
+> **Estado al 2026-10-05: los ocho pasos del §9 son código** (el 7 y el 8 el
+> 2026-09-23; sus pantallas el 2026-10-01). **Lo que falta, en el orden de este
+> documento:**
+>
+> | # | Dónde | Qué falta | Tipo | Estado |
+> |---|---|---|---|---|
+> | 1 | §5.3 `Atleta` | `dar_de_baja()` / `restaurar()` | código | ⬜ pendiente |
+> | 2 | §5.4 `Macrociclo` + §5.6 `Inscripcion` | la entidad `Inscripcion` (con `dar_de_baja()` / `restaurar()`) y `Macrociclo.inscribir()` | código | ⬜ pendiente |
+> | 3 | §5.7 `PruebaObjetivo` | la entidad, con `mejora_pedida()` y `factibilidad()` | código | ⬜ pendiente |
+> | 4 | §5.8 `Semana` | la entidad, con `zonas()`, `real()` y `desviacion()` derivados | código | ⬜ pendiente |
+> | 5 | §10.2 punto 3 | **R5.3**: el orden de las comprobaciones en `redeem` | decisión + código | ⬜ pendiente, pide decisión |
+> | 6 | §10.3 | **N1** y **N2**: qué entra en el promedio semanal | decisión | ⬜ abiertas |
+> | 7 | §10.3 | **N3** y **N5**: sesiones por semana y sesión estructurada | decisión | ⬜ abiertas, del módulo diario (fuera del rediseño) |
+>
+> Los puntos 1-4 son un solo frente: hasta que `Inscripcion`, `PruebaObjetivo`
+> y `Semana` sean entidades, **las escrituras arman filas del ORM desde
+> `api/v1/`** (CLAUDE.md) y los mutadores no tienen a quién devolver un agregado
+> que el repositorio guarde. **N4 está cerrada**: el PDF se arma en el cliente
+> (construido el 2026-08-25).
+>
+> Lo que sigue debajo es la historia del documento, en orden de fecha.
+>
+> **Estado original (2026-08-12): MODELO CERRADO, sin construir.** La beta actual
+> sigue intacta y funcionando. Este documento es el modelo objetivo para la
+> versión limpia.
 >
 > Fecha: 2026-08-12 · Línea base medida: 307 tests en verde, `tsc` limpio,
 > `eslint` limpio.
@@ -531,6 +554,10 @@ por un `CodigoDeVinculacion` canjeado.
 > lo que cambian, y un `atleta.dar_de_baja()` que no escribe es peor que no
 > tenerlo, porque parece que funciona. Entran con su repositorio. El paso 2
 > construyó solo el comportamiento de consulta.
+>
+> **⬜ Pendiente al 2026-10-05** (cabecera, puntos 1-2): el repositorio ya existe
+> desde el paso 5, así que la razón de esperar se fue; no entraron en C5, C6, C7
+> ni C8 porque ninguno los necesitaba.
 
 ### 5.4 `Macrociclo` (Plan)
 
@@ -573,7 +600,7 @@ Competencia:   nombre · semana · dias · es_principal
 El desdoble `nombre` / `fase` es lo que cierra P3: el entrenador puede llamarle
 "Construcción" a lo que el motor conoce como `base_especifica`.
 
-### 5.6 `Inscripcion` (AthletePlan)
+### 5.6 `Inscripcion` (AthletePlan) — ⬜ sin construir (cabecera, punto 2)
 
 ```
 atleta · macrociclo · base_aerobica: Ritmo? · fuente_de_base · activa
@@ -581,7 +608,7 @@ atleta · macrociclo · base_aerobica: Ritmo? · fuente_de_base · activa
 dar_de_baja() / restaurar()      baja lógica; el histórico no se toca
 ```
 
-### 5.7 `PruebaObjetivo` (AthleteEvent)
+### 5.7 `PruebaObjetivo` (AthleteEvent) — ⬜ sin construir (cabecera, punto 3)
 
 ```
 prueba: Prueba · actual: Tiempo · meta: Tiempo · prioridad
@@ -593,7 +620,7 @@ factibilidad(nivel, semanas, n_mac, edad) -> Veredicto
 `distance` + `stroke` sueltos pasan a ser un `Prueba`. Aquí es donde la
 validación deja de depender de que alguien llame a `is_valid_event`.
 
-### 5.8 `Semana` (WeeklyPlan)
+### 5.8 `Semana` (WeeklyPlan) — ⬜ sin construir (cabecera, punto 4)
 
 ```
 numero · fecha · km_planificados
@@ -990,8 +1017,12 @@ El resto son renombres de columna y `CheckConstraint` añadidos.
 | 4 | **Fusión de los dos motores** — **✅ HECHO 2026-08-17** (rama `refactor/motor-unico`) | **medio-alto** | P1 (P3 no: se cerró aparte el 2026-09-22) | rama propia |
 | 5 | `persistencia/repositorios/` + recorte de imports cruzados — **✅ HECHO 2026-08-25** | medio | P5 | sí |
 | 6 | `Resultado` + migración de `real_time` — **✅ HECHO 2026-09-22** | medio | §5.10 | sí |
-| 7 | `Sesion` (R1: **`Serie` fuera**) | medio | el hueco de fondo | sí |
-| 8 | `CargaDiaria` + Banister (R1) | bajo | nota 05 | — |
+| 7 | `Sesion` (R1: **`Serie` fuera**) — **✅ HECHO 2026-09-23** (pantallas 2026-10-01) | medio | el hueco de fondo | sí |
+| 8 | `CargaDiaria` + Banister (R1) — **✅ HECHO 2026-09-23** (pantallas y tabla del equipo 2026-10-01) | bajo | nota 05 | — |
+
+> **2026-10-05:** los ocho pasos son código. Lo que este orden no recogía —los
+> mutadores y las tres entidades de escritura del §5— está en la tabla de la
+> cabecera, puntos 1-4.
 
 El paso 4 es el único con riesgo real. Se hace en rama propia y con los 478 tests
 delante (2026-08-13): `test_domain_engine.py` y `test_engine.py` ya fijan el
@@ -1065,7 +1096,8 @@ cuerpo; se listan aquí para que se vean juntas.
    mismo y convierte una fuga silenciosa en un error inmediato. `plans/access.py:73`
    ya tuvo que codificarse a la defensiva anticipando ese cambio.
    **Aplicado el 2026-09-24.** El 3 (`redeem`) sigue sin aplicar: choca con
-   «revocado ≠ sin equipo» (CLAUDE.md) y se decide aparte.
+   «revocado ≠ sin equipo» (CLAUDE.md) y se decide aparte. **⬜ Pendiente al
+   2026-10-05** (cabecera, punto 5).
 5. **El ejemplo de §4.1 se cambió** por el del atleta que asciende a entrenador.
    El anterior argumentaba desde dos casos que el propio modelo prohíbe.
 
@@ -1079,7 +1111,7 @@ módulo de entrenamiento diario (nota 22 del vault).
 | **N1** | ¿El promedio semanal es de **todos** los tiempos de la prueba esa semana, o el entrenador marca cuál cuenta? | Un control mal nadado arrastra el promedio, y con él la curva reanclada de las semanas siguientes |
 | **N2** | ¿Un tiempo de competencia entra en el promedio o manda sobre él? | `Resultado.contexto` ya distingue competencia · control · serie; falta decidir qué hace con esa distinción |
 | **N3** | ¿`sesiones_por_semana` del equipo admite excepción por atleta o por macro? | Hoy `teams` no tiene dónde guardarlo siquiera |
-| **N4** | El PDF de las tablas: ¿backend (fiel, pesado) o cliente (barato, se desincroniza)? | — |
+| ~~**N4**~~ | ~~El PDF de las tablas: ¿backend (fiel, pesado) o cliente (barato, se desincroniza)?~~ | ✅ **Cerrada: cliente.** Construido el 2026-08-25 en Simulador y Tabla del equipo |
 | **N5** | ¿La sesión que sube el entrenador es texto libre o series estructuradas? | Es la misma pregunta que dejó `Serie` fuera: el coste no es técnico, es de captura |
 
 ### 10.4 Los números que cerraron R6 y R7
