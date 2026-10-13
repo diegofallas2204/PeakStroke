@@ -32,6 +32,7 @@ from app.dominio.entidades import (
     FaseDelMacro,
     Inscripcion,
     Macrociclo,
+    PruebaObjetivo,
     Resultado,
     Sesion,
     TestAerobico,
@@ -51,7 +52,13 @@ from app.dominio.valores import (
     TipoDeTest,
 )
 from app.persistencia.tablas.atletas import Swimmer
-from app.persistencia.tablas.planes import AthletePlan, Competition, Plan, PlanPhase
+from app.persistencia.tablas.planes import (
+    AthleteEvent,
+    AthletePlan,
+    Competition,
+    Plan,
+    PlanPhase,
+)
 from app.persistencia.tablas.resultados import Result
 from app.persistencia.tablas.sesiones import SwimSession
 from app.persistencia.tablas.tests_aerobicos import AerobicTest
@@ -207,4 +214,20 @@ def inscripcion_desde_fila(fila: AthletePlan) -> Inscripcion:
         base_aerobica=Ritmo(fila.aerobic_base) if fila.aerobic_base and fila.aerobic_base > 0 else None,
         fuente_de_base=fila.aerobic_base_source,
         activa=fila.is_active,
+    )
+
+
+def prueba_objetivo_desde_fila(fila: AthleteEvent) -> PruebaObjetivo:
+    """Lee solo las columnas de la prueba: no toca `weeks` ni `athlete_plan`.
+
+    El estilo pasa por `Estilo.desde_texto`: las filas de antes de C9 pueden
+    guardar un alias («crol»), y son la misma prueba que las que guardan «libre».
+    """
+    return PruebaObjetivo(
+        id=fila.id,
+        inscripcion_id=fila.athlete_plan_id,
+        prueba=Prueba(fila.distance, Estilo.desde_texto(fila.stroke)),
+        actual=Tiempo(fila.current_time),
+        meta=Tiempo(fila.goal_time),
+        prioridad=fila.priority,
     )

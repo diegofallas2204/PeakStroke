@@ -7,8 +7,9 @@ dónde salen los datos: las consultas y el filtro de acceso están en
 
 La **inscripción** ya se escribe por su entidad (C9 punto 2, 2026-10-05):
 `Macrociclo.inscribir()` → `RepositorioDeInscripciones.guardar`, con las rutas
-en `router_nomina.py`. **Sus pruebas objetivo y semanas** todavía se construyen
-como filas del ORM desde aquí: `PruebaObjetivo` y `Semana` (§5.7–5.8) son los
-puntos 3 y 4 de C9. Cuando existan, ese camino pasa también detrás del
-repositorio.
+en `router_nomina.py`. **Sus pruebas objetivo también** (punto 3, 2026-10-13):
+`nomina.py` construye cada `PruebaObjetivo` y el repositorio arma las filas.
+Lo que queda fuera es la **semana**: apuntar un tiempo o un parón y recalcular
+la curva (`semanas.py`) todavía toca filas del ORM desde aquí, hasta que
+`Semana` (§5.8) sea entidad, el punto 4 de C9.
 """

@@ -8,22 +8,34 @@ que importa: **sacar a alguien es darle de baja, nunca borrarlo**.
 Desde C9 (2026-10-05) la inscripción es una entidad: se crea con
 `Macrociclo.inscribir()` —que exige una ficha de su club y activa—, se saca y se
 devuelve con `dar_de_baja()` / `restaurar()` (idempotentes) y se guarda por
-`RepositorioDeInscripciones.guardar`. Sus pruebas objetivo y semanas siguen
-siendo filas hasta los puntos 3 y 4 de C9.
+`RepositorioDeInscripciones.guardar`.
+
+Y desde el punto 3 (2026-10-13) sus pruebas también: aquí se construye cada
+`PruebaObjetivo` y se le pide al motor su plan; las filas las arma el
+repositorio. **Este archivo ya no importa ninguna tabla**, y
+`tests/test_prueba_objetivo_api.py` lo comprueba. Las semanas viajan como las
+devuelve el motor hasta que `Semana` (§5.8) sea entidad, el punto 4.
 """
 from __future__ import annotations
 
-from app.dominio.entidades import Atleta, InscripcionImposible, Macrociclo
-from app.dominio.servicios.motor import MOTOR
+from app.dominio.entidades import (
+    Atleta,
+    Inscripcion,
+    InscripcionImposible,
+    Macrociclo,
+    PruebaObjetivo,
+)
+from app.dominio.servicios.motor import MOTOR, SemanaGenerada
 from app.dominio.valores import Ritmo
 from app.persistencia.repositorios import RepositorioDeAtletas, RepositorioDeInscripciones
-from app.persistencia.tablas.planes import AthleteEvent, AthletePlan, WeeklyPlan
 
 from .schemas import AddAthleteRequest
 
 
-def _pruebas(macro: Macrociclo, atleta: Atleta, data: AddAthleteRequest) -> list[AthleteEvent]:
-    """Las filas de sus pruebas objetivo, cada una con su plan semanal generado."""
+def _pruebas(
+    macro: Macrociclo, atleta: Atleta, data: AddAthleteRequest,
+) -> list[tuple[PruebaObjetivo, list[SemanaGenerada]]]:
+    """Sus pruebas objetivo, cada una con el plan semanal que le genera el motor."""
     phases = [
         {"name": f.nombre, "type": f.fase.value,
          "week_start": f.semana_inicio, "week_end": f.semana_fin}
@@ -32,35 +44,34 @@ def _pruebas(macro: Macrociclo, atleta: Atleta, data: AddAthleteRequest) -> list
     # Edad al inicio del macro: ajusta al alza el techo I_max de menores (juventud).
     edad = atleta.edad_en(macro.inicio)
     pruebas = []
-    for event_data in data.events:
-        event = AthleteEvent(**event_data.model_dump())
+    for e in data.events:
+        # El estilo sale canónico de la entidad («crol» → «libre»): es el que
+        # se guarda y el que recibe el motor, que no distingue uno del otro.
+        prueba = e.a_entidad()
         semanas = MOTOR.generar_plan(
-            distancia=event.distance, tiempo_actual=event.current_time,
-            tiempo_meta=event.goal_time, semanas=macro.semanas,
+            distancia=prueba.prueba.distancia, tiempo_actual=prueba.actual.segundos,
+            tiempo_meta=prueba.meta.segundos, semanas=macro.semanas,
             km_totales=macro.km_totales, curva=macro.curva,
             inicio=macro.inicio, semanas_por_micro=macro.semanas_por_micro,
-            fases=phases or None, estilo=event.stroke, piscina=macro.piscina.value,
-            n_mac=macro.n_mac, edad=edad,
+            fases=phases or None, estilo=prueba.prueba.estilo.value,
+            piscina=macro.piscina.value, n_mac=macro.n_mac, edad=edad,
             # El nivel sale del test aeróbico cuando la inscripción lo trae: es
             # el dato para el que la tabla de niveles está calibrada. Derivarlo
             # del ritmo de carrera deja un borde de una décima que mueve el
             # volumen un 45 % (defecto 1 de §10.4).
             base_aerobica=data.aerobic_base,
         )
-        for s in semanas:
-            event.weeks.append(WeeklyPlan(
-                week_number=s.numero, week_date=s.fecha,
-                planned_km=s.km, expected_time=s.tiempo_esperado, phase=s.fase.value,
-            ))
-        pruebas.append(event)
+        pruebas.append((prueba, semanas))
     return pruebas
 
 
 async def add_athlete(
     repo: RepositorioDeInscripciones, macro: Macrociclo, atleta: Atleta,
     data: AddAthleteRequest,
-) -> AthletePlan:
-    """Inscribe al atleta con sus pruebas, todo en una transacción. Devuelve la fila.
+) -> Inscripcion:
+    """Inscribe al atleta con sus pruebas, todo en una transacción.
+
+    Devuelve la inscripción ya guardada (con su `id`).
 
     `InscripcionImposible` (ficha de baja o de otro club) sube al router: 409.
     """
@@ -70,7 +81,7 @@ async def add_athlete(
     inscripcion = macro.inscribir(atleta, base, data.aerobic_base_source)
     fila = await repo.guardar(inscripcion, pruebas=_pruebas(macro, atleta, data))
     assert fila is not None   # una inscripción nueva siempre es del equipo de quien la crea
-    return fila
+    return inscripcion
 
 
 async def remove_athlete(

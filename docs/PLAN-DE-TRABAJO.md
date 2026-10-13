@@ -49,6 +49,14 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 
 ## Dónde estamos y qué sigue — medido el 2026-09-22
 
+> **Actualizado el 2026-10-13.** C9 punto 3 hecho: **`PruebaObjetivo` es
+> entidad** (REDISENO §5.7, con su enmienda) y el alta de un atleta ya no arma
+> filas del ORM desde `api/v1/`. 1127 tests. De paso salió un fallo que no era
+> del bloque: la respuesta del alta omitía al recién inscrito según pasara o no
+> el recolector de basura (arreglado; lo que falta mirar está en TODO-22).
+> **Lo siguiente es `Semana`** (§5.8, punto 4 de C9): la que queda con
+> escrituras armadas desde `api/v1/macrociclos/semanas.py`.
+
 > **Actualizado el 2026-10-01.** El PR #3 se **fusionó** en `main` el 2026-09-25.
 > **Las pantallas de C7/C8 están hechas**: sección **Entrenamiento**
 > (`/entrenamiento`, los dos roles, violeta) con apuntar/corregir/borrar sesiones
@@ -118,7 +126,7 @@ macrociclos, y ese se deja: su división natural llega con C6-C7.
 | ~~3~~ | ~~**C7 · `Sesion`**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque. Los mutadores (`dar_de_baja`, `inscribir`) **no** entraron: no los necesita la sesión y siguen pendientes |
 | ~~4~~ | ~~**C8 · `CargaDiaria` + Banister**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque. Con C8 están hechos los ocho bloques de la parte C; siguen pendientes los mutadores (`dar_de_baja`, `inscribir`) |
 | ~~5~~ | ~~**C3 · R4 y R5.4**~~ | — | ✅ **HECHO el 2026-09-24.** Estaban asignados a C3 desde C0 y no habían entrado. **R5.3 (`redeem`) sigue abierta**: ver el bloque C3 |
-| 6 | **C9 · Mutadores y las tres entidades de escritura** (§5.3-5.8 de REDISENO) | medio | En el orden del modelo: ~~`Atleta`~~ ✅ `b3f13d9` → ~~`Inscripcion` + `Macrociclo.inscribir`~~ ✅ `37a6a0e` → **`PruebaObjetivo`** (el siguiente) → `Semana`. Línea base **1100 tests** |
+| 6 | **C9 · Mutadores y las tres entidades de escritura** (§5.3-5.8 de REDISENO) | medio | En el orden del modelo: ~~`Atleta`~~ ✅ `b3f13d9` → ~~`Inscripcion` + `Macrociclo.inscribir`~~ ✅ `37a6a0e` → ~~`PruebaObjetivo`~~ ✅ 2026-10-13 (enmienda en REDISENO §5.7) → **`Semana`** (el siguiente). Línea base **1127 tests** |
 | 6b | **C9 · lo que el marcado de la mañana omitió** | medio | §5.1 `Usuario` y §5.2 `Equipo`/`Pertenencia` como entidades; §5.13 el ciclo de vida de `CodigoDeVinculacion` (va con R5.3); §7.2 fila 6 (`CHECK` que faltan) y fila 9 (tablas en español, pide decisión). Ver la cabecera de REDISENO |
 | 7 | **R5.3 · El orden en `redeem`** (§10.2 punto 3) | bajo, zona de seguridad | Pide decisión: choca con «revocado ≠ sin equipo» |
 | 8 | **N1 y N2** (§10.3) | — | Decisiones de producto sobre el promedio semanal. N3 y N5 son del módulo diario, fuera del rediseño; N4 cerrada (PDF en cliente) |

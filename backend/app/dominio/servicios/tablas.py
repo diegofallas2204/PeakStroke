@@ -19,6 +19,11 @@ viven **dentro del objeto de valor al que pertenecen**:
     volumen semanal por fase→ `valores.Fase` × `valores.Nivel`
     ratios de descanso      → `valores.Zona.descanso_para`
 
+Y una séptima que sí estuvo aquí hasta C9 (2026-10-13): los umbrales del
+veredicto de factibilidad (`RATIO_REALISTA`, `RATIO_EXIGENTE`) son hoy
+`valores.Veredicto.del_uso`, porque `PruebaObjetivo.factibilidad()` también
+los necesita y una entidad no importa los servicios.
+
 Copiarlas aquí sería la tercera copia de reglas que el paso 1 acaba de unificar,
 y el paso 4 existe justo para retirar copias. Lo que queda en este archivo es lo
 que **no** tiene un objeto de valor donde vivir: tablas del macrociclo, del
@@ -166,11 +171,6 @@ MEZCLA_DE_ZONAS_POR_ESPECIALIDAD: dict[str, dict[str, float]] = {
     "fondo":          {"R1": 0.68, "R2": 0.16, "MVO2": 0.10, "RL": 0.05, "V": 0.01},
     "aguas_abiertas": {"R1": 0.74, "R2": 0.15, "MVO2": 0.07, "RL": 0.03, "V": 0.01},
 }
-
-# ── Veredicto de factibilidad (§5.3) ────────────────────────────────────────
-# Cociente entre la mejora pedida y el techo científico del macro.
-RATIO_REALISTA = 0.85
-RATIO_EXIGENTE = 1.15
 
 # Tolerancia para clasificar el tiempo real contra el esperado (±0.4 %).
 TOLERANCIA_DE_ESTADO = 0.004

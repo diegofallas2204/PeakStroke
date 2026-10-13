@@ -339,9 +339,5 @@ class EstadoDeMacro(_EscalaTextual):
     SUSPENDIDO = "suspended"
 
 
-class Veredicto(_EscalaTextual):
-    """Factibilidad de una meta: qué dice el motor de lo que pide el entrenador."""
-
-    OK = "ok"
-    AVISO = "warning"
-    AGRESIVO = "aggressive"
+# `Veredicto` (la factibilidad de una meta) vive en `veredicto.py` desde C9: dejó
+# de ser tres claves sueltas y lleva los umbrales que deciden entre ellas.

@@ -1,6 +1,6 @@
 # PeakStroke — Modelo del rediseño
 
-> **Estado al 2026-10-05 (cierre de sesión): los ocho pasos del §9 son código**
+> **Estado al 2026-10-13 (C9 punto 3 hecho): los ocho pasos del §9 son código**
 > (el 7 y el 8 el 2026-09-23; sus pantallas el 2026-10-01). Cada sección lleva en
 > su encabezado ✅ (construida, con fecha) o ⬜ (falta). **Lo que falta, en el
 > orden de este documento:**
@@ -11,8 +11,8 @@
 > | — | §5.2 `Equipo` + `Pertenencia` | las entidades: `transferir_propiedad()`, `es_jefe()`, `rol_de_dominio()`, `revocar()`/`restaurar()` | código | ⬜ pendiente |
 > | 1 | §5.3 `Atleta` | `dar_de_baja()` / `restaurar()` | código | ✅ 2026-10-05 (`b3f13d9`) |
 > | 2 | §5.4 + §5.6 `Inscripcion` | la entidad y `Macrociclo.inscribir()` | código | ✅ 2026-10-05 (`37a6a0e`) |
-> | 3 | §5.7 `PruebaObjetivo` | la entidad, con `mejora_pedida()` y `factibilidad()` | código | ⬜ pendiente — **el siguiente** |
-> | 4 | §5.8 `Semana` | la entidad, con `zonas()`, `real()` y `desviacion()` derivados | código | ⬜ pendiente |
+> | 3 | §5.7 `PruebaObjetivo` | la entidad, con `mejora_pedida()` y `factibilidad()` | código | ✅ 2026-10-13 (ver la enmienda del §5.7) |
+> | 4 | §5.8 `Semana` | la entidad, con `zonas()`, `real()` y `desviacion()` derivados | código | ⬜ pendiente — **el siguiente** |
 > | — | §5.13 `CodigoDeVinculacion` | `es_servible()`, `canjear(usuario)`, `revocar()` como comportamiento | código | ⬜ pendiente — va con R5.3 (`redeem`) |
 > | — | §7.2 fila 6 | `CHECK` en zona, nivel, perfil, estilo, especialidad, tipo_de_test, piscina, estado y modo_de_ingreso | migración | ⬜ a medias: hoy solo fase, rol y `resultados` |
 > | — | §7.2 fila 9 | nombres de tabla en español | migración | ⬜ pendiente (pide decisión: es renombrar todo el esquema) |
@@ -25,9 +25,10 @@
 > nombraba, no el documento entero—. Las filas «—» son esas; la numeración de
 > las demás se conserva porque los commits la citan.
 >
-> Hasta que `PruebaObjetivo` y `Semana` sean entidades, **sus escrituras arman
-> filas del ORM desde `api/v1/`** (CLAUDE.md). **N4 está cerrada**: el PDF se arma
-> en el cliente (construido el 2026-08-25).
+> Hasta que `Semana` sea entidad, **sus escrituras arman filas del ORM desde
+> `api/v1/`** (`semanas.py`: apuntar un tiempo, poner un parón, recalcular la
+> curva). Las de `PruebaObjetivo` ya no, desde el 2026-10-13. **N4 está
+> cerrada**: el PDF se arma en el cliente (construido el 2026-08-25).
 >
 > Lo que sigue debajo es la historia del documento, en orden de fecha.
 >
@@ -625,7 +626,7 @@ atleta · macrociclo · base_aerobica: Ritmo? · fuente_de_base · activa
 dar_de_baja() / restaurar()      baja lógica; el histórico no se toca
 ```
 
-### 5.7 `PruebaObjetivo` (AthleteEvent) — ⬜ sin construir (cabecera, punto 3)
+### 5.7 `PruebaObjetivo` (AthleteEvent) — ✅ construida 2026-10-13 (cabecera, punto 3)
 
 ```
 prueba: Prueba · actual: Tiempo · meta: Tiempo · prioridad
@@ -636,6 +637,36 @@ factibilidad(nivel, semanas, n_mac, edad) -> Veredicto
 
 `distance` + `stroke` sueltos pasan a ser un `Prueba`. Aquí es donde la
 validación deja de depender de que alguien llame a `is_valid_event`.
+
+> **Enmienda del 2026-10-13 (C9 punto 3), al construirla.**
+>
+> 1. **`factibilidad(techo: Mejora) -> Veredicto`**, no
+>    `(nivel, semanas, n_mac, edad)`. Cuánto puede mejorar un atleta en un macro
+>    es la envolvente del motor, y una entidad no importa los servicios: la
+>    flecha va al revés (`servicios/plan.py` importa de `entidades`). El techo lo
+>    trae quien llama, como `Sesion.carga(css)` recibe el CSS. Y el `nivel` ya no
+>    es algo que se pase a mano: desde el defecto 1 de §10.4 lo deriva el motor
+>    del test aeróbico. El método rechaza un techo calculado sobre otra marca.
+> 2. **Los umbrales del veredicto (0.85 / 1.15) son de `Veredicto.del_uso`**
+>    (`valores/veredicto.py`), no de `servicios/tablas.py`: el motor y la entidad
+>    clasifican con los mismos. El cociente lo calcula cada uno con sus números,
+>    así que con la meta clavada en un umbral pueden diferir en el último bit;
+>    con marcas a la centésima no ocurre.
+> 3. **El estilo de una prueba nueva se guarda canónico** («crol» entra, «libre»
+>    se guarda), como la ficha desde el punto 1. Las filas anteriores no se
+>    tocan y se leen por `Estilo.desde_texto`. Consecuencia visible: el alta
+>    responde el estilo canónico aunque recibiera un alias.
+> 4. **`factibilidad()` no tiene todavía quien la llame en el API**: el
+>    veredicto que ve el entrenador sale del simulador (`MOTOR.factibilidad`), y
+>    ninguna pantalla enseña el de una prueba ya inscrita. `mejora_pedida()` sí:
+>    la usa el tablero para el progreso.
+>
+> La escritura: `EventInput.a_entidad()` la construye —dentro del validador, así
+> que el mensaje del dominio es el del 422—, `nomina.py` le pide al motor su
+> plan y `RepositorioDeInscripciones.guardar(inscripcion, pruebas=[(prueba,
+> semanas)])` arma las filas. `api/v1/macrociclos/nomina.py` ya no importa
+> ninguna tabla. Las lecturas (`prueba()`, `pruebas_de()`) siguen devolviendo la
+> fila porque lo que traen son sus semanas: eso es el punto 4.
 
 ### 5.8 `Semana` (WeeklyPlan) — ⬜ sin construir (cabecera, punto 4)
 

@@ -16,12 +16,13 @@ El segundo se añadió el 2026-08-06. `acotar` deja pasar el plan entero a
 cualquiera inscrito en él, así que por sí solo permitía que un atleta leyera y
 sobrescribiera las semanas de sus compañeros.
 
-**Por qué algunos métodos devuelven filas y no entidades.** `PruebaObjetivo` y
-`Semana` (§5.7-5.8) no existen todavía: son los puntos 3 y 4 de C9 (la
-`Inscripcion` ya es entidad desde el 2026-10-05, en `inscripciones.py`).
-Hasta entonces lo que cuelga del macrociclo sale como fila del ORM y el nombre
-lo dice (`fila_de`, `pruebas_de`, `semana`). El macrociclo en sí
-**siempre** sale como entidad.
+**Por qué algunos métodos devuelven filas y no entidades.** `Semana` (§5.8) no
+existe todavía: es el punto 4 de C9. La `Inscripcion` es entidad desde el
+2026-10-05 (`inscripciones.py`) y la `PruebaObjetivo` desde el 2026-10-13, pero
+quien lee una prueba casi siempre viene a por sus semanas, así que `prueba()` y
+`pruebas_de()` siguen devolviendo la fila con sus `weeks` cargadas; quien solo
+quiere la prueba la traduce con `mapeo.prueba_objetivo_desde_fila`. El
+macrociclo en sí **siempre** sale como entidad.
 """
 from __future__ import annotations
 
@@ -145,8 +146,8 @@ class RepositorioDeMacrociclos:
 
     # ── El macrociclo, como fila ─────────────────────────────────────────────
     #
-    # Mientras `Inscripcion` y `PruebaObjetivo` no sean entidades, quien necesite
-    # la nómina o las semanas necesita la fila con sus relaciones cargadas.
+    # Mientras `Semana` no sea entidad (punto 4 de C9), quien necesite la nómina
+    # con sus semanas necesita la fila con sus relaciones cargadas.
 
     async def filas(self) -> list[Plan]:
         stmt = self.acotar(select(Plan).options(*_PLAN_LOAD))
@@ -251,9 +252,9 @@ class RepositorioDeMacrociclos:
     async def confirmar(self) -> None:
         """Persiste lo que ya está en la sesión.
 
-        Es lo poco que hoy se puede: `PruebaObjetivo` y `Semana` no son
-        entidades todavía (§5.7-5.8, puntos 3 y 4 de C9). `Inscripcion` ya lo es
-        y se guarda por `RepositorioDeInscripciones.guardar`.
+        Es lo poco que hoy se puede con las semanas: `Semana` no es entidad
+        todavía (§5.8, punto 4 de C9). `Inscripcion` y `PruebaObjetivo` ya lo
+        son y se guardan por `RepositorioDeInscripciones.guardar`.
         """
         await self.db.commit()
 

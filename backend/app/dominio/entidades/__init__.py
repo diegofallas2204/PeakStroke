@@ -23,6 +23,7 @@ from .atleta import Atleta, anios_cumplidos
 from .base import PorIdentidad
 from .inscripcion import Inscripcion, InscripcionImposible
 from .macrociclo import Competencia, FaseDelMacro, Macrociclo, lunes_de
+from .prueba_objetivo import PruebaObjetivo
 from .resultado import (
     DIAS_DE_UNA_SEMANA,
     Contexto,
@@ -42,6 +43,8 @@ __all__ = [
     "Inscripcion", "InscripcionImposible",
     # macrociclo
     "Macrociclo", "FaseDelMacro", "Competencia", "lunes_de",
+    # prueba objetivo
+    "PruebaObjetivo",
     # resultado
     "Resultado", "Contexto", "DIAS_DE_UNA_SEMANA",
     "de_la_semana", "promedio", "real_de_la_semana",

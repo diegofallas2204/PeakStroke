@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dominio.entidades import Macrociclo
 from app.dominio.servicios.kilometraje import km_por_zona
 from app.dominio.servicios.motor import MOTOR
+from app.persistencia.mapeo import prueba_objetivo_desde_fila
 from app.persistencia.repositorios import (
     RepositorioDeCarga,
     RepositorioDeMacrociclos,
@@ -101,7 +102,7 @@ async def build_summary(
             status = MOTOR.estado_de_rendimiento(reales[last_real.id], last_real.expected_time)
         counts[status] = counts.get(status, 0) + 1
 
-        total_improvement = event.current_time - event.goal_time
+        total_improvement = prueba_objetivo_desde_fila(event).mejora_pedida().segundos
         progress = 0.0
         if last_real is not None and total_improvement > 0:
             progress = (event.current_time - reales[last_real.id]) / total_improvement * 100
@@ -169,11 +170,13 @@ def _team_progression(
     reales: dict[int, float],
 ) -> list[TeamWeekPoint]:
     """Promedio del % de mejora planificada vs. real acumulada del equipo."""
+    # Una vez por prueba y no una por semana: la mejora pedida no cambia.
+    pedidas = {e.id: prueba_objetivo_desde_fila(e).mejora_pedida().segundos for e in events}
     points = []
     for week_n in range(1, macro.semanas + 1):
         expected_fracs, real_fracs = [], []
         for event in events:
-            total_improvement = event.current_time - event.goal_time
+            total_improvement = pedidas[event.id]
             if total_improvement <= 0:
                 continue
             week = next((w for w in event.weeks if w.week_number == week_n), None)

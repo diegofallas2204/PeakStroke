@@ -7,8 +7,9 @@ endpoint se acuerde de comprobarlo.
 Dos formas de pedir el mismo plan, y la diferencia es deliberada:
 `repo.por_id()` devuelve el **`Macrociclo`** —lo que se usa para decidir—, y
 `repo.fila_de()` devuelve la fila con la nómina cargada, que es lo que hace
-falta para pintar la respuesta (sus pruebas y semanas siguen siendo filas hasta
-los puntos 3 y 4 de C9). La nómina en sí está en `router_nomina.py`.
+falta para pintar la respuesta (la respuesta se valida sobre las filas, y las
+semanas lo siguen siendo hasta el punto 4 de C9). La nómina en sí está en
+`router_nomina.py`.
 """
 from __future__ import annotations
 

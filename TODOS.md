@@ -382,3 +382,31 @@ sí cuando borra el entrenador lo de un atleta, no cuando el atleta corrige lo s
 Medido el 2026-10-01 a 375 px: `/pruebas` mide 889 px de ancho y `/` 940
 (grids fijos como `grid-cols-[300px_1fr]` y `grid-cols-3`). `PageHeader` ya hace
 `flex-wrap` en sus acciones; lo que falta son esos grids, con prefijos `lg:`.
+
+## TODO-22 — Otras rutas que escriben y releen pueden responder con datos rancios (P2)
+
+Destapado el 2026-10-13 al construir `PruebaObjetivo` (C9 punto 3). El alta de un
+atleta (`POST /plans/{id}/athletes`) leía el macrociclo, inscribía y lo volvía a
+leer; como la inscripción entra por su `plan_id` y no por la relación, la nómina
+del `Plan` ya cargado quedaba como estaba, y SQLAlchemy no repuebla una colección
+ya cargada de un objeto que sigue vivo en la sesión. Que siguiera vivo dependía
+del recolector de basura (`Plan` y sus fases se referencian en ciclo): medido en
+HEAD con `gc.disable()`, la respuesta salía con `athletes: []`.
+
+Ese caso está arreglado (`RepositorioDeInscripciones._olvidar_la_nomina_de`) y
+tiene su test. **Lo que falta es buscar el mismo patrón en las demás rutas**: toda
+la que cargue una fila con relaciones (`selectinload`), escriba un hijo por FK
+—sin tocar la relación— y relea para responder. Candidatas a mirar: crear y
+editar macrociclos (fases, competencias), `PATCH /weeks/{id}` y los tests
+aeróbicos con sus parciales. La forma de probarlo es la del test:
+`gc.disable()` alrededor de la petición.
+
+## TODO-23 — Un número infinito en el cuerpo de una petición da 500 (P3)
+
+`Field(gt=0)` deja pasar `Infinity`, que el `json` de Python acepta al leer.
+Preexistente: en el alta de un atleta llegaba al motor y reventaba allí. Desde
+C9 punto 3 lo rechaza el validador de `EventInput`, pero el 422 de FastAPI
+tampoco sale: al serializar el error incluye el valor recibido y
+`json.dumps(inf)` falla. Arreglarlo de verdad pide `allow_inf_nan=False` en los
+`float` de entrada **y** un manejador de `RequestValidationError` que no vuelque
+el `input`. Afecta a todos los schemas con tiempos, no solo a este.

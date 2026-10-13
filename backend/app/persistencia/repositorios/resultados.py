@@ -31,14 +31,15 @@ from app.dominio.entidades import (
     de_la_semana,
     real_de_la_semana,
 )
-from app.dominio.valores import Estilo, Piscina, Prueba
-from app.persistencia.mapeo import resultado_desde_fila
+from app.dominio.valores import Piscina, Prueba
+from app.persistencia.mapeo import prueba_objetivo_desde_fila, resultado_desde_fila
 from app.persistencia.tablas.planes import AthleteEvent, WeeklyPlan
 from app.persistencia.tablas.resultados import Result
 
 
 def _prueba_de(evento: AthleteEvent) -> Prueba:
-    return Prueba(evento.distance, Estilo.desde_texto(evento.stroke))
+    # Por el mapeo y no a mano: la traducción fila → prueba vive en un sitio.
+    return prueba_objetivo_desde_fila(evento).prueba
 
 
 class RepositorioDeResultados:

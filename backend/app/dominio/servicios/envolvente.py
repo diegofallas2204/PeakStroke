@@ -21,13 +21,19 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from ..valores import EVENTOS_DE_REFERENCIA, Nivel, Perfil, Ritmo, Zona, factores_de_zona
+from ..valores import (
+    EVENTOS_DE_REFERENCIA,
+    Nivel,
+    Perfil,
+    Ritmo,
+    Veredicto,
+    Zona,
+    factores_de_zona,
+)
 from .curvas import Cientifica
 from .tablas import (
     DEGRADACION_ENTRE_MACROS,
     MAX_SEMANAS_EXTENSION,
-    RATIO_EXIGENTE,
-    RATIO_REALISTA,
     TABLA_I_MAX,
     factor_juvenil,
 )
@@ -198,7 +204,7 @@ def factibilidad(
 
     if mejora_total <= 0:
         return Factibilidad(
-            estado="ok",
+            estado=Veredicto.OK.value,
             mensaje="El tiempo meta ya fue alcanzado: el plan será de mantenimiento.",
             tier=tier, mejora_total_s=mejora_total, mejora_por_micro_s=0.0,
             techo_por_micro_s=0.0, semanas_recomendadas=None, semanas_extra=None,
@@ -222,17 +228,19 @@ def factibilidad(
     recomendadas: int | None = None
     extra: int | None = None
 
-    if ratio <= RATIO_REALISTA:
-        estado = "ok"
+    # Los umbrales son de `Veredicto`, no de aquí: `PruebaObjetivo.factibilidad()`
+    # clasifica con los mismos. El cociente lo calcula cada uno con sus números
+    # (aquí sobre fracciones, allí sobre segundos), así que con la meta clavada
+    # en un umbral pueden diferir en el último bit; ver la entidad.
+    veredicto = Veredicto.del_uso(ratio)
+    if veredicto is Veredicto.OK:
         mensaje = (f"Realista — pides {pct*100:.2f}% y el techo científico para "
                    f"{env.nivel.value}/{env.evento}m en {semanas} sem es "
                    f"{env.i_max_total*100:.2f}% (uso {ratio*100:.0f}%).")
-    elif ratio <= RATIO_EXIGENTE:
-        estado = "warning"
+    elif veredicto is Veredicto.AVISO:
         mensaje = (f"Exigente — pides {pct*100:.2f}%, cerca del techo "
                    f"{env.i_max_total*100:.2f}% ({ratio*100:.0f}% del máximo).")
     else:
-        estado = "aggressive"
         falta = env.techo_realista - tiempo_meta      # lo que queda tras el macro
         extra = math.ceil(falta / ritmo_seguro) if ritmo_seguro > 0 else 0
         extra = max(0, min(extra, MAX_SEMANAS_EXTENSION))
@@ -244,7 +252,7 @@ def factibilidad(
                    f"~{recomendadas} semanas en total ({extra} extra){tope}.")
 
     return Factibilidad(
-        estado=estado, mensaje=mensaje, tier=tier,
+        estado=veredicto.value, mensaje=mensaje, tier=tier,
         mejora_total_s=mejora_total, mejora_por_micro_s=mejora_total / micros,
         techo_por_micro_s=round(env.mejora_maxima_s / micros, 3),
         semanas_recomendadas=recomendadas, semanas_extra=extra,

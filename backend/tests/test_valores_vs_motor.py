@@ -177,9 +177,20 @@ class TestEscalasVsSuFuente:
         # único (`dominio.servicios.envolvente.factibilidad`) y
         # `engine/feasibility.analyze_feasibility` es ya solo la forma vieja del
         # resultado. El pin sigue el cálculo, que es lo que dice comprobar.
+        #
+        # Desde C9 (2026-10-13) el motor ya no escribe el veredicto a mano: lo
+        # pide a `Veredicto.del_uso`, que es quien tiene los umbrales. El pin
+        # dejó de leer el código fuente —no queda ningún `estado = "..."` que
+        # leer— y pasa a mirar lo que el motor emite al barrer la meta.
         fuente = inspect.getsource(factibilidad)
-        emitidos = set(re.findall(r'estado = "(\w+)"', fuente))
-        assert emitidos, "cambió la forma de anotar el veredicto en factibilidad()"
+        assert not re.findall(r'estado\s*=\s*"\w+"', fuente), (
+            "factibilidad() volvió a escribir un veredicto como texto: sale de Veredicto"
+        )
+        techo_s = MOTOR.envolvente(200, 130.0, 12).mejora_maxima_s
+        emitidos = {
+            factibilidad(200, 130.0, 130.0 - uso * techo_s, 12).estado
+            for uso in (0.5, 1.0, 1.5)   # dentro, en el borde y por encima del techo
+        }
         assert {v.value for v in Veredicto} == emitidos
 
     def test_la_proyeccion_anual_habla_OTRO_vocabulario_y_este_tipo_no_lo_cubre(self):

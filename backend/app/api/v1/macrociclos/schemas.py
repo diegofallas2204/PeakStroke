@@ -6,7 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.dominio.valores import Fase, Prueba
+from app.dominio.entidades import PruebaObjetivo
+from app.dominio.valores import Fase
 
 
 # ── Fases y competencias ─────────────────────────────────────────────
@@ -84,10 +85,19 @@ class EventInput(BaseModel):
 
     @model_validator(mode="after")
     def _valid_event(self) -> EventInput:
-        # Construir la `Prueba` ES la validación: el combo imposible no llega a
-        # existir, y el mensaje sale del dominio. Ver `app/dominio/valores/prueba.py`.
-        Prueba(self.distance, self.stroke)
+        # Construir la entidad ES la validación: el combo imposible no llega a
+        # existir, y el mensaje sale del dominio (`valores/prueba.py`). Desde C9
+        # se construye la `PruebaObjetivo` entera y no solo su `Prueba`, así
+        # que lo que `nomina.py` recibe ya pasó por el constructor de la entidad.
+        self.a_entidad()
         return self
+
+    def a_entidad(self) -> PruebaObjetivo:
+        """La prueba objetivo, sin guardar. El estilo sale canónico."""
+        return PruebaObjetivo.nueva(
+            self.distance, self.stroke, self.current_time, self.goal_time,
+            prioridad=self.priority,
+        )
 
 
 class EventResponse(EventInput):

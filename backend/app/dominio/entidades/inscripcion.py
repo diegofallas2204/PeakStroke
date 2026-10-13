@@ -9,8 +9,9 @@ quién puede admitir. **La regla «un atleta, un macrociclo vivo» no está aqu�
 (decisión del usuario, 2026-10-05): necesita leer las inscripciones de todo el
 equipo, y vive explicada en `api/v1/macrociclos/inscripcion.py`.
 
-Las pruebas objetivo y sus semanas todavía cuelgan de la fila (§5.7-5.8, puntos
-3 y 4 de C9): esta entidad lleva solo lo que es de la inscripción.
+Sus pruebas son `PruebaObjetivo` (§5.7) y se guardan con ella, en la misma
+transacción; no viajan dentro de este objeto, que lleva solo lo que es de la
+inscripción. Las semanas todavía son filas (§5.8, punto 4 de C9).
 """
 from __future__ import annotations
 
