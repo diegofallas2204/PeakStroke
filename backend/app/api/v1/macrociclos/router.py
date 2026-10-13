@@ -7,23 +7,26 @@ endpoint se acuerde de comprobarlo.
 Dos formas de pedir el mismo plan, y la diferencia es deliberada:
 `repo.por_id()` devuelve el **`Macrociclo`** —lo que se usa para decidir—, y
 `repo.fila_de()` devuelve la fila con la nómina cargada, que es lo que hace
-falta para pintar la respuesta (la respuesta se valida sobre las filas, y las
-semanas lo siguen siendo hasta el punto 4 de C9). La nómina en sí está en
-`router_nomina.py`.
+falta para pintar la respuesta (`PlanResponse` se valida sobre las filas). La
+nómina en sí está en `router_nomina.py`; las semanas, por `RepositorioDeSemanas`.
 """
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencias import repo_de_macrociclos, repo_de_resultados
+from app.api.dependencias import repo_de_macrociclos, repo_de_resultados, repo_de_semanas
 from app.core.auditoria import TipoDeEvento, auditar
 from app.core.database import get_db
 from app.core.guards import exigir_o_bypass, require_coach, require_team_owner
 from app.core.principal import Principal
 from app.dominio.roles import Recurso
 from app.dominio.servicios.motor import fases_por_defecto
-from app.persistencia.repositorios import RepositorioDeMacrociclos, RepositorioDeResultados
+from app.persistencia.repositorios import (
+    RepositorioDeMacrociclos,
+    RepositorioDeResultados,
+    RepositorioDeSemanas,
+)
 
 from . import semanas, service
 from .resolver import fila_o_404
@@ -144,41 +147,40 @@ async def delete_plan(
 @router.get("/events/{event_id}/weeks", response_model=list[WeekResponse])
 async def event_weeks(
     event_id: int,
-    repo: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
+    repo: RepositorioDeSemanas = Depends(repo_de_semanas),
     resultados: RepositorioDeResultados = Depends(repo_de_resultados),
-    db: AsyncSession = Depends(get_db),
 ):
-    event = await repo.prueba(event_id)
-    if event is None:
+    plan = await repo.plan_de(event_id)
+    if plan is None:
         raise HTTPException(404, "Prueba no encontrada")
-    return await semanas.event_weeks_response(db, resultados, event)
+    return await semanas.event_weeks_response(resultados, plan)
 
 
 @router.patch("/weeks/{week_id}", response_model=list[WeekResponse])
 async def update_week(
     week_id: int, data: WeekUpdateRequest,
-    repo: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
+    repo: RepositorioDeSemanas = Depends(repo_de_semanas),
     resultados: RepositorioDeResultados = Depends(repo_de_resultados),
-    db: AsyncSession = Depends(get_db),
 ):
     # Sin require_coach a propósito: registrar el tiempo real de la semana es una
-    # de las cosas que el atleta puede hacer sobre SU plan, y `repo.semana` ya
-    # acota por visibilidad.
+    # de las cosas que el atleta puede hacer sobre SU plan, y
+    # `repo.plan_de_la_semana` ya acota por visibilidad.
     #
     # Pero no todos los campos son suyos. Desde que el filtro por nadador existe,
     # la semana que toca ES la suya, así que sin esta comprobación escribir
     # `disabled` pasaría a ser legítimo — y eso es el parón del entrenador, que
     # redistribuye la mejora restante de todo el macrociclo. 403 y no 404: el
     # recurso sí es suyo, lo que no alcanza es el rol.
-    if data.touches_coach_only_fields() and not repo.principal.rol.puede_escribir(
+    principal = repo.macros.principal
+    if data.touches_coach_only_fields() and not principal.rol.puede_escribir(
         Recurso.PARON_DE_SEMANA,
     ):
-        exigir_o_bypass(repo.principal, "entrenador para marcar el parón de una semana")
+        exigir_o_bypass(principal, "entrenador para marcar el parón de una semana")
 
-    event = await semanas.update_week(db, repo, resultados, week_id, data)
-    if event is None:
+    plan = await semanas.update_week(repo, resultados, week_id, data)
+    if plan is None:
         raise HTTPException(404, "Semana no encontrada")
-    return await semanas.event_weeks_response(db, resultados, event)
+    return await semanas.event_weeks_response(resultados, plan)
 
 
 router.include_router(router_nomina)

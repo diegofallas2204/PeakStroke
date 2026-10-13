@@ -18,6 +18,7 @@ from .equipos import RepositorioDeEquipos
 from .inscripciones import RepositorioDeInscripciones
 from .macrociclos import RepositorioDeMacrociclos
 from .resultados import RepositorioDeResultados
+from .semanas import PlanDePrueba, RepositorioDeSemanas
 from .sesiones import RepositorioDeSesiones
 from .tests_aerobicos import RepositorioDeTests
 from .usuarios import RepositorioDeUsuarios
@@ -31,6 +32,8 @@ __all__ = [
     "RepositorioDeInscripciones",
     "RepositorioDeMacrociclos",
     "RepositorioDeResultados",
+    "RepositorioDeSemanas",
+    "PlanDePrueba",
     "RepositorioDeSesiones",
     "RepositorioDeTests",
     "RepositorioDeUsuarios",

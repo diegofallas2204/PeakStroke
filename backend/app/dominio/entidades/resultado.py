@@ -120,9 +120,11 @@ def real_de_la_semana(
     resultados: Iterable[Resultado], *,
     atleta_id: int, prueba: Prueba, piscina: Piscina, lunes: date,
 ) -> Tiempo | None:
-    """`Semana.real()` de §5.8, mientras `Semana` no sea entidad.
+    """Lo mismo que `Semana.real()`, para quien tiene el lunes y no la semana.
 
-    `piscina` es la del macrociclo: la de la curva contra la que se compara.
+    `Semana` es entidad desde C9 (2026-10-13) y su `real()` es la cara pública;
+    esta función se queda para las vistas, que todavía leen las semanas como
+    filas. `piscina` es la del macrociclo: la de la curva contra la que se compara.
     """
     return promedio(de_la_semana(resultados, atleta_id=atleta_id, prueba=prueba, lunes=lunes),
                     piscina)

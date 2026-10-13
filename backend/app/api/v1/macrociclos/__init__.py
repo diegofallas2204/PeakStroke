@@ -9,7 +9,8 @@ La **inscripción** ya se escribe por su entidad (C9 punto 2, 2026-10-05):
 `Macrociclo.inscribir()` → `RepositorioDeInscripciones.guardar`, con las rutas
 en `router_nomina.py`. **Sus pruebas objetivo también** (punto 3, 2026-10-13):
 `nomina.py` construye cada `PruebaObjetivo` y el repositorio arma las filas.
-Lo que queda fuera es la **semana**: apuntar un tiempo o un parón y recalcular
-la curva (`semanas.py`) todavía toca filas del ORM desde aquí, hasta que
-`Semana` (§5.8) sea entidad, el punto 4 de C9.
+**Y la semana** (punto 4, mismo día): `semanas.py` recibe un `PlanDePrueba` de
+`RepositorioDeSemanas`, les pide a las `Semana` que cambien y se las devuelve.
+Lo que todavía se escribe como filas desde aquí es el **macrociclo en sí**
+(`service.py`: crear, editar, borrar).
 """

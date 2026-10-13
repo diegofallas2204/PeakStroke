@@ -13,8 +13,9 @@ devuelve con `dar_de_baja()` / `restaurar()` (idempotentes) y se guarda por
 Y desde el punto 3 (2026-10-13) sus pruebas también: aquí se construye cada
 `PruebaObjetivo` y se le pide al motor su plan; las filas las arma el
 repositorio. **Este archivo ya no importa ninguna tabla**, y
-`tests/test_prueba_objetivo_api.py` lo comprueba. Las semanas viajan como las
-devuelve el motor hasta que `Semana` (§5.8) sea entidad, el punto 4.
+`tests/test_prueba_objetivo_api.py` lo comprueba. Cada semana que devuelve el
+motor se convierte aquí en una `Semana` (punto 4): lo que se guarda de ella es
+su fecha, sus kilómetros, su tiempo esperado y su fase.
 """
 from __future__ import annotations
 
@@ -24,9 +25,10 @@ from app.dominio.entidades import (
     InscripcionImposible,
     Macrociclo,
     PruebaObjetivo,
+    Semana,
 )
-from app.dominio.servicios.motor import MOTOR, SemanaGenerada
-from app.dominio.valores import Ritmo
+from app.dominio.servicios.motor import MOTOR
+from app.dominio.valores import Ritmo, Tiempo
 from app.persistencia.repositorios import RepositorioDeAtletas, RepositorioDeInscripciones
 
 from .schemas import AddAthleteRequest
@@ -34,7 +36,7 @@ from .schemas import AddAthleteRequest
 
 def _pruebas(
     macro: Macrociclo, atleta: Atleta, data: AddAthleteRequest,
-) -> list[tuple[PruebaObjetivo, list[SemanaGenerada]]]:
+) -> list[tuple[PruebaObjetivo, list[Semana]]]:
     """Sus pruebas objetivo, cada una con el plan semanal que le genera el motor."""
     phases = [
         {"name": f.nombre, "type": f.fase.value,
@@ -61,7 +63,13 @@ def _pruebas(
             # volumen un 45 % (defecto 1 de §10.4).
             base_aerobica=data.aerobic_base,
         )
-        pruebas.append((prueba, semanas))
+        pruebas.append((prueba, [
+            Semana(
+                numero=s.numero, fecha=s.fecha, km_planificados=s.km,
+                esperado=Tiempo(s.tiempo_esperado), fase=s.fase,
+            )
+            for s in semanas
+        ]))
     return pruebas
 
 

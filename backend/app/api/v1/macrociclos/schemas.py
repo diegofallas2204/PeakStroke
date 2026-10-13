@@ -187,7 +187,7 @@ class WeekUpdateRequest(BaseModel):
     No todos los campos de una semana pesan lo mismo. El tiempo real es el dato
     que el atleta aporta sobre sí mismo. El parón (`disabled`) es una decisión de
     entrenamiento —lesión, vacaciones, competencia— que redistribuye la mejora
-    restante entre las semanas activas vía `_recalculate_event`: quien lo pone
+    restante entre las semanas activas (`semanas._recalcular`): quien lo pone
     está reescribiendo la curva, no registrando un resultado.
 
     Es una autorización **por campo**, no por endpoint, y por eso no la puede
@@ -196,7 +196,9 @@ class WeekUpdateRequest(BaseModel):
     pegada a los campos que gobierna y no en un `if` perdido en el router.
     """
 
-    real_time: float | None = None
+    # `gt=0`: un tiempo que no es positivo no es un tiempo. Hasta C9 llegaba
+    # al CHECK de `resultados` y salía como un 500.
+    real_time: float | None = Field(default=None, gt=0)
     clear_real_time: bool = False
     disabled: bool | None = None
     disable_reason: str | None = None

@@ -1,6 +1,6 @@
 # PeakStroke — Modelo del rediseño
 
-> **Estado al 2026-10-13 (C9 punto 3 hecho): los ocho pasos del §9 son código**
+> **Estado al 2026-10-13 (C9 puntos 1-4 hechos): los ocho pasos del §9 son código**
 > (el 7 y el 8 el 2026-09-23; sus pantallas el 2026-10-01). Cada sección lleva en
 > su encabezado ✅ (construida, con fecha) o ⬜ (falta). **Lo que falta, en el
 > orden de este documento:**
@@ -11,8 +11,9 @@
 > | — | §5.2 `Equipo` + `Pertenencia` | las entidades: `transferir_propiedad()`, `es_jefe()`, `rol_de_dominio()`, `revocar()`/`restaurar()` | código | ⬜ pendiente |
 > | 1 | §5.3 `Atleta` | `dar_de_baja()` / `restaurar()` | código | ✅ 2026-10-05 (`b3f13d9`) |
 > | 2 | §5.4 + §5.6 `Inscripcion` | la entidad y `Macrociclo.inscribir()` | código | ✅ 2026-10-05 (`37a6a0e`) |
+> | — | §5.4 `Macrociclo` | crear, editar y borrar por la entidad: hoy `api/v1/macrociclos/service.py` arma `Plan`, `PlanPhase` y `Competition` a mano | código | ⬜ pendiente (visto el 2026-10-13) |
 > | 3 | §5.7 `PruebaObjetivo` | la entidad, con `mejora_pedida()` y `factibilidad()` | código | ✅ 2026-10-13 (ver la enmienda del §5.7) |
-> | 4 | §5.8 `Semana` | la entidad, con `zonas()`, `real()` y `desviacion()` derivados | código | ⬜ pendiente — **el siguiente** |
+> | 4 | §5.8 `Semana` | la entidad, con `zonas()`, `real()` y `desviacion()` derivados | código | ✅ 2026-10-13 (ver la enmienda del §5.8) |
 > | — | §5.13 `CodigoDeVinculacion` | `es_servible()`, `canjear(usuario)`, `revocar()` como comportamiento | código | ⬜ pendiente — va con R5.3 (`redeem`) |
 > | — | §7.2 fila 6 | `CHECK` en zona, nivel, perfil, estilo, especialidad, tipo_de_test, piscina, estado y modo_de_ingreso | migración | ⬜ a medias: hoy solo fase, rol y `resultados` |
 > | — | §7.2 fila 9 | nombres de tabla en español | migración | ⬜ pendiente (pide decisión: es renombrar todo el esquema) |
@@ -25,10 +26,15 @@
 > nombraba, no el documento entero—. Las filas «—» son esas; la numeración de
 > las demás se conserva porque los commits la citan.
 >
-> Hasta que `Semana` sea entidad, **sus escrituras arman filas del ORM desde
-> `api/v1/`** (`semanas.py`: apuntar un tiempo, poner un parón, recalcular la
-> curva). Las de `PruebaObjetivo` ya no, desde el 2026-10-13. **N4 está
-> cerrada**: el PDF se arma en el cliente (construido el 2026-08-25).
+> **Los cuatro puntos numerados de código están construidos** (`Atleta`,
+> `Inscripcion`, `PruebaObjetivo`, `Semana`): desde el 2026-10-13 la nómina y
+> las semanas no arman filas del ORM desde `api/v1/`. Lo que queda son las
+> filas «—» de la tabla y las decisiones. **Una fila «—» nueva, vista al cerrar
+> el punto 4 y que ningún marcado anterior recogía:** el macrociclo en sí
+> —crear, editar, borrar— se sigue escribiendo como filas desde
+> `api/v1/macrociclos/service.py`. Las **vistas** siguen leyendo las semanas
+> como filas; no escriben. **N4 está cerrada**: el PDF se arma en el
+> cliente (construido el 2026-08-25).
 >
 > Lo que sigue debajo es la historia del documento, en orden de fecha.
 >
@@ -668,7 +674,40 @@ validación deja de depender de que alguien llame a `is_valid_event`.
 > ninguna tabla. Las lecturas (`prueba()`, `pruebas_de()`) siguen devolviendo la
 > fila porque lo que traen son sus semanas: eso es el punto 4.
 
-### 5.8 `Semana` (WeeklyPlan) — ⬜ sin construir (cabecera, punto 4)
+### 5.8 `Semana` (WeeklyPlan) — ✅ construida 2026-10-13 (cabecera, punto 4)
+
+> **Enmienda del 2026-10-13 (C9 punto 4), al construirla.** El bloque de abajo
+> es el modelo como se pensó; lo que se construyó cambia en tres puntos.
+>
+> 1. **Los derivados reciben su contexto**: `real(resultados, atleta_id=, prueba=,
+>    piscina=)`, `resultados(...)`, `desviacion(real)` y `zonas(prueba, piscina)`.
+>    La semana no guarda sus resultados (R2 enmendada) ni conoce a su atleta, su
+>    prueba o la piscina de su macrociclo: cuelga de una `PruebaObjetivo`, que
+>    cuelga de una `Inscripcion`. Es la misma decisión que
+>    `PruebaObjetivo.factibilidad(techo)`.
+> 2. **`esperado` no se puede reasignar** (la entidad levanta `AttributeError`)
+>    y el repositorio no lo escribe: «la curva ideal nunca se modifica» deja de
+>    ser una regla que cada escritura tenía que recordar. Lo que cambia es
+>    `recalculado`, por `reanclar()`; el parón, por `parar(razon)` /
+>    `reanudar()`, idempotentes como el resto de las entidades.
+> 3. **`desviacion()` se mide contra la curva ideal**, no contra el tiempo
+>    vigente: el recalculado ya está anclado a lo nadado y compararse con él no
+>    diría nada. Es una `Mejora`: positiva si se nadó más rápido que el plan.
+>
+> La escritura: `api/v1/macrociclos/semanas.py` recibe un `PlanDePrueba`
+> (macrociclo, inscripción, ficha, prueba y semanas, todo entidades) de
+> `RepositorioDeSemanas`, les pide a las semanas que cambien y se las devuelve a
+> `guardar`, que escribe solo el recalculado, el parón y su razón. Ese archivo ya
+> no importa ninguna tabla. **La orquestación del recálculo sigue ahí** y no en
+> una entidad: llama al motor, y las entidades no importan los servicios.
+>
+> **Lo que sigue leyendo filas** son las vistas —el tablero, la tabla del equipo
+> y los intervalos de entrenamiento—, por `RepositorioDeMacrociclos.pruebas_de()`.
+> No escriben. `zonas()` no tiene todavía quien la llame desde el API (la tabla
+> sirve el diccionario del motor, con sus redondeos); está fijada contra él.
+>
+> **De paso:** `PATCH /weeks/{id}` con `real_time ≤ 0` daba 500 (llegaba al CHECK
+> de `resultados`); ahora es un 422. Es el único cambio del contrato.
 
 ```
 numero · fecha · km_planificados

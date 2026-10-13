@@ -34,6 +34,7 @@ from app.dominio.entidades import (
     Macrociclo,
     PruebaObjetivo,
     Resultado,
+    Semana,
     Sesion,
     TestAerobico,
 )
@@ -58,6 +59,7 @@ from app.persistencia.tablas.planes import (
     Competition,
     Plan,
     PlanPhase,
+    WeeklyPlan,
 )
 from app.persistencia.tablas.resultados import Result
 from app.persistencia.tablas.sesiones import SwimSession
@@ -230,4 +232,24 @@ def prueba_objetivo_desde_fila(fila: AthleteEvent) -> PruebaObjetivo:
         actual=Tiempo(fila.current_time),
         meta=Tiempo(fila.goal_time),
         prioridad=fila.priority,
+    )
+
+
+def semana_desde_fila(fila: WeeklyPlan) -> Semana:
+    """Lee solo las columnas de la semana: no toca `event`.
+
+    La fase es la clave de `Fase` (un CHECK lo impone desde P3), así que aquí no
+    se traduce nada: una fila con otro texto es un error, no un caso.
+    """
+    return Semana(
+        id=fila.id,
+        prueba_id=fila.athlete_event_id,
+        numero=fila.week_number,
+        fecha=fila.week_date,
+        km_planificados=fila.planned_km,
+        esperado=Tiempo(fila.expected_time),
+        recalculado=Tiempo(fila.recalc_time) if fila.recalc_time is not None else None,
+        fase=Fase.desde_texto(fila.phase),
+        deshabilitada=bool(fila.disabled),
+        razon=fila.disable_reason,
     )

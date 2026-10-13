@@ -25,6 +25,7 @@ from app.persistencia.repositorios import (
     RepositorioDeInscripciones,
     RepositorioDeMacrociclos,
     RepositorioDeResultados,
+    RepositorioDeSemanas,
     RepositorioDeSesiones,
     RepositorioDeTests,
     RepositorioDeUsuarios,
@@ -43,6 +44,13 @@ async def repo_de_inscripciones(
 ) -> RepositorioDeInscripciones:
     """Compone el de macrociclos de la misma petición (FastAPI lo reutiliza)."""
     return RepositorioDeInscripciones(macros)
+
+
+async def repo_de_semanas(
+    macros: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
+) -> RepositorioDeSemanas:
+    """Compone el de macrociclos de la misma petición, como el de inscripciones."""
+    return RepositorioDeSemanas(macros)
 
 
 async def repo_de_resultados(

@@ -56,6 +56,7 @@ from app.persistencia.repositorios import (
     RepositorioDeInscripciones,
     RepositorioDeMacrociclos,
     RepositorioDeResultados,
+    RepositorioDeSemanas,
     RepositorioDeSesiones,
     RepositorioDeTests,
 )
@@ -342,7 +343,8 @@ async def seed() -> None:
                 noise = random.uniform(-0.0015, 0.0015)
                 real = w.expected_time * (bias[swimmer_idx] + noise)
                 await update_week(
-                    db, repo, resultados, w.id, WeekUpdateRequest(real_time=round(real, 2)),
+                    RepositorioDeSemanas(repo), resultados, w.id,
+                    WeekUpdateRequest(real_time=round(real, 2)),
                 )
 
         # Tests aeróbicos: T-30 inicial + control reciente para varios atletas

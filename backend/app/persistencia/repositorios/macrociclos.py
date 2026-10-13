@@ -16,13 +16,14 @@ El segundo se añadió el 2026-08-06. `acotar` deja pasar el plan entero a
 cualquiera inscrito en él, así que por sí solo permitía que un atleta leyera y
 sobrescribiera las semanas de sus compañeros.
 
-**Por qué algunos métodos devuelven filas y no entidades.** `Semana` (§5.8) no
-existe todavía: es el punto 4 de C9. La `Inscripcion` es entidad desde el
-2026-10-05 (`inscripciones.py`) y la `PruebaObjetivo` desde el 2026-10-13, pero
-quien lee una prueba casi siempre viene a por sus semanas, así que `prueba()` y
-`pruebas_de()` siguen devolviendo la fila con sus `weeks` cargadas; quien solo
-quiere la prueba la traduce con `mapeo.prueba_objetivo_desde_fila`. El
-macrociclo en sí **siempre** sale como entidad.
+**Por qué algunos métodos devuelven filas y no entidades.** La `Inscripcion`
+es entidad desde el 2026-10-05 (`inscripciones.py`), y la `PruebaObjetivo` y la
+`Semana` desde el 2026-10-13 (`semanas.py`, que entrega un `PlanDePrueba`).
+`prueba()`, `semana()` y `prueba_sin_acotar()` siguen devolviendo la fila porque
+son la comprobación de acceso sobre la que ese repositorio construye; y
+`pruebas_de()`, porque las **vistas** —tablero, tabla del equipo, intervalos—
+todavía leen las semanas como filas. No escriben. El macrociclo en sí
+**siempre** sale como entidad.
 """
 from __future__ import annotations
 
@@ -146,8 +147,8 @@ class RepositorioDeMacrociclos:
 
     # ── El macrociclo, como fila ─────────────────────────────────────────────
     #
-    # Mientras `Semana` no sea entidad (punto 4 de C9), quien necesite la nómina
-    # con sus semanas necesita la fila con sus relaciones cargadas.
+    # La respuesta del API se valida sobre la fila (`PlanResponse`), y crear o
+    # editar un macrociclo todavía la escribe a mano desde `api/v1/`.
 
     async def filas(self) -> list[Plan]:
         stmt = self.acotar(select(Plan).options(*_PLAN_LOAD))
@@ -252,9 +253,9 @@ class RepositorioDeMacrociclos:
     async def confirmar(self) -> None:
         """Persiste lo que ya está en la sesión.
 
-        Es lo poco que hoy se puede con las semanas: `Semana` no es entidad
-        todavía (§5.8, punto 4 de C9). `Inscripcion` y `PruebaObjetivo` ya lo
-        son y se guardan por `RepositorioDeInscripciones.guardar`.
+        Lo usa editar un macrociclo (`service.update_plan`), que todavía cambia
+        la fila a mano. Inscripciones, pruebas y semanas se guardan por sus
+        repositorios (`inscripciones.py`, `semanas.py`).
         """
         await self.db.commit()
 

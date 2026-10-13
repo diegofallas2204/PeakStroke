@@ -409,4 +409,6 @@ C9 punto 3 lo rechaza el validador de `EventInput`, pero el 422 de FastAPI
 tampoco sale: al serializar el error incluye el valor recibido y
 `json.dumps(inf)` falla. Arreglarlo de verdad pide `allow_inf_nan=False` en los
 `float` de entrada **y** un manejador de `RequestValidationError` que no vuelque
-el `input`. Afecta a todos los schemas con tiempos, no solo a este.
+el `input`. Afecta a todos los schemas con tiempos, no solo a este: también a
+`PATCH /weeks/{id}`, donde `real_time: 1e999` pasa `gt=0` y revienta al construir
+el `Tiempo` (visto por el revisor de C9 punto 4; antes se guardaba).

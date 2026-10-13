@@ -32,6 +32,7 @@ from .resultado import (
     promedio,
     real_de_la_semana,
 )
+from .semana import Semana
 from .sesion import RPE_MAXIMO, RPE_MINIMO, Sesion
 from .test_aerobico import PENDIENTE_DE_TENDENCIA, Parcial, TestAerobico
 
@@ -48,6 +49,8 @@ __all__ = [
     # resultado
     "Resultado", "Contexto", "DIAS_DE_UNA_SEMANA",
     "de_la_semana", "promedio", "real_de_la_semana",
+    # semana
+    "Semana",
     # sesión
     "Sesion", "RPE_MINIMO", "RPE_MAXIMO",
     # test aeróbico

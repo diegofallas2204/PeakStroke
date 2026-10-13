@@ -14,8 +14,9 @@ import pytest
 from conftest import API, World, como
 from sqlalchemy import select
 
-from app.dominio.entidades import PruebaObjetivo
+from app.dominio.entidades import PruebaObjetivo, Semana
 from app.dominio.servicios.motor import MOTOR
+from app.dominio.valores import Tiempo
 from app.persistencia.mapeo import prueba_objetivo_desde_fila
 from app.persistencia.tablas.planes import AthleteEvent, AthletePlan, WeeklyPlan
 
@@ -141,14 +142,34 @@ async def test_guardar_da_identidad_a_las_pruebas_y_solo_las_admite_al_crear(db,
 
     principal = PruebaObjetivo.nueva(200, "libre", 130.0, 126.0)
     segunda = PruebaObjetivo.nueva(100, "mariposa", 68.0, 66.5, prioridad=2)
-    semanas = MOTOR.generar_plan(
-        distancia=200, tiempo_actual=130.0, tiempo_meta=126.0, semanas=12,
-        km_totales=300.0, curva=macro.curva, inicio=macro.inicio,
-    )
+    def semanas() -> list[Semana]:
+        return [
+            Semana(numero=s.numero, fecha=s.fecha, km_planificados=s.km,
+                   esperado=Tiempo(s.tiempo_esperado), fase=s.fase)
+            for s in MOTOR.generar_plan(
+                distancia=200, tiempo_actual=130.0, tiempo_meta=126.0, semanas=12,
+                km_totales=300.0, curva=macro.curva, inicio=macro.inicio,
+            )
+        ]
+
+    de_la_principal, de_la_segunda = semanas(), semanas()
     inscripcion = macro.inscribir(atleta)
-    await repo.guardar(inscripcion, pruebas=[(principal, semanas), (segunda, semanas)])
+    await repo.guardar(
+        inscripcion, pruebas=[(principal, de_la_principal), (segunda, de_la_segunda)],
+    )
 
     assert inscripcion.id is not None
+    # Cada semana sale con su identidad y la de SU prueba, no la de la otra.
+    assert len({s.id for s in de_la_principal + de_la_segunda}) == 24
+    assert {s.prueba_id for s in de_la_principal} == {principal.id}
+    assert {s.prueba_id for s in de_la_segunda} == {segunda.id}
+    # Y la de SU número: el `id` de cada semana es el de la fila de esa semana.
+    for prueba, suyas in ((principal, de_la_principal), (segunda, de_la_segunda)):
+        filas = (await db.execute(
+            select(WeeklyPlan.id, WeeklyPlan.week_number)
+            .where(WeeklyPlan.athlete_event_id == prueba.id)
+        )).all()
+        assert {s.id: s.numero for s in suyas} == dict(filas)
     assert principal.id is not None and segunda.id is not None and principal.id != segunda.id
     assert principal.inscripcion_id == segunda.inscripcion_id == inscripcion.id
     releida = prueba_objetivo_desde_fila(await db.get(AthleteEvent, segunda.id))

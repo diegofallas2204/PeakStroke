@@ -17,8 +17,9 @@ flecha va al revés (`servicios/plan.py` importa de aquí). El dato lo trae quie
 llama, igual que `Sesion.carga(css)` recibe el CSS. Y el nivel ya no es algo
 que se le pase a mano: lo deriva el motor del test aeróbico (defecto 1 de §10.4).
 
-Sus semanas todavía son filas (`Semana`, §5.8, es el punto 4 de C9): esta
-entidad lleva solo lo que es de la prueba.
+Sus semanas son `Semana` (§5.8) y no viajan dentro de este objeto, que lleva
+solo lo que es de la prueba: quien las necesita juntas pide un `PlanDePrueba`
+al repositorio de semanas.
 """
 from __future__ import annotations
 

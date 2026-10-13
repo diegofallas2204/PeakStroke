@@ -18,9 +18,8 @@ devuelve todas sin juzgar): vive en `api/v1/macrociclos/inscripcion.py`.
 
 **Aquí se arman las filas de sus pruebas** (C9 punto 3, 2026-10-13). Una
 inscripción nace con sus pruebas objetivo y el plan semanal de cada una, y
-`guardar` las recibe como `PruebaObjetivo` + las semanas que generó el motor:
-quien inscribe ya no construye un `AthleteEvent` ni un `WeeklyPlan`. Las semanas
-viajan como `SemanaGenerada` hasta que `Semana` (§5.8) sea entidad, el punto 4.
+`guardar` las recibe como `PruebaObjetivo` + sus `Semana` (punto 4, mismo día):
+quien inscribe ya no construye un `AthleteEvent` ni un `WeeklyPlan`.
 """
 from __future__ import annotations
 
@@ -28,22 +27,22 @@ from collections.abc import Sequence
 
 from sqlalchemy import select
 
-from app.dominio.entidades import Inscripcion, Macrociclo, PruebaObjetivo
-from app.dominio.servicios.motor import SemanaGenerada
+from app.dominio.entidades import Inscripcion, Macrociclo, PruebaObjetivo, Semana
 from app.persistencia.mapeo import inscripcion_desde_fila, macrociclo_desde_fila
 from app.persistencia.tablas.planes import AthleteEvent, AthletePlan, Plan, WeeklyPlan
 
 from .macrociclos import RepositorioDeMacrociclos
 
-# Una prueba objetivo con el plan semanal que el motor generó para ella.
-PruebaConSuPlan = tuple[PruebaObjetivo, Sequence[SemanaGenerada]]
+# Una prueba objetivo con las semanas de su plan.
+PruebaConSuPlan = tuple[PruebaObjetivo, Sequence[Semana]]
 
 
-def _fila_de_prueba(prueba: PruebaObjetivo, semanas: Sequence[SemanaGenerada]) -> AthleteEvent:
+def _fila_de_prueba(prueba: PruebaObjetivo, semanas: Sequence[Semana]) -> AthleteEvent:
     """La fila de una prueba nueva con sus semanas. El estilo se guarda canónico.
 
     De cada semana se persiste lo que es un hecho del plan —fecha, kilómetros,
-    tiempo esperado y la clave de la fase—; el ritmo y las mejoras se derivan.
+    tiempo esperado y la clave de la fase—; el ritmo y las zonas se derivan.
+    Una semana nueva nace sin recalcular y sin parón.
     """
     fila = AthleteEvent(
         priority=prueba.prioridad,
@@ -52,8 +51,8 @@ def _fila_de_prueba(prueba: PruebaObjetivo, semanas: Sequence[SemanaGenerada]) -
     )
     fila.weeks.extend(
         WeeklyPlan(
-            week_number=s.numero, week_date=s.fecha, planned_km=s.km,
-            expected_time=s.tiempo_esperado, phase=s.fase.value,
+            week_number=s.numero, week_date=s.fecha, planned_km=s.km_planificados,
+            expected_time=s.esperado.segundos, phase=s.fase.value,
         )
         for s in semanas
     )
@@ -143,9 +142,10 @@ class RepositorioDeInscripciones:
         """Crea la inscripción (sin `id`) o guarda su estado (con `id`). Confirma.
 
         Al crear, `pruebas` son sus pruebas objetivo, cada una con las semanas
-        que el motor generó para ella, y entran en la **misma** transacción: una
-        inscripción sin sus pruebas no es un estado que deba existir ni un
-        instante. Cada `PruebaObjetivo` sale con su `id` y el de su inscripción.
+        de su plan, y entran en la **misma** transacción: una inscripción sin
+        sus pruebas no es un estado que deba existir ni un instante. Cada
+        `PruebaObjetivo` sale con su `id` y el de su inscripción, y cada
+        `Semana` con el suyo y el de su prueba.
 
         **Solo al crear**: una prueba no se añade ni se cambia por aquí (ninguna
         ruta lo hace hoy), y pasarlas al sobrescribir levanta `ValueError` en vez
@@ -184,13 +184,18 @@ class RepositorioDeInscripciones:
         # fuera del contexto async (`MissingGreenlet`).
         await self.macros.db.flush()
         ids_de_pruebas = [f.id for f in filas_de_pruebas]
+        ids_de_semanas = [[w.id for w in f.weeks] for f in filas_de_pruebas]
         await self.macros.db.commit()
         await self.macros.db.refresh(fila)
         if es_nueva:
             self._olvidar_la_nomina_de(fila.plan_id)
         inscripcion.id = fila.id
-        for (prueba, _), id_de_prueba in zip(pruebas, ids_de_pruebas, strict=True):
+        for (prueba, semanas), id_de_prueba, ids in zip(
+            pruebas, ids_de_pruebas, ids_de_semanas, strict=True,
+        ):
             prueba.id, prueba.inscripcion_id = id_de_prueba, fila.id
+            for semana, id_de_semana in zip(semanas, ids, strict=True):
+                semana.id, semana.prueba_id = id_de_semana, id_de_prueba
         return fila
 
     def _olvidar_la_nomina_de(self, plan_id: int) -> None:
