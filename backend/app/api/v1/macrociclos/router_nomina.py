@@ -28,7 +28,8 @@ from app.persistencia.repositorios import (
     RepositorioDeMacrociclos,
 )
 
-from . import inscripcion, nomina, service
+from . import inscripcion, nomina
+from .presentacion import to_plan_response
 from .resolver import fila_o_404, macro_o_404
 from .schemas import AddAthleteRequest, AssignableAthlete, PlanResponse
 
@@ -98,7 +99,7 @@ async def add_athlete(
         await nomina.add_athlete(inscripciones, macro, atleta, data)
     except InscripcionImposible as exc:
         raise HTTPException(409, str(exc)) from exc
-    return await service.to_plan_response(db, await fila_o_404(repo, plan_id), coach)
+    return await to_plan_response(db, await fila_o_404(repo, plan_id), coach)
 
 
 @router.delete("/{plan_id}/athletes/{athlete_plan_id}", status_code=204)

@@ -29,7 +29,8 @@ from app.persistencia.repositorios import (
 )
 
 from . import semanas, service
-from .resolver import fila_o_404
+from .presentacion import to_plan_response
+from .resolver import fila_o_404, macro_o_404
 from .router_nomina import router as router_nomina
 from .schemas import (
     PhaseInput,
@@ -53,7 +54,7 @@ async def list_plans(
     db: AsyncSession = Depends(get_db),
 ):
     return [
-        await service.to_plan_response(db, f, repo.principal)
+        await to_plan_response(db, f, repo.principal)
         for f in await repo.filas()
     ]
 
@@ -65,10 +66,10 @@ async def create_plan(
     repo: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
     db: AsyncSession = Depends(get_db),
 ):
-    # Quien lo crea queda automáticamente a cargo: si no, nacería un macrociclo
-    # que su propio autor no podría ver.
-    fila = await service.create_plan(repo, data, coach.team_id, coach.id)
-    return await service.to_plan_response(db, fila, coach)
+    # Quien lo crea queda automáticamente a cargo, y en su equipo: los dos
+    # salen del `Principal` del repositorio, no de la petición.
+    fila = await repo.guardar(service.nuevo_desde(data))
+    return await to_plan_response(db, fila, coach)
 
 
 @router.get("/default-phases", response_model=list[PhaseInput])
@@ -92,7 +93,7 @@ async def get_plan(
     db: AsyncSession = Depends(get_db),
 ):
     fila = await fila_o_404(repo, plan_id)
-    return await service.to_plan_response(db, fila, repo.principal)
+    return await to_plan_response(db, fila, repo.principal)
 
 
 @router.patch("/{plan_id}", response_model=PlanResponse)
@@ -102,18 +103,19 @@ async def update_plan(
     repo: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
     db: AsyncSession = Depends(get_db),
 ):
-    fila = await fila_o_404(repo, plan_id)
+    macro = await macro_o_404(repo, plan_id)
     # Cambiar la meta del macro es de dueño (R4), el resto de la edición no:
     # un asistente activa, suspende y anota los macros que lleva. Se mira si el
     # valor CAMBIA, no si viaja, para que reenviar el formulario entero con la
     # meta intacta no le cueste un 403. Después del 404: un macro ajeno sigue
     # siendo ajeno antes que prohibido.
     cambia_la_meta = (
-        "main_event" in data.model_fields_set and data.main_event != fila.main_event
+        "main_event" in data.model_fields_set and data.main_event != macro.prueba_principal
     )
     if cambia_la_meta and not coach.is_owner:
         exigir_o_bypass(coach, "dueño del equipo para cambiar la meta del macrociclo")
-    return await service.to_plan_response(db, await service.update_plan(repo, fila, data), coach)
+    service.aplicar(macro, data)
+    return await to_plan_response(db, await repo.guardar(macro), coach)
 
 
 @router.delete("/{plan_id}", status_code=204)
@@ -134,7 +136,7 @@ async def delete_plan(
     una fecha, no una parte del macrociclo. Que el entrenador decida qué hacer
     con ellos es más barato que descubrir que se evaporaron.
     """
-    bloqueantes = await service.delete_plan(repo, await fila_o_404(repo, plan_id))
+    bloqueantes = await service.delete_plan(repo, await macro_o_404(repo, plan_id))
     if bloqueantes:
         raise HTTPException(409, (
             f"Este macrociclo tiene {bloqueantes} test(s) aeróbico(s) asociados. "

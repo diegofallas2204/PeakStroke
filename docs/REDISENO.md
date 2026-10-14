@@ -1,6 +1,6 @@
 # PeakStroke — Modelo del rediseño
 
-> **Estado al 2026-10-13 (C9 puntos 1-4 hechos): los ocho pasos del §9 son código**
+> **Estado al 2026-10-13 (C9 puntos 1-4 y el macrociclo hechos): los ocho pasos del §9 son código**
 > (el 7 y el 8 el 2026-09-23; sus pantallas el 2026-10-01). Cada sección lleva en
 > su encabezado ✅ (construida, con fecha) o ⬜ (falta). **Lo que falta, en el
 > orden de este documento:**
@@ -11,7 +11,8 @@
 > | — | §5.2 `Equipo` + `Pertenencia` | las entidades: `transferir_propiedad()`, `es_jefe()`, `rol_de_dominio()`, `revocar()`/`restaurar()` | código | ⬜ pendiente |
 > | 1 | §5.3 `Atleta` | `dar_de_baja()` / `restaurar()` | código | ✅ 2026-10-05 (`b3f13d9`) |
 > | 2 | §5.4 + §5.6 `Inscripcion` | la entidad y `Macrociclo.inscribir()` | código | ✅ 2026-10-05 (`37a6a0e`) |
-> | — | §5.4 `Macrociclo` | crear, editar y borrar por la entidad: hoy `api/v1/macrociclos/service.py` arma `Plan`, `PlanPhase` y `Competition` a mano | código | ⬜ pendiente (visto el 2026-10-13) |
+> | — | §5.4 `Macrociclo` | crear, editar y borrar por la entidad (`api/v1/macrociclos/service.py` armaba `Plan`, `PlanPhase` y `Competition` a mano) | código | ✅ 2026-10-13 (ver la enmienda del §5.4) |
+> | — | §5.4 + §5.5 | invariantes de fases y competencias: que quepan en el macro, que las fases no se solapen | decisión + código | ⬜ pide decisión (TODO-24): hoy nadie lo valida |
 > | 3 | §5.7 `PruebaObjetivo` | la entidad, con `mejora_pedida()` y `factibilidad()` | código | ✅ 2026-10-13 (ver la enmienda del §5.7) |
 > | 4 | §5.8 `Semana` | la entidad, con `zonas()`, `real()` y `desviacion()` derivados | código | ✅ 2026-10-13 (ver la enmienda del §5.8) |
 > | — | §5.13 `CodigoDeVinculacion` | `es_servible()`, `canjear(usuario)`, `revocar()` como comportamiento | código | ⬜ pendiente — va con R5.3 (`redeem`) |
@@ -26,13 +27,13 @@
 > nombraba, no el documento entero—. Las filas «—» son esas; la numeración de
 > las demás se conserva porque los commits la citan.
 >
-> **Los cuatro puntos numerados de código están construidos** (`Atleta`,
-> `Inscripcion`, `PruebaObjetivo`, `Semana`): desde el 2026-10-13 la nómina y
-> las semanas no arman filas del ORM desde `api/v1/`. Lo que queda son las
-> filas «—» de la tabla y las decisiones. **Una fila «—» nueva, vista al cerrar
-> el punto 4 y que ningún marcado anterior recogía:** el macrociclo en sí
-> —crear, editar, borrar— se sigue escribiendo como filas desde
-> `api/v1/macrociclos/service.py`. Las **vistas** siguen leyendo las semanas
+> **El agregado de planificación entero se escribe por sus entidades** desde el
+> 2026-10-13: `Atleta`, `Inscripcion`, `PruebaObjetivo`, `Semana` y, el mismo
+> día, el `Macrociclo` en sí (una fila «—» que se vio al cerrar el punto 4 y
+> que ningún marcado anterior recogía). Ninguna escritura de
+> `api/v1/macrociclos/` arma filas del ORM: `service.py`, `nomina.py` y
+> `semanas.py` no importan tablas, y un test lo comprueba. Lo que queda son las
+> demás filas «—» y las decisiones. Las **vistas** siguen leyendo las semanas
 > como filas; no escriben. **N4 está cerrada**: el PDF se arma en el
 > cliente (construido el 2026-08-25).
 >
@@ -583,7 +584,7 @@ por un `CodigoDeVinculacion` canjeado.
 > club y está activa (`InscripcionImposible`, el 409); «un atleta, un macrociclo
 > vivo» se quedó en `api/v1/macrociclos/inscripcion.py`, decisión del usuario.
 
-### 5.4 `Macrociclo` (Plan) — ✅ 2026-08-16 (consultas) y 2026-10-05 (`inscribir`)
+### 5.4 `Macrociclo` (Plan) — ✅ 2026-08-16 (consultas), 2026-10-05 (`inscribir`) y 2026-10-13 (crear, editar, borrar)
 
 ```
 equipo · nombre · inicio · semanas · semanas_por_micro · km_totales
@@ -611,6 +612,27 @@ Raíz del agregado de planificación. Absorbe las funciones sueltas de
 > la base; `fase_de()` sigue devolviendo el tramo porque quien pregunta casi
 > siempre quiere las dos mitades — el nombre para enseñarlo y la `Fase` para
 > calcular.
+>
+> **Enmienda del 2026-10-13 (C9): se crea y se edita por la entidad.** El
+> bloque de arriba solo lista consultas e `inscribir()`; la escritura del
+> macrociclo no estaba en el modelo ni en ningún pendiente, y seguía en
+> `api/v1/macrociclos/service.py` como `Plan(**data.model_dump())` y un
+> `setattr` por campo.
+>
+> - `Macrociclo.nuevo(...)` lo construye; nace activo y **sin equipo**. El
+>   equipo y el entrenador a cargo los pone `RepositorioDeMacrociclos.guardar`,
+>   del `Principal` de quien lo crea: ya no son argumentos que alguien pueda
+>   pasar mal.
+> - Lo único que cambia después: `renombrar`, `anotar`, `fijar_meta`,
+>   `cambiar_estado`, `cambiar_piscina`, `numerar`. `guardar` escribe solo eso
+>   (`mapeo/hacia_modelos.volcar_macrociclo`); fechas, semanas, kilómetros, fases
+>   y competencias se fijan al crearlo y ninguna ruta los edita.
+> - Un `null` explícito en `name`, `status`, `pool` o `n_mac` no cambia nada;
+>   antes llegaba a una columna `NOT NULL` y daba 500.
+> - **Lo que la entidad NO valida, a propósito:** que las fases quepan en el
+>   macro y no se solapen, y que una competencia caiga dentro de él. Nadie lo
+>   validó nunca y el mapeo corre en cada lectura; rechazarlo cambia qué se
+>   acepta y pide decisión (TODO-24).
 
 ### 5.5 `FaseDelMacro` (PlanPhase) y `Competencia` (Competition) — ✅ 2026-08-16 (`fase` obligatoria desde P3, 2026-09-22)
 

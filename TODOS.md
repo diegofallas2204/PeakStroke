@@ -401,6 +401,10 @@ editar macrociclos (fases, competencias), `PATCH /weeks/{id}` y los tests
 aeróbicos con sus parciales. La forma de probarlo es la del test:
 `gc.disable()` alrededor de la petición.
 
+Un primo del mismo problema, visto el 2026-10-13: `POST /plans/` responde las
+competencias **en el orden en que llegaron** (la fila recién creada sigue viva y
+su colección no se reordena) y el `GET` siguiente las devuelve por semana.
+
 ## TODO-23 — Un número infinito en el cuerpo de una petición da 500 (P3)
 
 `Field(gt=0)` deja pasar `Infinity`, que el `json` de Python acepta al leer.
@@ -412,3 +416,27 @@ tampoco sale: al serializar el error incluye el valor recibido y
 el `input`. Afecta a todos los schemas con tiempos, no solo a este: también a
 `PATCH /weeks/{id}`, donde `real_time: 1e999` pasa `gt=0` y revienta al construir
 el `Tiempo` (visto por el revisor de C9 punto 4; antes se guardaba).
+
+## TODO-24 — Un macrociclo acepta fases y competencias que no caben en él (P2, decisión)
+
+Visto el 2026-10-13 al pasar la escritura del macrociclo a su entidad. Nada
+valida, ni en el schema ni en el dominio, que:
+
+- una fase no acabe antes de empezar (`week_end < week_start`);
+- una fase no se salga del macro (`week_end > total_weeks`);
+- dos fases no se solapen ni dejen semanas sin cubrir;
+- una competencia caiga dentro del macro (`week_number <= total_weeks`);
+- el nombre no sean solo espacios (`min_length=2` no recorta: `"  "` vale).
+
+`PhaseInput` y `CompetitionInput` solo piden `>= 1`. El asistente del frontend
+parte de las fases por defecto del motor, que sí están bien, pero el entrenador
+las edita y el endpoint acepta lo que llegue. Lo que se rompe después es
+silencioso: `Macrociclo.fase_de()` devuelve el primer tramo que contenga la
+semana, y las fases del plan generado salen de esos rangos.
+
+**Por qué no se hizo en el mismo bloque:** el sitio natural es el constructor
+de `Macrociclo`/`FaseDelMacro`, pero el mapeo fila → entidad corre en cada
+lectura, así que una invariante nueva convierte cualquier macrociclo ya guardado
+que la incumpla en un 500 al abrirlo. Hay que decidir primero **qué** se rechaza
+(¿huecos también, o solo solapes y desbordes?), mirar si la base real tiene
+alguno, y validar al crear (`Macrociclo.nuevo`) antes que al leer.

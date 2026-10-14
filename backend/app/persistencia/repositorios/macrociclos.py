@@ -35,7 +35,11 @@ from app.core.principal import Principal
 from app.dominio.entidades import Macrociclo
 from app.dominio.roles import Alcance
 from app.dominio.valores import EstadoDeMacro
-from app.persistencia.mapeo import macrociclo_desde_fila
+from app.persistencia.mapeo import (
+    fila_de_macrociclo,
+    macrociclo_desde_fila,
+    volcar_macrociclo,
+)
 from app.persistencia.tablas.planes import (
     AthleteEvent,
     AthletePlan,
@@ -147,8 +151,7 @@ class RepositorioDeMacrociclos:
 
     # ── El macrociclo, como fila ─────────────────────────────────────────────
     #
-    # La respuesta del API se valida sobre la fila (`PlanResponse`), y crear o
-    # editar un macrociclo todavía la escribe a mano desde `api/v1/`.
+    # La respuesta del API se valida sobre la fila: por eso `guardar` la devuelve.
 
     async def filas(self) -> list[Plan]:
         stmt = self.acotar(select(Plan).options(*_PLAN_LOAD))
@@ -240,24 +243,36 @@ class RepositorioDeMacrociclos:
         stmt = self.principal.scope_to_own_swimmer(stmt, AthletePlan.swimmer_id)
         return list((await self.db.execute(stmt)).scalars())
 
-    # Las inscripciones (`inscripcion`, `inscritos_en`, `inscripciones_vivas`)
-    # se mudaron a `inscripciones.py` el 2026-10-05 (C9): este archivo pasaba
-    # de 300 líneas y esa era su división natural.
-
     # ── Escritura ────────────────────────────────────────────────────────────
 
-    async def guardar(self, fila: Plan) -> None:
-        self.db.add(fila)
-        await self.db.commit()
+    async def guardar(self, macro: Macrociclo) -> Plan:
+        """Crea el macrociclo (sin `id`) o guarda lo que se le editó (con `id`).
 
-    async def confirmar(self) -> None:
-        """Persiste lo que ya está en la sesión.
-
-        Lo usa editar un macrociclo (`service.update_plan`), que todavía cambia
-        la fila a mano. Inscripciones, pruebas y semanas se guardan por sus
-        repositorios (`inscripciones.py`, `semanas.py`).
+        Devuelve la **fila** recargada: la respuesta del API se valida sobre
+        ella. Única puerta de escritura desde C9 (2026-10-13). Al crear, el
+        equipo y el entrenador a cargo son los del `Principal`, nunca los de la
+        entidad ni los de la petición. Al editar, la fila se relee acotada y se
+        escribe solo lo editable (`mapeo.volcar_macrociclo`); si no es visible
+        para quien escribe, `LookupError`: un error de programación, no un 404.
         """
+        if macro.id is None:
+            fila = fila_de_macrociclo(
+                macro, equipo_id=self.principal.team_id, entrenador_id=self.principal.id,
+            )
+            self.db.add(fila)
+            await self.db.flush()   # los `id`, antes de confirmar (ver inscripciones.py)
+            macro.id, macro.equipo_id = fila.id, fila.team_id
+            for fase, fila_de_fase in zip(macro.fases, fila.phases, strict=True):
+                fase.id = fila_de_fase.id
+            for competencia, suya in zip(macro.competencias, fila.competitions, strict=True):
+                competencia.id = suya.id
+        else:
+            fila = await self.fila_de(macro.id)
+            if fila is None:
+                raise LookupError(f"Macrociclo {macro.id}: no se puede escribir desde aquí")
+            volcar_macrociclo(macro, fila)
         await self.db.commit()
+        return await self.fila_sin_acotar(macro.id)
 
     async def tests_que_bloquean_el_borrado(self, plan_id: int) -> int:
         """Cuántos tests aeróbicos impiden borrar ese macrociclo.
@@ -275,6 +290,11 @@ class RepositorioDeMacrociclos:
             .where(AerobicTest.plan_id == plan_id)
         )).scalar_one()
 
-    async def borrar(self, fila: Plan) -> None:
+    async def borrar(self, macro: Macrociclo) -> None:
+        """Lo borra de verdad, con lo que cuelga de él. Quien llama ya contó sus
+        tests. La fila se relee acotada, como en `guardar` (`LookupError`)."""
+        fila = await self.fila_de(macro.id)
+        if fila is None:
+            raise LookupError(f"Macrociclo {macro.id}: no se puede borrar desde aquí")
         await self.db.delete(fila)
         await self.db.commit()

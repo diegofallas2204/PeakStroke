@@ -132,10 +132,10 @@ async def test_guardar_da_identidad_a_las_pruebas_y_solo_las_admite_al_crear(db,
     repo = RepositorioDeInscripciones(macros)
     # Un macrociclo terminado: no ocupa el calendario de nadie y admite al atleta.
     from app.api.v1.macrociclos.schemas import PlanCreate
-    from app.api.v1.macrociclos.service import create_plan
-    plan = await create_plan(macros, PlanCreate(
+    from app.api.v1.macrociclos.service import nuevo_desde
+    plan = await macros.guardar(nuevo_desde(PlanCreate(
         name="Macro pasado", start_date=date(2025, 1, 6), total_weeks=12, total_km=300,
-    ), world.team_id, jefe.id)
+    )))
     macro = await macros.recargar(plan.id)
     atleta = Atleta.nueva("Recién Llegada")
     await RepositorioDeAtletas(db, jefe).guardar(atleta)

@@ -10,9 +10,23 @@ casi siempre quiere las dos mitades del desdoble de §5.5: el nombre que el
 entrenador le puso al tramo, para enseñarlo, y su `Fase`, para calcular. La
 segunda es `fase_de(n).fase` y desde P3 (2026-09-22) siempre está: la base
 guarda la clave de la fase, no la etiqueta.
+
+**Se crea y se edita por aquí** (C9, 2026-10-13). Hasta entonces
+`api/v1/macrociclos/service.py` armaba la fila con `Plan(**data.model_dump())`
+y la editaba con un `setattr` por cada campo del formulario. `nuevo()` lo
+construye y los mutadores de abajo son lo único que una ruta puede cambiarle:
+las fechas, las semanas, los kilómetros, las fases y las competencias se fijan
+al crearlo y no tienen quien los edite.
+
+**Lo que este tipo todavía NO comprueba**, a propósito: que las fases quepan en
+el macro y no se solapen, que una competencia caiga dentro de él, o que el
+nombre no sean solo espacios. Nadie lo validó nunca, el mapeo corre en cada
+lectura y rechazarlo ahora cambiaría qué se acepta: es una decisión (TODO-24),
+no un descuido de este bloque.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
@@ -117,6 +131,63 @@ class Macrociclo(PorIdentidad):
     def __post_init__(self) -> None:
         if self.semanas < 1:
             raise ValueError(f"Un macrociclo dura al menos una semana: {self.semanas}")
+
+    @classmethod
+    def nuevo(
+        cls, nombre: str, inicio: date, semanas: int, *, km_totales: float,
+        semanas_por_micro: int = 4, piscina: str = "50", n_mac: int = 1,
+        prueba_principal: str | None = None, notas: str | None = None,
+        fases: Iterable[FaseDelMacro] = (), competencias: Iterable[Competencia] = (),
+    ) -> Macrociclo:
+        """Un macrociclo sin guardar, desde los valores con que llega (API, seed).
+
+        Nace activo y sin equipo: el equipo y el entrenador a cargo los pone el
+        repositorio al guardarlo, de quien lo crea. Nunca de la petición.
+        """
+        return cls(
+            inicio=inicio, semanas=semanas, nombre=nombre,
+            semanas_por_micro=semanas_por_micro, km_totales=km_totales,
+            piscina=Piscina.desde_texto(piscina), n_mac=n_mac,
+            prueba_principal=prueba_principal, notas=notas,
+            fases=list(fases), competencias=list(competencias),
+        )
+
+    # ── Edición ──────────────────────────────────────────────────────────────
+    #
+    # Lo único que cambia después de crearlo. Que la meta (`fijar_meta`) sea de
+    # dueño es de permisos, no de aquí: lo decide el router (R4).
+
+    def renombrar(self, nombre: str) -> None:
+        """Sin validar el texto, a propósito: qué nombre vale lo decide hoy el
+        formulario (2 a 120 caracteres, sin recortar), y un `ValueError` aquí
+        saldría como un 500 en una petición que antes se aceptaba. Va con las
+        demás invariantes que este tipo no impone todavía (TODO-24)."""
+        self.nombre = nombre
+
+    def anotar(self, notas: str | None) -> None:
+        self.notas = notas
+
+    def fijar_meta(self, prueba_principal: str | None) -> None:
+        self.prueba_principal = prueba_principal
+
+    def cambiar_estado(self, estado: EstadoDeMacro) -> None:
+        """El estado que pone el entrenador. El que se enseña es `estado_efectivo()`."""
+        if not isinstance(estado, EstadoDeMacro):
+            raise TypeError("El estado de un macrociclo es un EstadoDeMacro, no un texto")
+        self.estado = estado
+
+    def cambiar_piscina(self, piscina: Piscina) -> None:
+        if not isinstance(piscina, Piscina):
+            raise TypeError("La piscina de un macrociclo es una Piscina, no un texto")
+        self.piscina = piscina
+
+    def numerar(self, n_mac: int) -> None:
+        """Qué macrociclo de la temporada es (1 = el primero): degrada el techo."""
+        if isinstance(n_mac, bool) or not isinstance(n_mac, int):
+            raise TypeError(f"El número de macrociclo es un entero: {n_mac!r}")
+        if n_mac < 1:
+            raise ValueError(f"Los macrociclos de una temporada se cuentan desde 1: {n_mac}")
+        self.n_mac = n_mac
 
     @property
     def curva(self) -> str:

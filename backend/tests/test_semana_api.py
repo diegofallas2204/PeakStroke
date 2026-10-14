@@ -224,7 +224,7 @@ async def test_guardar_semanas_ajenas_no_se_salta_en_silencio(db, world: World):
 # ── La estructura ────────────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("archivo", ["semanas.py", "nomina.py"])
+@pytest.mark.parametrize("archivo", ["semanas.py", "nomina.py", "service.py"])
 def test_las_escrituras_del_macrociclo_no_arman_filas_del_orm(archivo: str):
     ruta = Path(__file__).resolve().parent.parent / "app/api/v1/macrociclos" / archivo
     importados: list[str] = []

@@ -41,7 +41,7 @@ from app.api.v1.macrociclos.schemas import (
     WeekUpdateRequest,
 )
 from app.api.v1.macrociclos.semanas import update_week
-from app.api.v1.macrociclos.service import create_plan
+from app.api.v1.macrociclos.service import nuevo_desde
 from app.api.v1.tests.schemas import AerobicTestCreate
 from app.api.v1.tests.service import create_test
 from app.core.config import settings
@@ -301,7 +301,7 @@ async def seed() -> None:
         await atletas.guardar(de_baja)
 
         start = plan_start_date(date.today())
-        plan = await create_plan(repo, PlanCreate(
+        plan = await repo.guardar(nuevo_desde(PlanCreate(
             name="Temporada Nacional 2026", start_date=start, total_weeks=12,
             weeks_per_micro=4, total_km=320,
             main_event="Nacional Juvenil", notes=(
@@ -312,7 +312,7 @@ async def seed() -> None:
                 CompetitionInput(name="Copa Invitacional", week_number=5, days=2),
                 CompetitionInput(name="Nacional Juvenil", week_number=12, days=3, is_main=True),
             ],
-        ), team.id, coach.id)
+        )))
         macro = await repo.recargar(plan.id)
 
         for idx, events, aerobic_base in EVENTS:

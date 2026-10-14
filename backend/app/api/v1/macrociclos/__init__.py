@@ -11,6 +11,9 @@ en `router_nomina.py`. **Sus pruebas objetivo también** (punto 3, 2026-10-13):
 `nomina.py` construye cada `PruebaObjetivo` y el repositorio arma las filas.
 **Y la semana** (punto 4, mismo día): `semanas.py` recibe un `PlanDePrueba` de
 `RepositorioDeSemanas`, les pide a las `Semana` que cambien y se las devuelve.
-Lo que todavía se escribe como filas desde aquí es el **macrociclo en sí**
-(`service.py`: crear, editar, borrar).
+**Y el macrociclo en sí** (mismo día): `service.py` traduce el formulario a un
+`Macrociclo` y `RepositorioDeMacrociclos.guardar` lo escribe. Con eso ninguna
+escritura de esta rebanada arma filas del ORM: `service.py`, `nomina.py` y
+`semanas.py` no importan tablas, y un test lo comprueba. Las que sí las leen son
+`presentacion.py` (la respuesta se valida sobre ellas) y `resolver.py`.
 """
