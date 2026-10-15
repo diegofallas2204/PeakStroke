@@ -41,20 +41,21 @@ from app.api.v1.macrociclos.schemas import (
     WeekUpdateRequest,
 )
 from app.api.v1.macrociclos.semanas import update_week
-from app.api.v1.macrociclos.service import create_plan
 from app.api.v1.tests.schemas import AerobicTestCreate
 from app.api.v1.tests.service import create_test
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, Base, engine
 from app.core.dependencies import Principal
 from app.core.security import hash_password
-from app.dominio.entidades import Sesion
+from app.dominio.entidades import Atleta, Sesion
 from app.dominio.valores import Tiempo
 from app.persistencia.repositorios import (
     RepositorioDeAtletas,
     RepositorioDeEquipos,
+    RepositorioDeInscripciones,
     RepositorioDeMacrociclos,
     RepositorioDeResultados,
+    RepositorioDeSemanas,
     RepositorioDeSesiones,
     RepositorioDeTests,
 )
@@ -240,9 +241,14 @@ async def seed() -> None:
                 email=email, name=name, password=DEV_PASSWORD, role=role,
             ), team.id)
 
-        # El entrenador es el dueño del equipo (ve todos los macrociclos).
+        # El entrenador es el dueño del equipo (ve todos los macrociclos). Por la
+        # misma puerta que el API: `Equipo.transferir_propiedad` comprueba que sea
+        # entrenador, del club y activo, también para el primer dueño.
         coach = accounts[DEV_ACCOUNTS[0][0]]
-        team.owner_id = coach.id
+        club = equipos.como_equipo(team)
+        miembro = await equipos.pertenencia(coach.id)
+        club.transferir_propiedad(equipos.como_pertenencia(miembro) if miembro else None)
+        team = await equipos.guardar_equipo(club)
 
         # La cuenta del pool, a mano y sin pertenencia: `create_user` siempre la
         # crea, y aquí lo que se quiere probar es la aplicación sin ella.
@@ -262,16 +268,16 @@ async def seed() -> None:
         )
         atletas = RepositorioDeAtletas(db, principal)
         repo = RepositorioDeMacrociclos(db, principal)
+        inscripciones = RepositorioDeInscripciones(repo)
         resultados = RepositorioDeResultados(db, principal)
         tests_repo = RepositorioDeTests(db, principal)
 
         swimmers = []
         for name, birth, gender, specialty, stroke, weight, height in (*SWIMMERS, *SWIMMERS_EXTRA):
-            swimmers.append(await atletas.crear(
-                team_id=team.id, nombre=name, nacimiento=birth, genero=gender,
-                especialidad=specialty, estilo_principal=stroke,
-                peso_kg=weight, altura_cm=height,
-            ))
+            swimmers.append(await atletas.guardar(Atleta.nueva(
+                name, nacimiento=birth, genero=gender, especialidad=specialty,
+                estilo_principal=stroke, peso_kg=weight, altura_cm=height,
+            )))
 
         # Todos los atletas del equipo a cargo del entrenador de desarrollo.
         for swimmer in swimmers:
@@ -287,16 +293,19 @@ async def seed() -> None:
             ("sinplan@peakstroke.dev", swimmers[-2]),
             ("debaja@peakstroke.dev", swimmers[-1]),
         ):
-            swimmer.user_id = accounts[email].id
+            swimmer.user_id = accounts[email].id   # lo que haría el canje del código
+        await db.commit()
         # La ficha de baja, con la cuenta intacta: dar de baja a un nadador
         # archiva su perfil deportivo, no le revoca el acceso (eso es
         # `team_members.is_active`). Confundir las dos cosas es fácil, y este
-        # dato hace que la diferencia se vea al desarrollar.
-        swimmers[-1].is_active = False
-        await db.commit()
+        # dato hace que la diferencia se vea al desarrollar. Por la misma puerta
+        # que el API: la entidad y `guardar`.
+        de_baja = await atletas.por_id(swimmers[-1].id)
+        de_baja.dar_de_baja()
+        await atletas.guardar(de_baja)
 
         start = plan_start_date(date.today())
-        plan = await create_plan(repo, PlanCreate(
+        plan = await repo.guardar(PlanCreate(
             name="Temporada Nacional 2026", start_date=start, total_weeks=12,
             weeks_per_micro=4, total_km=320,
             main_event="Nacional Juvenil", notes=(
@@ -307,11 +316,11 @@ async def seed() -> None:
                 CompetitionInput(name="Copa Invitacional", week_number=5, days=2),
                 CompetitionInput(name="Nacional Juvenil", week_number=12, days=3, is_main=True),
             ],
-        ), team.id, coach.id)
+        ).a_entidad())
         macro = await repo.recargar(plan.id)
 
         for idx, events, aerobic_base in EVENTS:
-            await add_athlete(db, repo, macro, AddAthleteRequest(
+            await add_athlete(inscripciones, macro, await atletas.por_id(swimmers[idx].id), AddAthleteRequest(
                 swimmer_id=swimmers[idx].id, aerobic_base=aerobic_base,
                 aerobic_base_source="t30",
                 events=[EventInput(
@@ -338,7 +347,8 @@ async def seed() -> None:
                 noise = random.uniform(-0.0015, 0.0015)
                 real = w.expected_time * (bias[swimmer_idx] + noise)
                 await update_week(
-                    db, repo, resultados, w.id, WeekUpdateRequest(real_time=round(real, 2)),
+                    RepositorioDeSemanas(repo), resultados, w.id,
+                    WeekUpdateRequest(real_time=round(real, 2)),
                 )
 
         # Tests aeróbicos: T-30 inicial + control reciente para varios atletas

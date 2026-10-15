@@ -4,11 +4,12 @@ from __future__ import annotations
 from .rol import Rol
 from .vocabulario import Alcance, Recurso, Seccion
 
-# Lo que un atleta escribe sobre sus propios datos. Son dos y son las dos que
+# Lo que un atleta escribe sobre sus propios datos. Son tres y son las tres que
 # los routers dejan pasar sin `require_coach`: apuntar el tiempo real de su
-# semana y registrar sus tests aeróbicos. Todo lo demás —la ficha, el plan, el
-# parón de la semana, el club— lo escribe el entrenador.
-_ESCRIBE = frozenset({Recurso.SEMANA, Recurso.TEST_AEROBICO})
+# semana, registrar sus tests aeróbicos y apuntar lo que nadó cada día (C7).
+# Todo lo demás —la ficha, el plan, el parón de la semana, el club— lo escribe
+# el entrenador.
+_ESCRIBE = frozenset({Recurso.SEMANA, Recurso.TEST_AEROBICO, Recurso.SESION})
 
 # La tabla del equipo enseña nombres, ritmos y marcas de todos los compañeros:
 # es la sección que el atleta no ve, y `require_coach` la cierra en el backend
@@ -18,6 +19,7 @@ _NO_VE = frozenset({Recurso.EQUIPO})
 _SECCIONES_DE_ATLETA = frozenset({
     Seccion.DASHBOARD,
     Seccion.BASE_AEROBICA,
+    Seccion.ENTRENAMIENTO,
     Seccion.PLAN_SEMANAL,
 })
 

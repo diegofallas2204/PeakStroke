@@ -19,11 +19,16 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.persistencia.tablas import vocabulario as voc
 
 
 class Swimmer(Base):
     __tablename__ = "swimmers"
     __table_args__ = (
+        # Vocabularios cerrados (§7.2 fila 6, migración c9e1a4d7b2f6).
+        voc.en("gender", voc.GENEROS, nombre="ck_swimmers_gender", nulo=True),
+        voc.en("specialty", voc.ESPECIALIDADES, nombre="ck_swimmers_specialty"),
+        voc.en("main_stroke", voc.ESTILOS, nombre="ck_swimmers_main_stroke"),
         # Clave candidata para las FKs compuestas de quien referencia a un nadador
         # dentro de un equipo (coach_athletes, athlete_plans, aerobic_tests).
         UniqueConstraint("id", "team_id", name="uq_swimmers_id_team"),

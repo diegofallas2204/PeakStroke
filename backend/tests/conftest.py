@@ -56,16 +56,17 @@ from app.api.v1.macrociclos.schemas import (  # noqa: E402
     EventInput,
     PlanCreate,
 )
-from app.api.v1.macrociclos.service import create_plan  # noqa: E402
 from app.api.v1.tests.schemas import AerobicTestCreate  # noqa: E402
 from app.api.v1.tests.service import create_test  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.database import AsyncSessionLocal, Base, engine, get_db  # noqa: E402
 from app.core.dependencies import Principal  # noqa: E402
+from app.dominio.entidades import Atleta  # noqa: E402
 from app.main import app  # noqa: E402
 from app.persistencia.repositorios import (  # noqa: E402
     RepositorioDeAtletas,
     RepositorioDeEquipos,
+    RepositorioDeInscripciones,
     RepositorioDeMacrociclos,
     RepositorioDeTests,
 )
@@ -256,12 +257,12 @@ async def world(db: AsyncSession) -> World:
     tests_repo = RepositorioDeTests(db, como_owner)
 
     async def nadador(nombre: str, user_id: int | None):
-        s = await atletas.crear(
-            team_id=team.id, nombre=nombre, nacimiento=date(2008, 5, 1),
-            genero="F", especialidad="medio_fondo", estilo_principal="libre",
-        )
+        s = await atletas.guardar(Atleta.nueva(
+            nombre, nacimiento=date(2008, 5, 1), genero="F",
+            especialidad="medio_fondo", estilo_principal="libre",
+        ))
         if user_id is not None:
-            s.user_id = user_id
+            s.user_id = user_id   # lo que haría el canje del código
             await db.commit()
         return s
 
@@ -270,16 +271,17 @@ async def world(db: AsyncSession) -> World:
     sin_cuenta_sw = await nadador("Nadador Sin Cuenta", None)
 
     lunes = date.today() - timedelta(days=date.today().weekday()) - timedelta(weeks=3)
-    plan = await create_plan(repo, PlanCreate(
+    plan = await repo.guardar(PlanCreate(
         name="Macrociclo de Prueba", start_date=lunes, total_weeks=12,
         weeks_per_micro=4, total_km=300,
         competitions=[CompetitionInput(name="Nacional", week_number=12, days=2, is_main=True)],
-    ), team.id, owner.id)
+    ).a_entidad())
     macro = await repo.recargar(plan.id)
 
     eventos = {}
     for swimmer in (sofia_sw, carlos_sw, sin_cuenta_sw):
-        ap = await add_athlete(db, repo, macro, AddAthleteRequest(
+        ap = await add_athlete(RepositorioDeInscripciones(repo), macro,
+                               await atletas.por_id(swimmer.id), AddAthleteRequest(
             swimmer_id=swimmer.id, aerobic_base=75.0, aerobic_base_source="t30",
             events=[EventInput(
                 priority=1, distance=200, stroke="libre",

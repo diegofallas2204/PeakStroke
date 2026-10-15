@@ -23,7 +23,9 @@ export function PageHeader({
           {subtitle && <p className="mt-1.5 text-[12px] leading-relaxed text-text-dim">{subtitle}</p>}
         </div>
       </div>
-      {actions && <div className="flex items-center gap-2.5">{actions}</div>}
+      {/* `flex-wrap`: en móvil un selector, un rango y un botón no caben en
+          375 px, y sin él la fila empujaba la página entera a scroll lateral. */}
+      {actions && <div className="flex flex-wrap items-center gap-2.5">{actions}</div>}
     </header>
   )
 }

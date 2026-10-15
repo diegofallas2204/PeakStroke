@@ -108,7 +108,8 @@ export const CURVE_COLORS: Record<string, string> = {
 // "Plan" es la página de siempre—, así que su color persiste. Liberar el rosa
 // habría creado una trampa: reaparecería en otra sección contradiciendo a quien
 // ya lo tenía asociado a Plan semanal. El violeta no la crea, porque ya no
-// señala nada que se pueda volver a encontrar.
+// señala nada que se pueda volver a encontrar. Desde el 2026-10-01 es de
+// Entrenamiento: una sección nueva, no el regreso de Comparación.
 //
 // OJO al reasignar: el coral de Simulador y este rosa son casi indistinguibles
 // en tema oscuro. Por eso Tabla del equipo y Simulador tienen los colores
@@ -119,6 +120,7 @@ export const SECTION_ACCENT: Record<string, string> = {
   '/macrociclos': '#22d3ee',   // Macrociclos — cian
   '/atletas': '#34d399',       // Atletas — esmeralda
   '/pruebas': '#fbbf24',       // Base aeróbica — ámbar
+  '/entrenamiento': '#a78bfa', // Entrenamiento — violeta
   '/plan-semanal': '#f472b6',  // Plan semanal — rosa
   '/equipo': '#fb923c',        // Tabla del equipo — naranja
   '/simulador': '#fb7185',     // Simulador — coral
@@ -171,6 +173,33 @@ export const PLAN_STATUS_META: Record<string, { label: string; color: string; bg
   finished: { label: 'Completado', color: '#60a5fa', bg: 'rgba(96,165,250,.12)' },
   draft: { label: 'Inactivo', color: '#8b93b8', bg: 'rgba(139,147,184,.12)' },
   suspended: { label: 'Suspendido', color: '#fb7185', bg: 'rgba(251,113,133,.12)' },
+}
+
+// Escala CR-10 de la sesión entera, «session RPE» (Foster et al., 2001, J
+// Strength Cond Res 15(1):109-115, tabla 1). El 0 (reposo) no está: una sesión
+// nadada no es reposo, y el backend la rechaza (`RPE_MINIMO = 1`). Los huecos
+// (6, 8, 9) no tienen etiqueta en la escala original: se dejan sin ella.
+export const RPE_LABEL: Record<number, string> = {
+  1: 'Muy, muy fácil',
+  2: 'Fácil',
+  3: 'Moderado',
+  4: 'Algo difícil',
+  5: 'Difícil',
+  7: 'Muy difícil',
+  10: 'Máximo',
+}
+
+// Motivos de alerta de la carga (`banister.MotivoDeAlerta`). Los umbrales viven
+// SOLO en el backend: aquí está el texto, no los números.
+export const LOAD_REASON_LABEL: Record<string, string> = {
+  tsb_bajo: 'Balance muy negativo',
+  fatiga_sostenida: 'Fatiga sostenida',
+  rampa: 'La carga crónica sube demasiado rápido',
+}
+
+export const LOAD_ALERT_META: Record<string, { label: string; color: string }> = {
+  advertencia: { label: 'Advertencia', color: '#fbbf24' },
+  peligro: { label: 'Peligro', color: '#fb7185' },
 }
 
 export const TEST_TYPE_LABEL: Record<string, string> = {

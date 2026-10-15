@@ -17,7 +17,7 @@ El código cierra esa puerta con las tres propiedades que le faltaban:
 entrenador pueda volver a leerlo para dictárselo al nadador; hasheado, cada
 consulta obligaría a emitir uno nuevo. Lo que compra ese texto plano está
 acotado: vale para *una* ficha concreta de *un* equipo, muere en
-`LINK_CODE_TTL_HOURS` y se invalida al usarse. No es una credencial de acceso —
+`CodigoDeVinculacion.HORAS_DE_VIDA` y se invalida al usarse. No es una credencial de acceso —
 quien lo canjea sigue necesitando su propia cuenta y su contraseña.
 """
 from __future__ import annotations

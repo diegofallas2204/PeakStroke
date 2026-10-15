@@ -16,10 +16,13 @@ El segundo se añadió el 2026-08-06. `acotar` deja pasar el plan entero a
 cualquiera inscrito en él, así que por sí solo permitía que un atleta leyera y
 sobrescribiera las semanas de sus compañeros.
 
-**Por qué algunos métodos devuelven filas y no entidades.** `Inscripcion`,
-`PruebaObjetivo` y `Semana` (§5.6-5.8) no existen todavía: las construyen los
-pasos 6-8. Hasta entonces lo que cuelga del macrociclo sale como fila del ORM y
-el nombre lo dice (`fila_de`, `pruebas_de`, `semana`). El macrociclo en sí
+**Por qué algunos métodos devuelven filas y no entidades.** La `Inscripcion`
+es entidad desde el 2026-10-05 (`inscripciones.py`), y la `PruebaObjetivo` y la
+`Semana` desde el 2026-10-13 (`semanas.py`, que entrega un `PlanDePrueba`).
+`prueba()`, `semana()` y `prueba_sin_acotar()` siguen devolviendo la fila porque
+son la comprobación de acceso sobre la que ese repositorio construye; y
+`pruebas_de()`, porque las **vistas** —tablero, tabla del equipo, intervalos—
+todavía leen las semanas como filas. No escriben. El macrociclo en sí
 **siempre** sale como entidad.
 """
 from __future__ import annotations
@@ -32,7 +35,11 @@ from app.core.principal import Principal
 from app.dominio.entidades import Macrociclo
 from app.dominio.roles import Alcance
 from app.dominio.valores import EstadoDeMacro
-from app.persistencia.mapeo import macrociclo_desde_fila
+from app.persistencia.mapeo import (
+    fila_de_macrociclo,
+    macrociclo_desde_fila,
+    volcar_macrociclo,
+)
 from app.persistencia.tablas.planes import (
     AthleteEvent,
     AthletePlan,
@@ -144,8 +151,7 @@ class RepositorioDeMacrociclos:
 
     # ── El macrociclo, como fila ─────────────────────────────────────────────
     #
-    # Mientras `Inscripcion` y `PruebaObjetivo` no sean entidades, quien necesite
-    # la nómina o las semanas necesita la fila con sus relaciones cargadas.
+    # La respuesta del API se valida sobre la fila: por eso `guardar` la devuelve.
 
     async def filas(self) -> list[Plan]:
         stmt = self.acotar(select(Plan).options(*_PLAN_LOAD))
@@ -237,54 +243,36 @@ class RepositorioDeMacrociclos:
         stmt = self.principal.scope_to_own_swimmer(stmt, AthletePlan.swimmer_id)
         return list((await self.db.execute(stmt)).scalars())
 
-    async def inscripcion(self, athlete_plan_id: int) -> AthletePlan | None:
-        return await self.db.get(AthletePlan, athlete_plan_id)
-
-    async def inscritos_en(self, plan_id: int) -> set[int]:
-        """Los `swimmer_id` con inscripción viva en ese macrociclo."""
-        stmt = select(AthletePlan.swimmer_id).where(
-            AthletePlan.plan_id == plan_id, AthletePlan.is_active.is_(True),
-        )
-        return set((await self.db.execute(stmt)).scalars())
-
-    async def inscripciones_vivas(self) -> list[tuple[int, Macrociclo]]:
-        """(swimmer_id, macrociclo) de cada inscripción activa del equipo.
-
-        Devuelve **todas** sin juzgar cuáles reservan al atleta: eso es la regla
-        de «un atleta, un macrociclo vivo» y vive en
-        `api/v1/macrociclos/inscripcion.py`, que es donde está explicada.
-
-        Pares y no un diccionario a propósito. Colapsar aquí por nadador daría
-        por buena justo la invariante que el llamador viene a comprobar: si
-        alguien apareciera en dos macrociclos, el último leído taparía al otro y
-        el bloqueo dependería del orden de las filas.
-        """
-        stmt = (
-            select(AthletePlan.swimmer_id, Plan)
-            .join(Plan, Plan.id == AthletePlan.plan_id)
-            .where(
-                Plan.team_id == self.principal.team_id,
-                AthletePlan.is_active.is_(True),
-            )
-        )
-        return [
-            (swimmer_id, macrociclo_desde_fila(fila))
-            for swimmer_id, fila in (await self.db.execute(stmt)).all()
-        ]
-
     # ── Escritura ────────────────────────────────────────────────────────────
 
-    async def guardar(self, fila: Plan | AthletePlan) -> None:
-        self.db.add(fila)
-        await self.db.commit()
+    async def guardar(self, macro: Macrociclo) -> Plan:
+        """Crea el macrociclo (sin `id`) o guarda lo que se le editó (con `id`).
 
-    async def confirmar(self) -> None:
-        """Persiste lo que ya está en la sesión.
-
-        Es lo poco que hoy se puede: `Inscripcion` y `Semana` no son entidades
-        todavía (§5.6-5.8), así que no hay agregado que guardar entero.
+        Devuelve la **fila** recargada: la respuesta del API se valida sobre
+        ella. Única puerta de escritura desde C9 (2026-10-13). Al crear, el
+        equipo y el entrenador a cargo son los del `Principal`, nunca los de la
+        entidad ni los de la petición. Al editar, la fila se relee acotada y se
+        escribe solo lo editable (`mapeo.volcar_macrociclo`); si no es visible
+        para quien escribe, `LookupError`: un error de programación, no un 404.
         """
+        if macro.id is None:
+            fila = fila_de_macrociclo(
+                macro, equipo_id=self.principal.team_id, entrenador_id=self.principal.id,
+            )
+            self.db.add(fila)
+            await self.db.flush()   # los `id`, antes de confirmar (ver inscripciones.py)
+            macro.id, macro.equipo_id = fila.id, fila.team_id
+            for fase, fila_de_fase in zip(macro.fases, fila.phases, strict=True):
+                fase.id = fila_de_fase.id
+            for competencia, suya in zip(macro.competencias, fila.competitions, strict=True):
+                competencia.id = suya.id
+        else:
+            fila = await self.fila_de(macro.id)
+            if fila is None:
+                raise LookupError(f"Macrociclo {macro.id}: no se puede escribir desde aquí")
+            volcar_macrociclo(macro, fila)
         await self.db.commit()
+        return await self.fila_sin_acotar(macro.id)
 
     async def tests_que_bloquean_el_borrado(self, plan_id: int) -> int:
         """Cuántos tests aeróbicos impiden borrar ese macrociclo.
@@ -302,6 +290,11 @@ class RepositorioDeMacrociclos:
             .where(AerobicTest.plan_id == plan_id)
         )).scalar_one()
 
-    async def borrar(self, fila: Plan) -> None:
+    async def borrar(self, macro: Macrociclo) -> None:
+        """Lo borra de verdad, con lo que cuelga de él. Quien llama ya contó sus
+        tests. La fila se relee acotada, como en `guardar` (`LookupError`)."""
+        fila = await self.fila_de(macro.id)
+        if fila is None:
+            raise LookupError(f"Macrociclo {macro.id}: no se puede borrar desde aquí")
         await self.db.delete(fila)
         await self.db.commit()

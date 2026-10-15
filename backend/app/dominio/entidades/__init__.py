@@ -21,7 +21,12 @@ from __future__ import annotations
 
 from .atleta import Atleta, anios_cumplidos
 from .base import PorIdentidad
+from .calendario_del_macro import comprobar_calendario, exigir_nombre
+from .codigo_de_vinculacion import HORAS_DE_VIDA, CanjeImposible, CodigoDeVinculacion
+from .equipo import Equipo, OperacionDeEquipoImposible, Pertenencia, rol_para
+from .inscripcion import Inscripcion, InscripcionImposible
 from .macrociclo import Competencia, FaseDelMacro, Macrociclo, lunes_de
+from .prueba_objetivo import PruebaObjetivo
 from .resultado import (
     DIAS_DE_UNA_SEMANA,
     Contexto,
@@ -30,20 +35,35 @@ from .resultado import (
     promedio,
     real_de_la_semana,
 )
+from .semana import Semana
 from .sesion import RPE_MAXIMO, RPE_MINIMO, Sesion
 from .test_aerobico import PENDIENTE_DE_TENDENCIA, Parcial, TestAerobico
+from .usuario import Usuario
 
 __all__ = [
     "PorIdentidad",
     # atleta
     "Atleta", "anios_cumplidos",
+    # inscripción
+    "Inscripcion", "InscripcionImposible",
     # macrociclo
     "Macrociclo", "FaseDelMacro", "Competencia", "lunes_de",
+    "comprobar_calendario", "exigir_nombre",
+    # prueba objetivo
+    "PruebaObjetivo",
     # resultado
     "Resultado", "Contexto", "DIAS_DE_UNA_SEMANA",
     "de_la_semana", "promedio", "real_de_la_semana",
+    # semana
+    "Semana",
     # sesión
     "Sesion", "RPE_MINIMO", "RPE_MAXIMO",
     # test aeróbico
     "TestAerobico", "Parcial", "PENDIENTE_DE_TENDENCIA",
+    # usuario
+    "Usuario",
+    # equipo
+    "Equipo", "Pertenencia", "OperacionDeEquipoImposible", "rol_para",
+    # código de vinculación
+    "CodigoDeVinculacion", "CanjeImposible", "HORAS_DE_VIDA",
 ]

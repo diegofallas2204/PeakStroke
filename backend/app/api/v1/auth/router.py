@@ -22,7 +22,7 @@ from app.core.dependencies import Principal, get_current_principal, get_current_
 from app.core.dev_identity import DEV_BYPASS_HEADER, DEV_USER_HEADER, bypass_pedido
 from app.persistencia.tablas.usuarios import User
 
-from . import members, service, sessions
+from . import credenciales, members, service, sessions
 from .schemas import AuthConfig, DevIdentity, MemberResponse, PasswordChange, SessionResponse
 from .sessions import _issue_session
 
@@ -114,13 +114,12 @@ async def change_password(
     en la misma respuesta recibe los nuevos. Las otras pestañas y dispositivos
     sí se quedan fuera, que es justo lo que se pretende.
     """
-    if not await service.authenticate(db, principal.user.email, data.current_password):
+    if not await credenciales.authenticate(db, principal.user.email, data.current_password):
         auditar(
             TipoDeEvento.PASSWORD_CAMBIADA, principal, fallo=True,
             detalle="password_actual_incorrecta",
         )
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La contraseña actual no es correcta")
-    await service.set_password(db, principal.user, data.new_password)
-    await service.revoke_sessions(db, principal.user)
+    await credenciales.change_password(db, principal.user, data.new_password)
     auditar(TipoDeEvento.PASSWORD_CAMBIADA, principal, detalle="se revocan las demás sesiones")
     return await _issue_session(db, response, principal.user)

@@ -11,37 +11,21 @@ from dataclasses import dataclass
 
 from sqlalchemy import false
 
-from app.dominio.roles import AtletaRol, Entrenador, EntrenadorEnJefe, Rol
-from app.persistencia.tablas.equipos import ROLE_ATHLETE, ROLE_COACH, TeamMember
+from app.dominio.entidades import rol_para
+from app.dominio.roles import Rol
+from app.persistencia.tablas.equipos import TeamMember
 from app.persistencia.tablas.usuarios import User
-
-# Las tres instancias que existen. Un rol no tiene estado —solo contesta—, así
-# que construir uno nuevo por petición no aportaría nada.
-_ENTRENADOR = Entrenador()
-_JEFE = EntrenadorEnJefe()
-_ATLETA = AtletaRol()
 
 
 def rol_de(clave: str, *, es_dueno: bool) -> Rol:
     """De la pertenencia (una fila plana) al rol (un objeto de la jerarquía).
 
-    Vive aquí, y no en `persistencia/mapeo/`, porque no traduce una fila a una
-    entidad: junta dos datos de dos tablas —`team_members.role` y si esa persona
-    es `teams.owner_id`— y `Principal` es el sitio donde esos dos ya están
-    juntos. El dominio no puede hacerlo: no conoce las claves que la base guarda.
-
-    **Una clave desconocida revienta.** Es una fila corrupta —`role` solo se
-    escribe a través de un `Literal["coach","athlete"]` de Pydantic— y romper
-    aquí es fallar CERRADO: el modo de fallo silencioso sería devolver algo
-    parecido a un atleta y dejar que el filtro por nadador no lo reconociera,
-    que es un rol sin acotar. No hay clave que produzca `Administrador` (R3: ese
-    rol es solo el hueco en la jerarquía, y cuando exista no vendrá de aquí).
+    **La fábrica es del dominio** desde el 2026-10-14: `Pertenencia.rol_de_dominio`
+    (§4.2/§5.2), y esto le pasa las dos mitades que `Principal` ya tiene juntas
+    —`team_members.role` y si esa persona es `teams.owner_id`—. Una clave
+    desconocida sigue reventando (falla CERRADO): ver `entidades.equipo.rol_para`.
     """
-    if clave == ROLE_COACH:
-        return _JEFE if es_dueno else _ENTRENADOR
-    if clave == ROLE_ATHLETE:
-        return _ATLETA
-    raise ValueError(f"Rol desconocido en team_members.role: {clave!r}")
+    return rol_para(clave, es_dueno=es_dueno)
 
 
 @dataclass(frozen=True, slots=True)

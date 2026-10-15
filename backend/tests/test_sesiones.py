@@ -19,7 +19,8 @@ from sqlalchemy import func, select
 
 from app.dominio.entidades import Sesion
 from app.dominio.valores import Ritmo, Tiempo
-from app.persistencia.repositorios import RepositorioDeAtletas, RepositorioDeEquipos
+from app.persistencia.repositorios import RepositorioDeEquipos
+from app.persistencia.tablas.atletas import Swimmer
 from app.persistencia.tablas.sesiones import SwimSession
 
 DIA = date(2026, 9, 21)
@@ -108,8 +109,12 @@ async def test_el_entrenador_apunta_a_cualquiera_de_su_equipo(client, world: Wor
 
 async def test_nadie_apunta_a_un_nadador_de_otro_equipo(client, db, world: World):
     otro = await RepositorioDeEquipos(db).crear("Club Rival")
-    # `crear` recibe el equipo explícito: el principal no interviene.
-    rival = await RepositorioDeAtletas(db, None).crear(team_id=otro.id, nombre="Rival")  # type: ignore[arg-type]
+    # El club rival no tiene a nadie con un `Principal` que la cree, y el
+    # repositorio ya no acepta el equipo como argumento (C9: sale del
+    # principal). Los datos ajenos de una prueba se montan con la fila.
+    rival = Swimmer(team_id=otro.id, name="Rival")
+    db.add(rival)
+    await db.commit()
     r = await _apuntar(client, world.owner_email, rival.id)
     assert r.status_code == 404
 

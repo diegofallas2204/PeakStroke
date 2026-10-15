@@ -18,7 +18,6 @@ from .escalas import (
     Perfil,
     Tendencia,
     TipoDeTest,
-    Veredicto,
 )
 from .prueba import (
     DISTANCIA_TIER_1,
@@ -28,6 +27,7 @@ from .prueba import (
     Prueba,
 )
 from .tiempo import PASO_DE_RELOJ_S, Duracion, Mejora, Ritmo, Tiempo
+from .veredicto import Veredicto
 from .zona import JuegoDeZonas, Prescripcion, Zona, factores_de_zona
 
 __all__ = [

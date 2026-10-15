@@ -31,6 +31,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.persistencia.tablas import vocabulario as voc
 
 CONTEXTOS: tuple[str, ...] = ("competencia", "control", "serie")
 PISCINAS: tuple[str, ...] = ("50", "25")
@@ -39,6 +40,8 @@ PISCINAS: tuple[str, ...] = ("50", "25")
 class Result(Base):
     __tablename__ = "resultados"
     __table_args__ = (
+        # Vocabularios cerrados (§7.2 fila 6, migración c9e1a4d7b2f6).
+        voc.en("stroke", voc.ESTILOS, nombre="ck_resultados_stroke"),
         ForeignKeyConstraint(
             ["swimmer_id", "team_id"], ["swimmers.id", "swimmers.team_id"],
             name="fk_resultados_swimmer_in_team",

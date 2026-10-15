@@ -82,6 +82,20 @@ def _segundos_de(base: Tiempo | Ritmo) -> float:
     return base.segundos if isinstance(base, Tiempo) else base.segundos_por_100
 
 
+def _bajada(partida: float, llegada: float) -> float:
+    """`partida - llegada`, sin que la coma flotante se coma una llegada diminuta.
+
+    `llegada` es positiva (viene de un `Tiempo` o un `Ritmo`), así que la bajada
+    es menor que la partida. Pero si `llegada` cabe por debajo de la precisión de
+    `partida`, la resta devuelve la partida entera y `Mejora` la rechazaría como
+    «el resultado sería cero»: un dato absurdo pero válido (una meta de 1e-20 s)
+    convertido en un error en cada pantalla que lo lea. Se queda en el mayor
+    valor por debajo de la partida. Con tiempos reales no se entra nunca aquí.
+    """
+    bajada = partida - llegada
+    return bajada if bajada < partida else math.nextafter(partida, 0.0)
+
+
 def _al_reloj(segundos: float, paso: float) -> float:
     """Múltiplo de `paso` inmediatamente por encima. Ver `Tiempo.al_reloj`."""
     if paso <= 0:
@@ -225,7 +239,7 @@ class Tiempo:
         """
         if not isinstance(otro, Tiempo):
             return NotImplemented
-        return Mejora(self.segundos - otro.segundos, self)
+        return Mejora(_bajada(self.segundos, otro.segundos), self)
 
     def __str__(self) -> str:
         return self.texto()
@@ -271,7 +285,7 @@ class Ritmo:
     def __sub__(self, otro: Ritmo) -> Mejora:
         if not isinstance(otro, Ritmo):
             return NotImplemented
-        return Mejora(self.segundos_por_100 - otro.segundos_por_100, self)
+        return Mejora(_bajada(self.segundos_por_100, otro.segundos_por_100), self)
 
     def __str__(self) -> str:
         return self.texto()

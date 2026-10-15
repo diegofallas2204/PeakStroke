@@ -5,100 +5,137 @@ La regla de **un atleta, un macrociclo vivo** no está aquí sino en
 `restore_athlete`. Aquí solo está el efecto sobre la inscripción, incluido el
 que importa: **sacar a alguien es darle de baja, nunca borrarlo**.
 
-Entra un `Macrociclo`, no una fila: la generación del plan necesita sus fases,
-sus semanas y su piscina, y todo eso ya viene dentro de la entidad. Lo que sale
-sigue siendo una fila (`AthletePlan`) porque `Inscripcion` (§5.6) todavía no
-está construida.
+Desde C9 (2026-10-05) la inscripción es una entidad: se crea con
+`Macrociclo.inscribir()` —que exige una ficha de su club y activa—, se saca y se
+devuelve con `dar_de_baja()` / `restaurar()` (idempotentes) y se guarda por
+`RepositorioDeInscripciones.guardar`.
+
+Y desde el punto 3 (2026-10-13) sus pruebas también: aquí se construye cada
+`PruebaObjetivo` y se le pide al motor su plan; las filas las arma el
+repositorio. **Este archivo ya no importa ninguna tabla**, y
+`tests/test_prueba_objetivo_api.py` lo comprueba. Cada semana que devuelve el
+motor se convierte aquí en una `Semana` (punto 4): lo que se guarda de ella es
+su fecha, sus kilómetros, su tiempo esperado y su fase.
 """
 from __future__ import annotations
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.dates import age_at
-from app.dominio.entidades import Macrociclo
+from app.dominio.entidades import (
+    Atleta,
+    Inscripcion,
+    InscripcionImposible,
+    Macrociclo,
+    PruebaObjetivo,
+    Semana,
+)
 from app.dominio.servicios.motor import MOTOR
-from app.persistencia.repositorios import RepositorioDeMacrociclos
-from app.persistencia.tablas.atletas import Swimmer
-from app.persistencia.tablas.planes import AthleteEvent, AthletePlan, WeeklyPlan
+from app.dominio.valores import Ritmo, Tiempo
+from app.persistencia.repositorios import RepositorioDeAtletas, RepositorioDeInscripciones
 
 from .schemas import AddAthleteRequest
 
 
-async def add_athlete(
-    db: AsyncSession, repo: RepositorioDeMacrociclos,
-    macro: Macrociclo, data: AddAthleteRequest,
-) -> AthletePlan:
-    athlete_plan = AthletePlan(
-        plan_id=macro.id, swimmer_id=data.swimmer_id, team_id=macro.equipo_id,
-        aerobic_base=data.aerobic_base, aerobic_base_source=data.aerobic_base_source,
-    )
+def _pruebas(
+    macro: Macrociclo, atleta: Atleta, data: AddAthleteRequest,
+) -> list[tuple[PruebaObjetivo, list[Semana]]]:
+    """Sus pruebas objetivo, cada una con el plan semanal que le genera el motor."""
     phases = [
         {"name": f.nombre, "type": f.fase.value,
          "week_start": f.semana_inicio, "week_end": f.semana_fin}
         for f in macro.fases
     ]
     # Edad al inicio del macro: ajusta al alza el techo I_max de menores (juventud).
-    swimmer = await db.get(Swimmer, data.swimmer_id)
-    age = age_at(swimmer.birth_date, macro.inicio) if swimmer else None
-    for event_data in data.events:
-        event = AthleteEvent(**event_data.model_dump())
+    edad = atleta.edad_en(macro.inicio)
+    pruebas = []
+    for e in data.events:
+        # El estilo sale canónico de la entidad («crol» → «libre»): es el que
+        # se guarda y el que recibe el motor, que no distingue uno del otro.
+        prueba = e.a_entidad()
         semanas = MOTOR.generar_plan(
-            distancia=event.distance, tiempo_actual=event.current_time,
-            tiempo_meta=event.goal_time, semanas=macro.semanas,
+            distancia=prueba.prueba.distancia, tiempo_actual=prueba.actual.segundos,
+            tiempo_meta=prueba.meta.segundos, semanas=macro.semanas,
             km_totales=macro.km_totales, curva=macro.curva,
             inicio=macro.inicio, semanas_por_micro=macro.semanas_por_micro,
-            fases=phases or None, estilo=event.stroke, piscina=macro.piscina.value,
-            n_mac=macro.n_mac, edad=age,
+            fases=phases or None, estilo=prueba.prueba.estilo.value,
+            piscina=macro.piscina.value, n_mac=macro.n_mac, edad=edad,
             # El nivel sale del test aeróbico cuando la inscripción lo trae: es
             # el dato para el que la tabla de niveles está calibrada. Derivarlo
             # del ritmo de carrera deja un borde de una décima que mueve el
             # volumen un 45 % (defecto 1 de §10.4).
             base_aerobica=data.aerobic_base,
         )
-        for s in semanas:
-            event.weeks.append(WeeklyPlan(
-                week_number=s.numero, week_date=s.fecha,
-                planned_km=s.km, expected_time=s.tiempo_esperado, phase=s.fase.value,
-            ))
-        athlete_plan.events.append(event)
-    await repo.guardar(athlete_plan)
-    await db.refresh(athlete_plan)
-    return athlete_plan
+        pruebas.append((prueba, [
+            Semana(
+                numero=s.numero, fecha=s.fecha, km_planificados=s.km,
+                esperado=Tiempo(s.tiempo_esperado), fase=s.fase,
+            )
+            for s in semanas
+        ]))
+    return pruebas
+
+
+async def add_athlete(
+    repo: RepositorioDeInscripciones, macro: Macrociclo, atleta: Atleta,
+    data: AddAthleteRequest,
+) -> Inscripcion:
+    """Inscribe al atleta con sus pruebas, todo en una transacción.
+
+    Devuelve la inscripción ya guardada (con su `id`).
+
+    `InscripcionImposible` (ficha de baja o de otro club) sube al router: 409.
+    """
+    # Una base que no es un ritmo (0, negativa) entra como «sin base», como
+    # antes de C9: cambiarlo a un 422 no era decisión de este bloque.
+    base = Ritmo(data.aerobic_base) if data.aerobic_base and data.aerobic_base > 0 else None
+    inscripcion = macro.inscribir(atleta, base, data.aerobic_base_source)
+    fila = await repo.guardar(inscripcion, pruebas=_pruebas(macro, atleta, data))
+    assert fila is not None   # una inscripción nueva siempre es del equipo de quien la crea
+    return inscripcion
 
 
 async def remove_athlete(
-    repo: RepositorioDeMacrociclos, plan_id: int, athlete_plan_id: int,
-) -> bool:
+    repo: RepositorioDeInscripciones, plan_id: int, athlete_plan_id: int,
+) -> bool | None:
     """Saca al atleta del macrociclo. **Da de baja la inscripción, no la borra.**
 
     Hasta el 2026-08-07 hacía `db.delete(ap)`, y `AthletePlan` cascadea a
     `athlete_events` y de ahí a `weekly_plans`: se llevaba las 12 semanas del
-    atleta y todos los tiempos reales que había registrado. Reproducido con el
-    harness — `weekly_plans` pasaba de 36 filas a 24, incluido un tiempo puesto
-    un segundo antes.
+    atleta y todos los tiempos reales que había registrado.
 
-    False si no existe o si es de otro macrociclo; el router lo traduce a 404.
+    `None` si no existe, no es visible o es de otro macrociclo (el router: 404).
+    Si no, si cambió algo: sacar a quien ya estaba fuera no falla.
     """
-    ap = await repo.inscripcion(athlete_plan_id)
-    if ap is None or ap.plan_id != plan_id or not ap.is_active:
-        return False
-    ap.is_active = False
-    await repo.confirmar()
-    return True
+    inscripcion = await repo.por_id(athlete_plan_id)
+    if inscripcion is None or inscripcion.macrociclo_id != plan_id:
+        return None
+    cambio = inscripcion.dar_de_baja()
+    if cambio:
+        await repo.guardar(inscripcion)
+    return cambio
 
 
 async def restore_athlete(
-    repo: RepositorioDeMacrociclos, plan_id: int, athlete_plan_id: int,
-) -> bool:
+    repo: RepositorioDeInscripciones, atletas: RepositorioDeAtletas,
+    plan_id: int, athlete_plan_id: int,
+) -> bool | None:
     """Vuelve a inscribir a un atleta dado de baja, con su histórico intacto.
 
-    Sin esta puerta, la baja lógica de arriba sería un borrado con otro nombre:
-    el dato seguiría en la tabla pero nadie podría recuperarlo desde la
-    aplicación.
+    Sin esta puerta, la baja lógica de arriba sería un borrado con otro nombre.
+    Mismo contrato que `remove_athlete`: `None` es 404, si no, si cambió algo.
+
+    **Devolver es inscribir otra vez**: la ficha tiene que seguir activa, o el
+    restore sería la puerta trasera de lo que `Macrociclo.inscribir` cierra por
+    delante (`InscripcionImposible`, el 409).
     """
-    ap = await repo.inscripcion(athlete_plan_id)
-    if ap is None or ap.plan_id != plan_id or ap.is_active:
-        return False
-    ap.is_active = True
-    await repo.confirmar()
-    return True
+    inscripcion = await repo.por_id(athlete_plan_id)
+    if inscripcion is None or inscripcion.macrociclo_id != plan_id:
+        return None
+    atleta = await atletas.por_id(inscripcion.atleta_id)
+    if inscripcion.activa is False and (atleta is None or not atleta.activo):
+        raise InscripcionImposible(
+            f"La ficha de {atleta or 'ese atleta'} está dada de baja: "
+            "restáurala antes de devolverla al macrociclo",
+        )
+    cambio = inscripcion.restaurar()
+    if cambio:
+        await repo.guardar(inscripcion)
+    return cambio

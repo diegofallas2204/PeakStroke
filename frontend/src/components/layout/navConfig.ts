@@ -8,7 +8,7 @@
 // temprano dirían cosas distintas.
 import {
   LayoutDashboard, CalendarRange, Users, Timer, Table2,
-  ListChecks, FlaskConical, UserRound, type LucideIcon,
+  ListChecks, FlaskConical, UserRound, Activity, type LucideIcon,
 } from 'lucide-react'
 import { SECTION_ACCENT } from '../../lib/constants'
 
@@ -31,6 +31,9 @@ export const NAV_ITEMS: NavItem[] = [
   nav('/macrociclos', 'Macrociclos', CalendarRange, ['coach']),
   nav('/atletas', 'Atletas', Users, ['coach']),
   nav('/pruebas', 'Base aeróbica', Timer),
+  // De los dos roles, como Base aeróbica: el atleta apunta lo que nadó y el
+  // entrenador lo ve (y lo corrige) en cada uno de sus atletas.
+  nav('/entrenamiento', 'Entrenamiento', Activity),
   // Una sola entrada con tres vistas dentro (`?vista=`): Plan, Progresión y
   // Zonas. Comparación era una sección aparte que pedía los mismos datos con el
   // mismo selector; su contenido es hoy la vista Progresión, y `/comparacion`

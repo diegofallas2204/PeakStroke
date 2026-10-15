@@ -1,11 +1,9 @@
 """Las reglas del equipo que no son consultas.
 
-Las consultas están en `persistencia/repositorios/equipos.py`. Aquí queda lo que
-decide: quién puede ser dueño, y cómo se pinta el club hacia fuera.
-
-Cuando `Equipo` y `Pertenencia` sean entidades (§5.2 del rediseño),
-`transfer_ownership` se convierte en `Equipo.transferir_propiedad(nuevo_jefe)` y
-este archivo se queda solo con la presentación.
+Las consultas están en `persistencia/repositorios/equipos.py` y las reglas en
+`dominio.entidades.Equipo` (§5.2, 2026-10-14): quién puede ser dueño lo decide
+`Equipo.transferir_propiedad`. Aquí queda pedirle al club que cambie y cómo se
+pinta hacia fuera.
 """
 from __future__ import annotations
 
@@ -13,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.principal import Principal
 from app.persistencia.repositorios import RepositorioDeEquipos
-from app.persistencia.tablas.equipos import ROLE_COACH, Team
+from app.persistencia.tablas.equipos import Team
 from app.persistencia.tablas.usuarios import User
 
 from .schemas import TeamResponse
@@ -24,23 +22,22 @@ async def transfer_ownership(
 ) -> Team:
     """Cede la propiedad a otro entrenador **activo** del mismo equipo.
 
-    Las tres comprobaciones son la razón de ser de esta función: la FK compuesta
-    del esquema garantiza que el nuevo dueño sea miembro del equipo, pero no que
-    esté activo ni que sea entrenador. Un equipo cuyo dueño es un atleta —o una
-    cuenta revocada— se queda sin nadie capaz de administrarlo.
+    Las tres comprobaciones son de `Equipo.transferir_propiedad`, que levanta
+    `OperacionDeEquipoImposible` (un `ValueError`: el router lo convierte en 400).
     """
     # Con las inactivas incluidas a propósito: hace falta poder decir "esa
     # cuenta tiene el acceso revocado" en vez de "no pertenece a este equipo",
     # que sería falso y mandaría al entrenador a buscar donde no es.
     miembro = await repo.pertenencia(new_owner_id, incluir_inactivas=True)
-    if miembro is None or miembro.team_id != equipo.id:
-        raise ValueError("Esa cuenta no pertenece a este equipo")
-    if miembro.role != ROLE_COACH:
-        raise ValueError("Solo un entrenador puede ser dueño del equipo")
-    if not miembro.is_active:
-        raise ValueError("Esa cuenta tiene el acceso revocado")
+    club = repo.como_equipo(equipo)
+    club.transferir_propiedad(repo.como_pertenencia(miembro) if miembro else None)
+    return await repo.guardar_equipo(club)
 
-    return await repo.fijar_dueno(equipo, new_owner_id)
+
+async def rename_team(repo: RepositorioDeEquipos, equipo: Team, nombre: str) -> Team:
+    club = repo.como_equipo(equipo)
+    club.renombrar(nombre)
+    return await repo.guardar_equipo(club)
 
 
 async def to_response(
@@ -51,6 +48,8 @@ async def to_response(
     return TeamResponse(
         id=equipo.id, name=equipo.name, owner_id=equipo.owner_id,
         owner_name=dueno.name if dueno else None,
-        is_owner=principal.is_owner,
+        # Del equipo que se pinta, no del `Principal`: tras transferir, quien
+        # pregunta acaba de dejar de ser dueño y el `Principal` se tomó antes.
+        is_owner=equipo.owner_id == principal.id,
         coaches=coaches, athletes=athletes, swimmers=swimmers,
     )

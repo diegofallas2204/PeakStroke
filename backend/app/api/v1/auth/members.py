@@ -14,6 +14,7 @@ from app.core.auditoria import TipoDeEvento, auditar
 from app.core.database import get_db
 from app.core.dependencies import Principal
 from app.core.guards import require_coach
+from app.dominio.entidades import OperacionDeEquipoImposible
 from app.persistencia.repositorios import RepositorioDeEquipos
 from app.persistencia.tablas.equipos import TeamMember
 
@@ -69,16 +70,20 @@ async def update_member(
     user, membership = fila
 
     # El dueño del equipo no puede quedarse sin acceso ni dejar de ser entrenador
-    # por la puerta de atrás: primero hay que transferir la propiedad.
+    # por la puerta de atrás: primero hay que transferir la propiedad. La regla
+    # es del club (`Equipo.admite_cambio`).
     team = await equipos.equipo(principal.team_id)
-    if team and team.owner_id == user.id and (data.is_active is False or data.role == "athlete"):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            "Ese entrenador es el dueño del equipo. Transfiere la propiedad primero.",
-        )
+    if team is not None:
+        try:
+            equipos.como_equipo(team).admite_cambio(
+                equipos.como_pertenencia(membership),
+                revocar=data.is_active is False, a_atleta=data.role == "athlete",
+            )
+        except OperacionDeEquipoImposible as exc:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
     rol_antes, activa_antes = membership.role, membership.is_active
-    await service.update_member(db, user, membership, data)
+    await service.update_member(equipos, user, membership, data)
     _auditar_cambios(principal, user.id, user.email, rol_antes, activa_antes, membership)
     return await service.get_member(db, user, membership)
 

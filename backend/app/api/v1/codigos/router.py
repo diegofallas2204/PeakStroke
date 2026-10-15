@@ -134,7 +134,7 @@ async def revoke_code(
     code = await codigos.del_equipo(code_id, principal.team_id)
     if code is None:
         raise HTTPException(404, "Código no encontrado")
-    await codigos.revocar(code)
+    await service.revoke(codigos, code)
     auditar(TipoDeEvento.CODIGO_REVOCADO, principal, objetivo=("link_code", code.id))
 
 

@@ -13,8 +13,10 @@ import { useSimpleMode } from '../../hooks/useSimpleMode'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { weekDateTick } from '../../components/charts/weekAxisTick'
 import { Card, EmptyState, Spinner, StatusBadge } from '../../components/ui/primitives'
+import { Link } from 'react-router-dom'
 import { BotonPdf } from '../../components/ui/BotonPdf'
 import { descargarEquipoPdf } from './teamPdf'
+import { CeldaDeCarga } from './CeldaDeCarga'
 
 export function TeamPage() {
   const selectedId = useSelectedPlanId()
@@ -141,13 +143,27 @@ export function TeamPage() {
                   <th key={z} style={{ color: ZONE_META[z].color }}>{z}</th>
                 ))}
                 <th>Km</th><th>Real</th><th>Estado</th>
+                <th title="Balance de carga (TSB) al cierre de la semana, sin pasar de hoy. El color es el aviso del día.">
+                  Forma (TSB)
+                </th>
               </tr>
             </thead>
             <tbody>
               {data.rows.map((row) => (
                 <tr key={row.event_id} style={{ opacity: row.disabled ? 0.4 : 1 }}>
                   <td>
-                    <p className="font-semibold">{row.name}</p>
+                    {/* El nombre lleva a la curva del atleta: la columna de forma
+                        resume un día, la curva enseña por qué. */}
+                    {row.swimmer_id != null ? (
+                      <Link
+                        to={`/entrenamiento?atleta=${row.swimmer_id}`}
+                        className="font-semibold underline-offset-2 hover:underline"
+                      >
+                        {row.name}
+                      </Link>
+                    ) : (
+                      <p className="font-semibold">{row.name}</p>
+                    )}
                     {!simple && <p className="text-[10.5px] text-text-faint">{SPECIALTY_LABEL[row.specialty] ?? row.specialty}</p>}
                   </td>
                   <td className="text-text-dim">{row.event_label}</td>
@@ -184,6 +200,7 @@ export function TeamPage() {
                         ? <StatusBadge status={row.status} />
                         : <span className="text-[10.5px] text-text-faint">—</span>}
                   </td>
+                  <td><CeldaDeCarga load={row.load} /></td>
                 </tr>
               ))}
             </tbody>
@@ -195,6 +212,7 @@ export function TeamPage() {
             Salida = intervalo para repeticiones de 100m, cuadrado al reloj de pared;
             el descanso crece con la intensidad de la zona.
             Km por zona = distribución sugerida según la especialidad del atleta.
+            Forma = balance de carga (TSB) al cierre de la semana; el nombre lleva a su curva.
           </p>
         )}
       </Card>

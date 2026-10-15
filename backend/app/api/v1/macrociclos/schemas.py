@@ -6,7 +6,16 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.dominio.valores import Fase, Prueba
+from app.api.entrada import Entrada
+from app.dominio.entidades import (
+    Competencia,
+    FaseDelMacro,
+    Macrociclo,
+    PruebaObjetivo,
+    exigir_nombre,
+)
+from app.dominio.servicios.motor import fases_por_defecto
+from app.dominio.valores import Fase
 
 
 # ── Fases y competencias ─────────────────────────────────────────────
@@ -50,7 +59,7 @@ class CompetitionResponse(CompetitionInput):
 
 
 # ── Plan ─────────────────────────────────────────────────────────────
-class PlanCreate(BaseModel):
+class PlanCreate(Entrada):
     name: str = Field(min_length=2, max_length=120)
     start_date: date
     total_weeks: int = Field(ge=8, le=24)
@@ -62,8 +71,48 @@ class PlanCreate(BaseModel):
     n_mac: int = Field(default=1, ge=1, le=10)
     main_event: str | None = None
     notes: str | None = None
-    phases: list[PhaseInput] = []
-    competitions: list[CompetitionInput] = []
+    phases: list[PhaseInput] = []  # noqa: RUF012 — Pydantic copia el default; ruff no ve que `Entrada` es un BaseModel
+    competitions: list[CompetitionInput] = []  # noqa: RUF012
+
+    @model_validator(mode="after")
+    def _cabe_en_el_macro(self) -> PlanCreate:
+        # Como `EventInput`: construir la entidad ES la validación, y el mensaje
+        # del 422 sale del dominio. Las fases que no cubren el macro, una
+        # competencia fuera de él o un nombre en blanco (TODO-24) no llegan a
+        # existir — y no salen como un 500 al guardarlos.
+        self.a_entidad()
+        return self
+
+    def a_entidad(self) -> Macrociclo:
+        """El macrociclo del formulario, sin guardar.
+
+        **El equipo y el entrenador a cargo no están aquí**, ni en el
+        formulario: los pone el repositorio al guardarlo, de la sesión de quien
+        lo crea. Si el equipo fuese un campo del schema, cualquiera podría crear
+        macrociclos dentro de un equipo ajeno con solo cambiar un número.
+
+        Sin fases en el formulario, las cinco por defecto del motor.
+        """
+        fases = [p.model_dump() for p in self.phases] or fases_por_defecto(self.total_weeks)
+        return Macrociclo.nuevo(
+            self.name, self.start_date, self.total_weeks,
+            semanas_por_micro=self.weeks_per_micro, km_totales=self.total_km,
+            piscina=self.pool, n_mac=self.n_mac,
+            prueba_principal=self.main_event, notas=self.notes,
+            fases=[
+                FaseDelMacro(
+                    fase=Fase.del_macro(p["type"]), nombre=p["name"], color=p["color"],
+                    semana_inicio=p["week_start"], semana_fin=p["week_end"], orden=i,
+                )
+                for i, p in enumerate(fases)
+            ],
+            competencias=[
+                Competencia(
+                    nombre=c.name, semana=c.week_number, dias=c.days, es_principal=c.is_main,
+                )
+                for c in self.competitions
+            ],
+        )
 
 
 class PlanUpdate(BaseModel):
@@ -74,8 +123,15 @@ class PlanUpdate(BaseModel):
     pool: Literal["25", "50"] | None = None
     n_mac: int | None = Field(default=None, ge=1, le=10)
 
+    @field_validator("name")
+    @classmethod
+    def _nombre_con_texto(cls, valor: str | None) -> str | None:
+        # La regla de `Macrociclo.renombrar`, aplicada antes: si solo la
+        # aplicara la entidad, un nombre en blanco saldría como un 500.
+        return valor if valor is None else exigir_nombre(valor)
 
-class EventInput(BaseModel):
+
+class EventInput(Entrada):
     priority: int = Field(default=1, ge=1, le=5)
     distance: int = Field(ge=25, le=10000)
     stroke: str
@@ -84,10 +140,19 @@ class EventInput(BaseModel):
 
     @model_validator(mode="after")
     def _valid_event(self) -> EventInput:
-        # Construir la `Prueba` ES la validación: el combo imposible no llega a
-        # existir, y el mensaje sale del dominio. Ver `app/dominio/valores/prueba.py`.
-        Prueba(self.distance, self.stroke)
+        # Construir la entidad ES la validación: el combo imposible no llega a
+        # existir, y el mensaje sale del dominio (`valores/prueba.py`). Desde C9
+        # se construye la `PruebaObjetivo` entera y no solo su `Prueba`, así
+        # que lo que `nomina.py` recibe ya pasó por el constructor de la entidad.
+        self.a_entidad()
         return self
+
+    def a_entidad(self) -> PruebaObjetivo:
+        """La prueba objetivo, sin guardar. El estilo sale canónico."""
+        return PruebaObjetivo.nueva(
+            self.distance, self.stroke, self.current_time, self.goal_time,
+            prioridad=self.priority,
+        )
 
 
 class EventResponse(EventInput):
@@ -95,7 +160,7 @@ class EventResponse(EventInput):
     id: int
 
 
-class AddAthleteRequest(BaseModel):
+class AddAthleteRequest(Entrada):
     swimmer_id: int
     aerobic_base: float | None = None
     aerobic_base_source: str | None = None
@@ -171,13 +236,13 @@ class WeekResponse(BaseModel):
     is_competition: bool = False
 
 
-class WeekUpdateRequest(BaseModel):
+class WeekUpdateRequest(Entrada):
     """Los dos campos de arriba los escribe el atleta; los dos de abajo, no.
 
     No todos los campos de una semana pesan lo mismo. El tiempo real es el dato
     que el atleta aporta sobre sí mismo. El parón (`disabled`) es una decisión de
     entrenamiento —lesión, vacaciones, competencia— que redistribuye la mejora
-    restante entre las semanas activas vía `_recalculate_event`: quien lo pone
+    restante entre las semanas activas (`semanas._recalcular`): quien lo pone
     está reescribiendo la curva, no registrando un resultado.
 
     Es una autorización **por campo**, no por endpoint, y por eso no la puede
@@ -186,7 +251,9 @@ class WeekUpdateRequest(BaseModel):
     pegada a los campos que gobierna y no en un `if` perdido en el router.
     """
 
-    real_time: float | None = None
+    # `gt=0`: un tiempo que no es positivo no es un tiempo. Hasta C9 llegaba
+    # al CHECK de `resultados` y salía como un 500.
+    real_time: float | None = Field(default=None, gt=0)
     clear_real_time: bool = False
     disabled: bool | None = None
     disable_reason: str | None = None

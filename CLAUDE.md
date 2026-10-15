@@ -31,8 +31,10 @@ cd backend && .venv\Scripts\python -m alembic upgrade head
 cd backend && .venv\Scripts\python -m alembic revision --autogenerate -m "qué cambia"
 cd backend && .venv\Scripts\python -m alembic current
 
-# Crear una cuenta sin borrar datos (bootstrap del primer entrenador)
-cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "Ana" --role coach
+# CLI de operaciones (D1): club y dueño, cuentas, revocar/liberar, sesiones,
+# contraseña temporal, transferir y salud. Cada comando, en tools/README.md
+cd backend && .venv\Scripts\python tools/ops.py crear-equipo --nombre-equipo "Club" --correo x@y.dev --nombre "Ana"
+cd backend && .venv\Scripts\python tools/ops.py salud
 ```
 
 ## Ramas
@@ -54,7 +56,9 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
 - **Entre rebanadas del API no se importa NADA.** Ni siquiera modelos: las tablas están en `persistencia/tablas/`, así que leer una fila ajena es mirar hacia abajo y no de lado. **Ya no es una convención**: `tests/test_dependencias_de_capas.py` lo comprueba por AST, y su lista `VIOLACIONES_CONOCIDAS` está **vacía**. `tools/grafo_de_imports.py` imprime el grafo y marca las flechas que suben (hoy: ninguna)
 - **Para preguntarle algo a otro agregado, se pide al repositorio, no se importa al vecino.** `RepositorioDeMacrociclos(db, principal)` devuelve un `Macrociclo` que ya sabe su semana actual y su estado efectivo; `acotar(stmt)` acota cualquier consulta al alcance de quien pregunta. Los repositorios se piden como dependencia de FastAPI desde `app/api/dependencias.py`
 - **Tres repositorios NO llevan `Principal`, y está razonado**: `equipos`, `usuarios` y `codigos`. El equipo *es* la frontera que los demás aplican y `Principal` se construye a partir de lo que devuelve; y la mitad de las lecturas de códigos las hace quien todavía no pertenece a ningún club. Lo que las sostiene es la regla de siempre: **el `team_id` sale de la sesión, nunca del cuerpo de la petición**
-- **Las escrituras todavía arman filas del ORM desde `api/v1/`**, y no es descuido: `Inscripcion`, `PruebaObjetivo` y `Semana` (§5.6-5.8) aún no son entidades, así que no hay nada que `repo.guardar(agregado)` pudiera recibir. Entran con C6-C7, junto con los mutadores (`dar_de_baja`, `inscribir`)
+- **Estos agregados ya se escriben por su entidad**: `sesiones` (C7, `guardar(Sesion)`), las **inscripciones** (C9 punto 2, 2026-10-05: `Macrociclo.inscribir()` exige ficha del club y activa —y devolver (`restore`) también—, `Inscripcion.dar_de_baja()/restaurar()` idempotentes, `RepositorioDeInscripciones` **compone** al de macrociclos y reutiliza su `acotar`; las rutas de nómina viven en `api/v1/macrociclos/router_nomina.py`) y `atletas` (C9 punto 1, 2026-10-05): crear, editar, dar de baja y restaurar una ficha pasan por `Atleta` —`Atleta.nueva(...)`, `dar_de_baja()`/`restaurar()`, idempotentes y que devuelven si cambiaron— y `RepositorioDeAtletas.guardar(atleta)` es la única puerta a la fila (el alta del entrenador, la invitación y el seed por igual). `guardar` **no escribe `user_id`**: ligar ficha y cuenta es del canje del código. **Y las pruebas objetivo** (C9 punto 3, 2026-10-13): `EventInput.a_entidad()` construye la `PruebaObjetivo` (una `Prueba` y dos `Tiempo`; el estilo sale canónico, «crol» → «libre»), `nomina.py` le pide al motor su plan y `RepositorioDeInscripciones.guardar(inscripcion, pruebas=[(prueba, semanas)])` arma las filas en la misma transacción — **`api/v1/macrociclos/nomina.py` no importa ninguna tabla**, y un test lo comprueba. Los umbrales del veredicto de factibilidad viven en `valores.Veredicto.del_uso`, que usan el motor y `PruebaObjetivo.factibilidad(techo)`. **Y la semana** (C9 punto 4, 2026-10-13): `RepositorioDeSemanas` —que **compone** al de macrociclos, como el de inscripciones— entrega un `PlanDePrueba` (macrociclo, inscripción, ficha, prueba y semanas, todo entidades); `semanas.py` les pide a las `Semana` que cambien (`parar`/`reanudar`/`reanclar`) y `guardar` escribe **solo** el recalculado, el parón y su razón. **`Semana.esperado` no se puede reasignar y el repositorio no lo escribe**: «la curva ideal nunca se modifica» ya no depende de que nadie se acuerde. El recálculo se sigue orquestando en `semanas.py` porque llama al motor y las entidades no importan los servicios. **Ninguna escritura de `api/v1/macrociclos/` arma ya filas del ORM** (`service.py`, `nomina.py` y `semanas.py` no importan tablas; un test lo comprueba). **Y el macrociclo en sí** (2026-10-13): `PlanCreate.a_entidad()` construye el `Macrociclo` del formulario (al validar, como `EventInput`), `service.aplicar` le pide los cambios enviados (`renombrar`, `anotar`, `fijar_meta`, `cambiar_estado`, `cambiar_piscina`, `numerar`) y `RepositorioDeMacrociclos.guardar(macro)` lo escribe — **el equipo y el entrenador a cargo salen del `Principal` del repositorio**, y al editar solo se escribe lo editable (`persistencia/mapeo/hacia_modelos.py`). `service.py` tampoco importa tablas; presentar la respuesta, que sí las lee, está en `presentacion.py`. **Lo que un macrociclo rechaza, solo al escribir** (TODO-24, 2026-10-14): fases que no cubran de la semana 1 a la última sin solapes ni huecos (en cualquier orden), una competencia fuera del macro y un nombre de solo espacios — en `Macrociclo.nuevo()` y `renombrar()`, nunca en el constructor, porque el mapeo corre en cada lectura y un macro viejo que incumpla tiene que poder abrirse. Las reglas viven en `entidades/calendario_del_macro.py` y el asistente del frontend las repite (`plans/calendario.ts`). Las **vistas** (tablero, tabla del equipo, intervalos) siguen leyendo las semanas como filas por `pruebas_de()`: no escriben. Lo que queda de C9 está en la cabecera de `docs/REDISENO.md`
+- **Insertar un hijo por su FK no actualiza la colección del padre ya cargado.** Si una ruta lee una fila con `selectinload`, inserta un hijo con `padre_id=...` y relee para responder, la relectura devuelve el objeto que sigue vivo en la sesión con la colección de antes — o no, según haya pasado el recolector de basura. Le pasó al alta de un atleta (la respuesta salía sin el recién inscrito; 2026-10-13). El repositorio que inserta expira la colección (`_olvidar_la_nomina_de`), y se prueba con `gc.disable()` alrededor de la petición. **Barrido hecho el 2026-10-14 (TODO-22)**: 21 escrituras que responden con cuerpo, cada una contra su GET con el recolector apagado; solo difería `POST /plans/` (competencias en orden de llegada: `Macrociclo.nuevo` las ordena por semana). Fuera del barrido: login, refresh, `/me/password` y `redeem`, que no tienen GET con el que compararse. El revisor encontró otra respuesta rancia de otro tipo —`POST /teams/mine/transfer` decía `is_owner: True` a quien acababa de ceder la propiedad, porque salía del `Principal` tomado antes de escribir— y ya sale del equipo transferido. Una escritura nueva que responda con un padre y sus hijos se prueba igual
+- **Un cuerpo de petición con un `float` hereda de `api.entrada.Entrada`** (`allow_inf_nan=False`; TODO-23, 2026-10-14). El `json` de Python acepta `Infinity` y `NaN`, y `Field(gt=0)` deja pasar `Infinity`: HEAD llegaba a **guardar** un peso infinito. `tests/test_entrada_finita.py` recorre las rutas y falla si un cuerpo nuevo no hereda. El 422 lo pinta `entrada.validacion_pintable`, que es el de FastAPI salvo los no finitos (el de FastAPI copiaba el `inf` en el error y reventaba al escribirlo)
 - Ningún archivo supera ~300 líneas; si crece, extraer submódulo
 - Type hints en todo Python; TypeScript strict en el frontend
 - Frontend: cada página vive en `frontend/src/features/<feature>/`
@@ -136,7 +140,7 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
   importando de `core.dependencies`; los guards, de `core.guards`
 - **El rol es un objeto, no una cadena** (paso 3 del rediseño, 2026-08-17).
   `Principal` **compone** un `Rol` de `app/dominio/roles/` —`principal.rol`, que
-  `core/principal.rol_de` construye desde `team_members.role` + si es
+  `core/principal.rol_de` construye —delegando desde el 2026-10-14 en la fábrica del dominio, `entidades.equipo.rol_para`— desde `team_members.role` + si es
   `teams.owner_id`— y los servicios preguntan al rol en vez de encadenar `if`:
   `visible_to` mira `alcance_de_macrociclos()`, el parón de la semana mira
   `puede_escribir(Recurso.PARON_DE_SEMANA)`. Quedan dos ejes FUERA de la
@@ -149,6 +153,12 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
   se ascendiera a entrenador en una petición
 - Recurso ajeno (de otro equipo o de otro atleta) → **404, nunca 403**. El 403 se
   reserva para "tu rol no alcanza", que es una afirmación distinta
+- **La identidad también son entidades** (C9, 2026-10-14): `Usuario` (`revocar_sesiones`, `rotar_refresh`, `cambiar_password(nuevo_hash)`, `registrar_login`), `Equipo`/`Pertenencia` (`transferir_propiedad`, `es_jefe`, `admite_cambio`, `revocar`/`restaurar`, `rol_de_dominio`) y `CodigoDeVinculacion` (`es_servible`, `es_para`, `admite`, `canjear`, `revocar`), con su mapeo en `persistencia/mapeo/identidad.py`. Las lecturas siguen dando filas (`Principal` las lleva); para escribir, `repo.entidad(fila)`/`como_equipo`/`como_pertenencia`/`como_codigo` y `guardar…`. **Sus campos de estado solo cambian por sus métodos** (`entidades.base.CamposGobernados`: asignarlos levanta `AttributeError`), y `tests/escrituras_ast.py` impide que nadie fuera de `mapeo/identidad.py` asigne `token_version`, `refresh_rotation`, `password_hash`, `owner_id`, `role`, `used_at`, `used_by` ni `revoked_at` (cubre `setattr`, tuplas y `update().values()`)
+- **Revocar una pertenencia corta las sesiones** de esa cuenta en el mismo commit
+  (D1, decisión del 2026-10-14): `auth/service.update_member` sube `token_version`
+  por `RepositorioDeUsuarios.anotar` (vuelca sin confirmar) antes de
+  `guardar_pertenencia`. Revocar dos veces corta una; restaurar no corta. Lo usan
+  el API y el CLI (`tools/ops.py revocar`)
 - Cerrar sesión y cambiar la contraseña **revocan de verdad** (`token_version`),
   y el refresh token **solo sirve una vez** (`refresh_rotation`): reusar uno
   gastado se trata como robo y corta todas las sesiones
@@ -217,6 +227,12 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   sistema y no pertenece a ningún club. Es el pool global. Entra, ve su perfil y
   sus solicitudes de ingreso, y nada más; `Principal` sigue devolviendo 403 en
   todo lo demás. `role` y `team_id` viajan a `None` juntos
+- **Liberar no es revocar** (TODO-26, decidido el 2026-10-14): para que alguien
+  cambie de club, `tools/ops.py liberar` deja la cuenta **sin club a propósito**.
+  Solo sobre la pertenencia revocada de un atleta (`Equipo.admite_liberar`) y sin
+  historia de entrenador (`RepositorioDeEquipos.historia_de_entrenador`). Borra
+  la fila, desliga su ficha (que se queda en el club con su histórico) y corta
+  las sesiones. No hay endpoint: solo el CLI. `redeem` no cambió
 - **Revocado ≠ sin equipo.** `get_membership` filtra `is_active` y devuelve
   `None` en los dos casos, así que quien decida sobre el login o sobre `/auth/me`
   **tiene que pedir `include_inactive=True`** para separarlos. Confundirlos deja
@@ -245,7 +261,8 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
 - `team_id` sale **siempre de la sesión**, nunca del cuerpo de la petición
 - Recurso de otro equipo → **404, nunca 403**: un 403 confirmaría que existe
 - El primer equipo y su dueño se crean con
-  `python tools/create_user.py --new-team "Nombre" --role coach`
+  `python tools/ops.py crear-equipo --nombre-equipo "Nombre" --correo … --nombre …`
+  (`tools/create_user.py` se retiró en D1: aceptaba `--password` por argumento y no auditaba)
 
 ## Integridad y borrado
 - **Las FKs se aplican de verdad**: `core/database.py` activa `PRAGMA
@@ -253,6 +270,10 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   solo se aplicarían en PostgreSQL — el peor sitio para descubrirlo
 - **FKs compuestas contra `(id, team_id)`** en toda tabla de relación: la base de
   datos hace imposible mezclar equipos aunque el código tenga un bug
+- **Borrar una fila de `team_members` arrastra su historia**: `coach_athletes`,
+  `plan_coaches` y `link_codes` la citan con `ON DELETE CASCADE` (`swimmers` y el
+  dueño del club, no). La única escritura que la borra es `liberar`, y antes mira
+  `historia_de_entrenador`; un borrado nuevo tiene que hacer lo mismo (/cso de D1)
 - **Nada se borra: se da de baja.** `swimmers.is_active`, `team_members.is_active`,
   `users.is_active`. `DELETE /swimmers/{id}` desactiva y devuelve el atleta
 - **El tiempo nadado es del atleta, no del plan** (C6, 2026-09-22): vive en
@@ -289,6 +310,11 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   bajas, borrados de verdad) **añade su `TipoDeEvento` y su `auditar`**. Si es de
   acceso, va también en `TIPOS_DE_ACCESO` y en el filtro de las dos vistas de
   eventos (`test_auditoria_vistas.py` compara los tres)
+- **Fuera de una petición**, un script abre `contexto_de_auditoria()` y apunta
+  como actor `os:<usuario>@<host>` (`tools/operaciones/comun.actor`: por uid, y
+  con `(sudo:<quien>)` bajo sudo), con el comando en `detail`. Si el volcado
+  falla, `ContextoDeAuditoria.perdidos` lo dice y el CLI sale con **3**: en un
+  script no puede pasar en silencio. `tools/README.md` tiene cada comando
 - `auditoria` es **append-only por trigger**: la base rechaza `UPDATE`, y `DELETE`
   de lo que tenga menos de 24 meses. La única escritura que borra es
   `tools/purgar_auditoria.py` (cron mensual). Sin FKs: el rastro sobrevive a lo
@@ -316,6 +342,7 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   usa `drop_all`, que solo conoce el metadata. Sin el import, la tabla de un
   módulo que el seed no toca sobrevive al borrado y `alembic upgrade` revienta
   con "table already exists" (le pasó a `link_codes` el 2026-08-10)
+- **Los vocabularios cerrados tienen `CHECK`** (§7.2 fila 6, `c9e1a4d7b2f6`, 2026-10-14): fase, rol, género, especialidad, estilo (ficha, prueba y resultado), piscina, estado del macro, tipo y modo de ingreso del test, y los de `resultados`/`sesiones`/`auditoria`. Salen de los enums del dominio (`persistencia/tablas/vocabulario.py`), y `tests/test_vocabularios.py` compara dominio, tablas, migración y los `Literal` del API: **si el API aceptara algo que el CHECK rechaza, saldría un 500**. Una columna nueva de vocabulario cerrado lleva su CHECK. En SQLite, una migración en modo batch sobre `swimmers` necesita `PRAGMA legacy_alter_table` (las vistas `v_admin_*` la leen)
 - Toda tabla o columna nueva requiere su migración; `--autogenerate` compara contra
   los modelos importados en `alembic/env.py` (si no está importado ahí, es invisible)
 - `render_as_batch=True` para SQLite (no sabe hacer `ALTER COLUMN`)

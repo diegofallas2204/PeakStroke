@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password
+from app.dominio.entidades import Atleta
 from app.persistencia.tablas.atletas import Swimmer
 from app.persistencia.tablas.codigos import LinkCode
 from app.persistencia.tablas.equipos import TeamMember
@@ -228,7 +229,7 @@ async def test_no_se_emite_codigo_para_una_ficha_de_otro_equipo(
     await db.commit()
     ficha_ajena = await RepositorioDeAtletas(db, Principal(
         user=ajeno, membership=await equipos.pertenencia(ajeno.id), is_owner=True,
-    )).crear(team_id=otro.id, nombre="Nadador Ajeno")
+    )).guardar(Atleta.nueva("Nadador Ajeno"))
 
     r = await client.post(
         CODES + "/", json={"swimmer_id": ficha_ajena.id}, headers=como(world.owner_email),

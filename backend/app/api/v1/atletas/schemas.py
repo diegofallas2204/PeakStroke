@@ -10,6 +10,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.api.entrada import Entrada
 from app.api.vocabulario import Gender, MainStroke, Specialty
 
 
@@ -19,7 +20,7 @@ def _not_future(value: date | None) -> date | None:
     return value
 
 
-class SwimmerCreate(BaseModel):
+class SwimmerCreate(Entrada):
     name: str = Field(min_length=2, max_length=120)
     birth_date: date | None = None
     gender: Gender | None = None
@@ -32,7 +33,7 @@ class SwimmerCreate(BaseModel):
     _check_birth = field_validator("birth_date")(_not_future)
 
 
-class SwimmerUpdate(BaseModel):
+class SwimmerUpdate(Entrada):
     name: str | None = Field(default=None, min_length=2, max_length=120)
     birth_date: date | None = None
     gender: Gender | None = None

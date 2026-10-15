@@ -28,17 +28,18 @@ from app.dominio.entidades import (
     DIAS_DE_UNA_SEMANA,
     Contexto,
     Resultado,
-    de_la_semana,
+    Semana,
     real_de_la_semana,
 )
-from app.dominio.valores import Estilo, Piscina, Prueba
-from app.persistencia.mapeo import resultado_desde_fila
-from app.persistencia.tablas.planes import AthleteEvent, WeeklyPlan
+from app.dominio.valores import Piscina, Prueba, Tiempo
+from app.persistencia.mapeo import prueba_objetivo_desde_fila, resultado_desde_fila
+from app.persistencia.tablas.planes import AthleteEvent
 from app.persistencia.tablas.resultados import Result
 
 
 def _prueba_de(evento: AthleteEvent) -> Prueba:
-    return Prueba(evento.distance, Estilo.desde_texto(evento.stroke))
+    # Por el mapeo y no a mano: la traducción fila → prueba vive en un sitio.
+    return prueba_objetivo_desde_fila(evento).prueba
 
 
 class RepositorioDeResultados:
@@ -104,11 +105,34 @@ class RepositorioDeResultados:
                     reales[w.id] = real.segundos
         return reales
 
+    async def reales_de(
+        self, atleta_id: int, prueba: Prueba, semanas: Iterable[Semana], piscina: Piscina,
+    ) -> dict[int, Tiempo]:
+        """`{semana.id: tiempo real}` de las semanas de UNA prueba que tienen alguno.
+
+        Lo mismo que `reales_por_semana`, para quien ya tiene las entidades: la
+        consulta es una, y qué cae en cada semana lo decide `Semana.real()`.
+        """
+        semanas = list(semanas)
+        if not semanas:
+            return {}
+        resultados = await self.de_atletas_entre(
+            [atleta_id],
+            min(s.fecha for s in semanas),
+            max(s.fecha for s in semanas) + timedelta(days=DIAS_DE_UNA_SEMANA),
+        )
+        reales: dict[int, Tiempo] = {}
+        for semana in semanas:
+            real = semana.real(resultados, atleta_id=atleta_id, prueba=prueba, piscina=piscina)
+            if real is not None:
+                reales[semana.id] = real
+        return reales
+
     # ── Escritura ────────────────────────────────────────────────────────────
 
     async def apuntar_en_semana(
-        self, semana: WeeklyPlan, prueba: AthleteEvent, piscina: Piscina,
-        tiempo: float | None,
+        self, semana: Semana, *, atleta_id: int, prueba: Prueba, piscina: Piscina,
+        tiempo: Tiempo | None,
     ) -> None:
         """Lo que hace hoy `PATCH /weeks/{id}`: fijar **el** tiempo de la semana.
 
@@ -118,27 +142,28 @@ class RepositorioDeResultados:
         es `None`, apunta uno nuevo con la fecha del lunes y la piscina del plan.
         Borrar el de la semana es `tiempo=None`. Retirar, no borrar: el tiempo
         corregido sigue en la tabla. No confirma: lo hace quien llama.
+
+        El equipo del resultado nuevo sale del `Principal`, como en toda
+        escritura; y su estilo, canónico, de la `Prueba`.
         """
-        atleta = prueba.athlete_plan.swimmer_id
         filas = (await self.db.execute(self.acotar(select(Result)).where(
-            Result.swimmer_id == atleta,
-            Result.result_date >= semana.week_date,
-            Result.result_date < semana.week_date + timedelta(days=DIAS_DE_UNA_SEMANA),
+            Result.swimmer_id == atleta_id,
+            Result.result_date >= semana.fecha,
+            Result.result_date < semana.fecha + timedelta(days=DIAS_DE_UNA_SEMANA),
         ))).scalars().all()
         # La misma regla que al leer, para no retirar lo que la semana no enseña
         # (otra prueba del mismo atleta esa misma semana).
-        suyos = {r.id for r in de_la_semana(
-            (resultado_desde_fila(f) for f in filas),
-            atleta_id=atleta, prueba=_prueba_de(prueba), lunes=semana.week_date,
+        suyos = {r.id for r in semana.resultados(
+            (resultado_desde_fila(f) for f in filas), atleta_id=atleta_id, prueba=prueba,
         )}
         for fila in filas:
             if fila.id in suyos:
                 fila.is_active = False
         if tiempo is not None:
             self.db.add(Result(
-                team_id=prueba.athlete_plan.team_id, swimmer_id=atleta,
-                distance=prueba.distance, stroke=prueba.stroke, time=tiempo,
-                result_date=semana.week_date, pool=piscina.value,
+                team_id=self.principal.team_id, swimmer_id=atleta_id,
+                distance=prueba.distancia, stroke=prueba.estilo.value, time=tiempo.segundos,
+                result_date=semana.fecha, pool=piscina.value,
                 context=Contexto.CONTROL.value,
             ))
 

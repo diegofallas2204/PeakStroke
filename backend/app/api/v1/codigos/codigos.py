@@ -1,16 +1,13 @@
 """El código como se acuña y como se enseña.
 
-De qué símbolos se hace, cuánto dura y cómo se dicta. Lo que decide si **sigue
-vivo** —y cómo se compara contra el reloj— está en
-`persistencia/repositorios/codigos.py`, junto a la tabla: el corte es entre lo
-que se guarda y se compara y lo que se acuña y se enseña. Cuando el §5.13 del
-rediseño se construya, las dos mitades se juntan dentro de la entidad.
+De qué símbolos se hace y cómo se dicta. Cuánto dura, si **sigue vivo**, quién
+puede canjearlo y cómo se gasta o se revoca son de la entidad
+(`dominio.entidades.CodigoDeVinculacion`, §5.13, 2026-10-14).
 """
 from __future__ import annotations
 
 import secrets
 
-LINK_CODE_TTL_HOURS = 72
 LINK_CODE_LENGTH = 8
 
 # Sin I, L, O, U, 0 ni 1: el código se dicta en voz alta y se teclea a mano, y

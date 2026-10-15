@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Trophy, ArrowRight, Waves, ChevronsUpDown } from 'lucide-react'
+import { Trophy, ArrowRight, Waves, ChevronsUpDown, Plus } from 'lucide-react'
 import {
   Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
@@ -77,8 +77,15 @@ export function DashboardPage() {
             <button className="btn btn-ghost" onClick={() => setSwitcherOpen(true)}>
               <ChevronsUpDown size={14} /> Cambiar macrociclo
             </button>
+            {vista.accionRapida && (
+              <Link to={vista.accionRapida.a} className="btn btn-primary">
+                <Plus size={14} /> {vista.accionRapida.texto}
+              </Link>
+            )}
+            {/* Con una acción rápida delante, la principal baja a secundaria:
+                dos botones primarios juntos no dicen cuál es el de hoy. */}
             {vista.accion && (
-              <Link to={vista.accion.a} className="btn btn-primary">
+              <Link to={vista.accion.a} className={`btn ${vista.accionRapida ? 'btn-ghost' : 'btn-primary'}`}>
                 {vista.accion.texto} <ArrowRight size={14} />
               </Link>
             )}

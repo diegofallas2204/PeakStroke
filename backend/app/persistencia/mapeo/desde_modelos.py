@@ -30,8 +30,11 @@ from app.dominio.entidades import (
     Competencia,
     Contexto,
     FaseDelMacro,
+    Inscripcion,
     Macrociclo,
+    PruebaObjetivo,
     Resultado,
+    Semana,
     Sesion,
     TestAerobico,
 )
@@ -50,7 +53,14 @@ from app.dominio.valores import (
     TipoDeTest,
 )
 from app.persistencia.tablas.atletas import Swimmer
-from app.persistencia.tablas.planes import Competition, Plan, PlanPhase
+from app.persistencia.tablas.planes import (
+    AthleteEvent,
+    AthletePlan,
+    Competition,
+    Plan,
+    PlanPhase,
+    WeeklyPlan,
+)
 from app.persistencia.tablas.resultados import Result
 from app.persistencia.tablas.sesiones import SwimSession
 from app.persistencia.tablas.tests_aerobicos import AerobicTest
@@ -193,4 +203,53 @@ def medicion_desde_test(fila: AerobicTest) -> MedicionDeCss:
     return MedicionDeCss(
         fecha=fila.test_date, ritmo=Ritmo(fila.avg_per100),
         preferente=TipoDeTest.desde_texto(fila.test_type).mide_el_umbral,
+    )
+
+
+def inscripcion_desde_fila(fila: AthletePlan) -> Inscripcion:
+    return Inscripcion(
+        id=fila.id,
+        atleta_id=fila.swimmer_id,
+        macrociclo_id=fila.plan_id,
+        # Una base que no es un ritmo válido (0, negativa) no se inventa: se lee
+        # como «sin base», que es lo que el motor ya hace con ella.
+        base_aerobica=Ritmo(fila.aerobic_base) if fila.aerobic_base and fila.aerobic_base > 0 else None,
+        fuente_de_base=fila.aerobic_base_source,
+        activa=fila.is_active,
+    )
+
+
+def prueba_objetivo_desde_fila(fila: AthleteEvent) -> PruebaObjetivo:
+    """Lee solo las columnas de la prueba: no toca `weeks` ni `athlete_plan`.
+
+    El estilo pasa por `Estilo.desde_texto`: las filas de antes de C9 pueden
+    guardar un alias («crol»), y son la misma prueba que las que guardan «libre».
+    """
+    return PruebaObjetivo(
+        id=fila.id,
+        inscripcion_id=fila.athlete_plan_id,
+        prueba=Prueba(fila.distance, Estilo.desde_texto(fila.stroke)),
+        actual=Tiempo(fila.current_time),
+        meta=Tiempo(fila.goal_time),
+        prioridad=fila.priority,
+    )
+
+
+def semana_desde_fila(fila: WeeklyPlan) -> Semana:
+    """Lee solo las columnas de la semana: no toca `event`.
+
+    La fase es la clave de `Fase` (un CHECK lo impone desde P3), así que aquí no
+    se traduce nada: una fila con otro texto es un error, no un caso.
+    """
+    return Semana(
+        id=fila.id,
+        prueba_id=fila.athlete_event_id,
+        numero=fila.week_number,
+        fecha=fila.week_date,
+        km_planificados=fila.planned_km,
+        esperado=Tiempo(fila.expected_time),
+        recalculado=Tiempo(fila.recalc_time) if fila.recalc_time is not None else None,
+        fase=Fase.desde_texto(fila.phase),
+        deshabilitada=bool(fila.disabled),
+        razon=fila.disable_reason,
     )

@@ -16,10 +16,10 @@ caducidad) vive en `codes.py` y las lecturas en `queries.py`.
 from __future__ import annotations
 
 import secrets
-from datetime import timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.dominio.entidades import Atleta, CanjeImposible, CodigoDeVinculacion
 from app.persistencia.repositorios import (
     RepositorioDeAtletas,
     RepositorioDeCodigos,
@@ -31,14 +31,14 @@ from app.persistencia.repositorios import (
 # correo invitado se compara contra `users.email`, así que las dos formas de
 # normalizarlo tienen que ser LA MISMA. Copiar el `.strip().lower()` habría
 # funcionado hasta el día en que una de las dos cambiara.
-from app.persistencia.repositorios.codigos import ahora_utc, sigue_vivo
+from app.persistencia.repositorios.codigos import ahora_utc
 from app.persistencia.repositorios.usuarios import normalizar_correo
 from app.persistencia.tablas.atletas import Swimmer
 from app.persistencia.tablas.codigos import LinkCode
 from app.persistencia.tablas.equipos import ROLE_ATHLETE, ROLE_COACH, Team, TeamMember
 from app.persistencia.tablas.usuarios import User
 
-from .codigos import LINK_CODE_TTL_HOURS, LinkCodeError, generate
+from .codigos import LinkCodeError, generate
 from .schemas import InviteRequest
 
 
@@ -64,13 +64,23 @@ async def issue(
 
     ahora = ahora_utc()
     for previo in await codigos.sin_gastar_de_la_ficha(swimmer.id):
-        previo.revoked_at = ahora
+        anterior = codigos.como_codigo(previo)
+        anterior.revocar(ahora)
+        # Sin confirmar: va en el mismo commit que el nuevo, como antes.
+        await codigos.anotar(anterior)
 
-    return await codigos.guardar(LinkCode(
-        team_id=swimmer.team_id, swimmer_id=swimmer.id, created_by=coach_id,
-        code=generate(), expires_at=ahora + timedelta(hours=LINK_CODE_TTL_HOURS),
-        invited_email=normalizar_correo(invited_email) if invited_email else None,
+    return await codigos.guardar(CodigoDeVinculacion.emitir(
+        equipo_id=swimmer.team_id, ficha_id=swimmer.id, emitido_por=coach_id,
+        codigo=generate(), ahora=ahora,
+        correo_invitado=normalizar_correo(invited_email) if invited_email else None,
     ))
+
+
+async def revoke(codigos: RepositorioDeCodigos, code: LinkCode) -> None:
+    """Anula el código. Revocarlo dos veces no mueve la fecha de la primera."""
+    codigo = codigos.como_codigo(code)
+    codigo.revocar(ahora_utc())
+    await codigos.guardar(codigo)
 
 
 async def check_invitable(
@@ -142,11 +152,12 @@ async def invite(
     # fichas de la misma persona en la lista de atletas.
     swimmer = await codigos.ficha_pendiente(normalizado, team_id)
     if swimmer is None:
-        swimmer = await atletas.crear(
-            team_id=team_id, nombre=data.name, nacimiento=data.birth_date,
-            genero=data.gender, especialidad=data.specialty,
-            estilo_principal=data.main_stroke, notas=data.notes,
-        )
+        swimmer = await atletas.guardar(Atleta.nueva(
+            data.name, nacimiento=data.birth_date, genero=data.gender,
+            especialidad=data.specialty, estilo_principal=data.main_stroke,
+            notas=data.notes,
+        ))
+        assert swimmer is not None   # una ficha nueva siempre es del equipo de quien invita
 
     usuarios = RepositorioDeUsuarios(db)
     temporal: str | None = None
@@ -171,16 +182,17 @@ async def redeem(
     quien teclea bien un código bueno no le aporta nada saber cuál de los cuatro
     era.
     """
+    ahora = ahora_utc()
     code = await codigos.por_codigo(raw_code)
-    if code is None or not sigue_vivo(code):
+    codigo = codigos.como_codigo(code) if code is not None else None
+    if codigo is None or not codigo.es_servible(ahora):
         raise LinkCodeError("Código inválido o caducado", status=400)
 
     # Un código dirigido solo lo canjea su destinatario. **Mismo mensaje que el
     # de arriba**, por lo mismo: distinguir "no es tuyo" de "no existe" diría a
     # quien prueba cadenas cuáles son reales, y a quien teclea el suyo bien no le
     # aporta nada. El correo se compara ya normalizado por las dos partes.
-    if code.invited_email is not None and \
-            code.invited_email != normalizar_correo(user.email):
+    if not codigo.es_para(normalizar_correo(user.email)):
         raise LinkCodeError("Código inválido o caducado", status=400)
 
     swimmer = await db.get(Swimmer, code.swimmer_id)
@@ -195,31 +207,29 @@ async def redeem(
     if ya_ligada is not None:
         raise LinkCodeError(f"Tu cuenta ya está ligada a la ficha de {ya_ligada.name}")
 
-    membership = await RepositorioDeEquipos(db).pertenencia(
-        user.id, incluir_inactivas=True,
-    )
-
-    if membership is None:
+    # Con las revocadas incluidas: «revocado ≠ sin club». Quién entra lo decide
+    # el código (`CodigoDeVinculacion.admite`), en el orden de siempre — R5.3
+    # queda como decisión, ver la cabecera de la entidad.
+    equipos = RepositorioDeEquipos(db)
+    membership = await equipos.pertenencia(user.id, incluir_inactivas=True)
+    try:
+        crear = codigo.admite(equipos.como_pertenencia(membership) if membership else None)
+    except CanjeImposible as exc:
+        raise LinkCodeError(str(exc)) from exc
+    if crear:
         # El caso que da sentido al pool global: la persona tiene cuenta pero
         # todavía no es de ningún club. El código es su puerta de entrada.
-        membership = TeamMember(
-            team_id=code.team_id, user_id=user.id, role=ROLE_ATHLETE,
-        )
-        db.add(membership)
-    elif membership.team_id != code.team_id:
-        raise LinkCodeError("Tu cuenta ya pertenece a otro equipo")
-    elif membership.role == ROLE_COACH:
-        raise LinkCodeError("Una cuenta de entrenador no puede ligarse a una ficha")
-    elif not membership.is_active:
-        raise LinkCodeError("Tu acceso a este equipo está revocado")
+        db.add(TeamMember(team_id=codigo.equipo_id, user_id=user.id, role=ROLE_ATHLETE))
 
+    # Se gasta antes de tocar nada más: si no pudiera (no puede: `es_servible` se
+    # miró arriba con el mismo `ahora`), la sesión quedaría limpia.
+    codigo.canjear(user.id, ahora)
     # Orden obligatorio: la FK compuesta de `swimmers` apunta a `team_members`,
     # así que la pertenencia tiene que estar en la sesión antes de ligar la ficha.
     await db.flush()
     swimmer.user_id = user.id
-    code.used_at = ahora_utc()
-    code.used_by = user.id
-    await db.commit()
+    # Un solo commit para los tres: la pertenencia, la ficha y el código gastado.
+    await codigos.guardar(codigo)
     await db.refresh(swimmer)
 
     team = await db.get(Team, code.team_id)

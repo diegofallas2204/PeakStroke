@@ -4,7 +4,7 @@ import type {
   AerobicPreview, AerobicTest, AssignableAthlete, AuthConfig, DashboardSummary,
   DevIdentity, InputMode, InviteResult, JoinRequest, LinkCode, Member,
   MemberCreated, PhaseInput, Plan, SeasonResult, SimulationResult, Swimmer, Team, TeamWeek,
-  TrainingIntervals, Week,
+  TrainingIntervals, TrainingLoad, TrainingSession, TrainingSessionInput, Week,
 } from './types'
 
 const BASE = '/api/v1'
@@ -158,6 +158,32 @@ export const api = {
         `/aerobic-tests/${testId}/training-intervals?rep_distance=${repDistance}`,
       ),
     remove: (id: number) => del(`/aerobic-tests/${id}`),
+  },
+  // Lo que el atleta nadó cada día. El atleta apunta lo suyo y el entrenador lo
+  // de sus atletas; lo ajeno es 404. El borrado es REAL (excepción a «nada se
+  // borra»): la sesión es un registro que su dueño corrige.
+  sessions: {
+    list: (swimmerId: number, desde?: string, hasta?: string) => {
+      const params = new URLSearchParams({ swimmer_id: String(swimmerId) })
+      if (desde) params.set('desde', desde)
+      if (hasta) params.set('hasta', hasta)
+      return get<TrainingSession[]>(`/sessions/?${params}`)
+    },
+    create: (swimmerId: number, data: TrainingSessionInput) =>
+      post<TrainingSession>('/sessions/', { swimmer_id: swimmerId, ...data }),
+    update: (id: number, data: Partial<TrainingSessionInput>) =>
+      patch<TrainingSession>(`/sessions/${id}`, data),
+    remove: (id: number) => del(`/sessions/${id}`),
+  },
+  // CTL / ATL / TSB por día. Derivado: aquí no se escribe nada.
+  trainingLoad: {
+    get: (swimmerId: number, desde?: string, hasta?: string) => {
+      const params = new URLSearchParams()
+      if (desde) params.set('desde', desde)
+      if (hasta) params.set('hasta', hasta)
+      const qs = params.toString()
+      return get<TrainingLoad>(`/training-load/${swimmerId}${qs ? `?${qs}` : ''}`)
+    },
   },
   dashboard: {
     summary: (planId?: number) =>

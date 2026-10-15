@@ -27,6 +27,9 @@ class TrainingLoadResponse(BaseModel):
     # Menos de 14 días de historia a `hasta`: el arranque en equilibrio aún se
     # está estimando; la curva se enseña, sin alertas.
     warming_up: bool
+    # Primer día con alertas: hasta aquí el arranque se está estimando y la
+    # gráfica lo pinta como franja. `None` sin historia.
+    warmup_until: date | None = None
     # Sesiones anteriores al primer test aeróbico: sin CSS no tienen sTSS.
     sessions_without_css: int
     days: list[LoadDay]
