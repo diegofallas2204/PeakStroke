@@ -59,7 +59,18 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 > sesiones** (también por el API). Migración `d1a7c3e9f5b2` (los dos tipos de
 > acceso nuevos en las vistas), probada en SQLite y PostgreSQL. Las tablas en
 > español y N1/N2 **siguen aparcadas**. **1393 tests.** Detalle en el bloque D1.
-> El PR #4 (C9 → `main`) quedó abierto. La base de desarrollo sigue sin migrar.
+> **C9 + D1 entraron en `main` con el PR #4 (fusionado el 2026-10-15).** La base
+> de desarrollo sigue sin migrar (está en `b2d7f5a8c1e4`).
+>
+> **Lo que queda.** Del plan, solo **D2** y **D3** (PSAdmin), con **R10** y **R12**
+> por decidir; ver «Antes de ejecutarlo» en D2. Los pendientes de `TODOS.md`
+> (TODO-1, 2, 3, 17, 18, 20, 21, 25, 27, 28 y 29). Aparcados a propósito: tablas
+> en español y N1/N2. **Extras para después del rediseño, ya desbloqueados**
+> (no son bloques de este plan; viven en el vault): el **test de lactato**
+> (notas 26 y 28, con su prompt en `Workflows/Prompt — Sesión del Test de
+> Lactato`), la **interconexión de secciones por atleta** (nota 27) y el **módulo
+> de entrenamiento diario** (nota 22, que espera a N1/N2 y N3/N5). Los prompts de
+> cada sesión que queda, en el vault: `Workflows/Prompts — Lo que queda`.
 
 > **Actualizado el 2026-10-14. C9 está entero salvo las decisiones.** Seis
 > bloques en una sesión: las invariantes del macrociclo (TODO-24: fases que
@@ -2702,6 +2713,25 @@ Un README corto en tools/ con cada comando y cuándo usarlo.
 ---
 
 ## D2 · PSAdmin — proceso, sesión y frontera
+
+### Antes de ejecutarlo — anotado al cerrar D1 (2026-10-14)
+
+1. **DECIDIR R10** (túnel SSH o red privada) y **R12** (¿PSAdmin espera a
+   PostgreSQL?). La barrera 4 —un usuario de base de datos que solo puede leer
+   vistas— **no existe en SQLite**: sin PostgreSQL, D2 puede construir las
+   barreras 1 a 3 y dejar la 4 escrita y probada contra el contenedor
+   `peakstroke-db` (base aparte), pero no protegida en el despliegue.
+2. **Las cuentas de PSAdmin quedaron fuera de D1.** El prompt de abajo dice «se
+   provisionan por CLI (bloque D1)», pero `tools/ops.py` es de PeakStroke y no
+   sabe nada de ellas. Como D2 no toca `peakstroke/`, su CLI de provisión va
+   **dentro de PSAdmin**, con las mismas reglas que `ops.py`: contraseña por
+   stdin, confirmación escribiendo el nombre, `--dry-run` y auditoría en su
+   propia tabla.
+3. Lo que D2 lee ya existe: las cuatro vistas `v_admin_*` (D0), con los tipos de
+   evento que D1 añadió (`sesion.cortadas` y `cuenta.password_restablecida` en
+   accesos; `miembro.liberado` y `equipo.creado` en actividad). El actor de un
+   comando del CLI es `os:<usuario>@<host>`, con `actor_user_id` vacío.
+4. Línea base: **1393 tests**, head de Alembic `d1a7c3e9f5b2`.
 
 ### Qué pasa
 
