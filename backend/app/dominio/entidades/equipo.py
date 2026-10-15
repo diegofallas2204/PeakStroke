@@ -142,7 +142,7 @@ class Equipo(PorIdentidad, CamposGobernados):
         pertenece a este equipo», que sería falso. `None` es que no pertenece a
         ningún club. Las tres comprobaciones, en este orden, y sin tocar nada si
         alguna falla. También sirve para el primer dueño de un club recién
-        creado (`seed.py`, `tools/create_user.py`).
+        creado (`seed.py`, `tools/ops.py crear-equipo`).
         """
         if nuevo is None or nuevo.equipo_id != self.id:
             raise OperacionDeEquipoImposible("Esa cuenta no pertenece a este equipo")
@@ -159,6 +159,39 @@ class Equipo(PorIdentidad, CamposGobernados):
         if self.es_jefe(pertenencia.usuario_id) and (revocar or a_atleta):
             raise OperacionDeEquipoImposible(
                 "Ese entrenador es el dueño del equipo. Transfiere la propiedad primero.",
+            )
+
+    def admite_liberar(self, pertenencia: Pertenencia) -> None:
+        """Si esa pertenencia se puede **liberar**: dejar la cuenta en el pool.
+
+        Liberar no es revocar (TODO-26, decidido el 2026-10-14). Revocado es
+        «echado, y de este club», y no entra en ningún otro hasta que lo
+        restauren; liberado es «sin club», a propósito. Por eso solo se libera
+        lo que **ya está revocado**: quien libera tuvo que echar antes, y el
+        orden de los dos gestos queda en la auditoría.
+
+        **Solo a un atleta.** Un entrenador deja filas que lo citan por FK
+        compuesta contra su pertenencia —los códigos que emitió, a quién lleva,
+        qué macrociclos—, y esas FKs son `ON DELETE CASCADE`: borrar la
+        pertenencia **borraría esa historia en silencio**. Un atleta que antes fue
+        entrenador también la tiene; eso no lo sabe la entidad, lo mira
+        `RepositorioDeEquipos.historia_de_entrenador` (/cso de D1). Sin tocar
+        nada si alguna comprobación falla, en este orden.
+        """
+        if pertenencia.equipo_id != self.id:
+            raise OperacionDeEquipoImposible("Esa cuenta no pertenece a este equipo")
+        if self.es_jefe(pertenencia.usuario_id):
+            raise OperacionDeEquipoImposible(
+                "Esa cuenta es la dueña del equipo. Transfiere la propiedad primero.",
+            )
+        if pertenencia.es_entrenador:
+            raise OperacionDeEquipoImposible(
+                "Solo se libera a un atleta: un entrenador deja historia en el club "
+                "(códigos, asignaciones, macrociclos)",
+            )
+        if pertenencia.activa:
+            raise OperacionDeEquipoImposible(
+                "Primero revoca el acceso: solo se libera una pertenencia revocada",
             )
 
     def __str__(self) -> str:

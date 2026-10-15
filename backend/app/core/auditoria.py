@@ -60,11 +60,17 @@ class TipoDeEvento(StrEnum):
     LOGOUT = "sesion.logout"
     PASSWORD_CAMBIADA = "cuenta.password_cambiada"
     DEV_BYPASS = "dev.bypass"
+    # Los dos de acceso del CLI de operaciones (D1, `tools/ops.py`): los hace un
+    # operador desde el servidor, nunca la propia cuenta.
+    SESIONES_CORTADAS = "sesion.cortadas"
+    PASSWORD_RESTABLECIDA = "cuenta.password_restablecida"
     # Actividad sobre cuentas, equipos y registros — lo que enseña `v_admin_actividad`.
     CUENTA_CREADA = "cuenta.creada"
     ROL_CAMBIADO = "miembro.rol_cambiado"
     MIEMBRO_REVOCADO = "miembro.revocado"
     MIEMBRO_RESTAURADO = "miembro.restaurado"
+    MIEMBRO_LIBERADO = "miembro.liberado"
+    EQUIPO_CREADO = "equipo.creado"
     PROPIEDAD_TRANSFERIDA = "equipo.propiedad_transferida"
     CODIGO_EMITIDO = "codigo.emitido"
     CODIGO_CANJEADO = "codigo.canjeado"
@@ -80,11 +86,12 @@ class TipoDeEvento(StrEnum):
 
 
 # Los que forman `v_admin_accesos`; el resto va a `v_admin_actividad`. Las dos
-# vistas filtran en SQL (copia en sus migraciones) y un test comprueba que se
-# reparten todos los tipos sin solaparse.
+# vistas filtran en SQL (copia en sus migraciones; la última, `d1a7c3e9f5b2`) y
+# un test comprueba que se reparten todos los tipos sin solaparse.
 TIPOS_DE_ACCESO = frozenset({
     TipoDeEvento.LOGIN, TipoDeEvento.REFRESH_REUSADO, TipoDeEvento.LOGOUT,
     TipoDeEvento.PASSWORD_CAMBIADA, TipoDeEvento.DEV_BYPASS,
+    TipoDeEvento.SESIONES_CORTADAS, TipoDeEvento.PASSWORD_RESTABLECIDA,
 })
 
 
@@ -107,6 +114,9 @@ class ContextoDeAuditoria:
     ip: str | None = None
     user_agent: str | None = None
     apuntes: list[_Apunte] = field(default_factory=list)
+    # Cuántos apuntes no se pudieron guardar. Una petición web no lo mira (la
+    # respuesta ya salió); el CLI de operaciones sí: sale con error (D1).
+    perdidos: int = 0
 
 
 _contexto: ContextVar[ContextoDeAuditoria | None] = ContextVar("auditoria", default=None)
@@ -168,6 +178,7 @@ async def volcar(ctx: ContextoDeAuditoria) -> None:
             repo.anotar([_fila(a, ctx, _claves[periodo]) for a in apuntes])
             await db.commit()
     except Exception:
+        ctx.perdidos += len(apuntes)
         # El último rastro: si la tabla no los guarda, que al menos el log diga
         # qué se perdió. Sin la IP, que en el log no pasa por la anonimización.
         logger.exception(

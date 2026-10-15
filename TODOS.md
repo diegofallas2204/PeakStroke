@@ -45,6 +45,11 @@ Prioridad: P1 = bloquea trabajo en curso · P2 = debería caer pronto · P3 = de
 > **Cerrados el 2026-10-14** (C9, lo que quedaba del rediseño): ~~TODO-22~~,
 > ~~TODO-23~~ y ~~TODO-24~~. **Abiertos el mismo día**: TODO-25 (dos refresh
 > concurrentes) y TODO-26 (R5.3, decisión con dos lecturas).
+>
+> **Cerrado el 2026-10-14** (D1, CLI de operaciones): ~~TODO-26~~, con la lectura 2
+> y el comando `liberar`. **Abiertos el mismo día** por el /cso y el escenario de
+> límites de D1: TODO-27 (la temporal no caduca), TODO-28 (nombres de solo
+> espacios) y TODO-29 (la purga traga un fallo de auditoría).
 
 ---
 
@@ -501,7 +506,21 @@ la rotación desde C9) con `UPDATE users SET refresh_rotation = :n+1 WHERE id =
 rota: dos logins simultáneos no son un robo. Se prueba con dos sesiones contra
 PostgreSQL, no en un solo proceso SQLite.
 
-## TODO-26 — R5.3: ¿puede un atleta revocado entrar en otro club? (P2, decisión)
+## ~~TODO-26 — R5.3: ¿puede un atleta revocado entrar en otro club?~~ — CERRADO 2026-10-14
+
+**Decidido por la persona al empezar D1: la lectura 2.** Revocar sigue siendo
+echar («revocado ≠ sin equipo» no cambia) y `redeem` tampoco. Para cambiar de
+club hay una operación nueva, **`liberar`**, solo en el CLI (`tools/ops.py
+liberar`): solo sobre la pertenencia **revocada** de un **atleta** sin historia de
+entrenador. Borra la fila de `team_members` (excepción documentada a «nada se
+borra», auditada como `miembro.liberado`), desliga la ficha del club viejo, que
+se queda allí con su histórico, y corta las sesiones. **Y revocar corta las
+sesiones** desde el mismo día (segunda decisión): el access token del revocado
+muere en la siguiente petición, así que la ventana de 15 minutos de abajo ya no
+existe. Probado de punta a punta en `tests/test_cli_acceso.py::test_liberado_entra_en_otro_club`.
+El texto de abajo es el de la decisión, tal como estaba.
+
+### Lo que decía
 
 `redeem` mira el club antes que el acceso (`CodigoDeVinculacion.admite`), así
 que a una cuenta revocada en el club A que canjea un código del club B le
@@ -533,3 +552,36 @@ Recomendación: la 2, con la operación nueva como su propio bloque. De paso,
 decidir si revocar una pertenencia debe cortar las sesiones (subir
 `token_version`): hoy el token viejo vale 15 minutos más, aunque solo alcanza
 `/auth/me` (403), `/link-codes/mine` y `/link-codes/redeem`.
+
+## TODO-27 — La contraseña temporal no caduca ni obliga a cambiarse (P3)
+
+Visto por el /cso de D1 (2026-10-14, tentativo). `ops.py restablecer-password` y
+el alta (`crear-equipo`, `crear-cuenta`, `POST /auth/members`, la invitación)
+emiten una temporal que vale **para siempre**: no hay marca de «cámbiala al
+entrar» ni caducidad. Si queda en el scrollback del operador o en un chat, sigue
+abriendo la cuenta meses después.
+
+Arreglo propuesto: una columna `users.password_temporal_hasta` (o un booleano)
+que el login mire —con la temporal, solo `/auth/me/password`— y la pantalla de
+cambio obligado en el frontend. Toca login, el `Usuario` y una migración.
+
+## TODO-28 — Un nombre de solo espacios se acepta en el club y en la persona (P3)
+
+Visto en el escenario de límites de D1 (2026-10-14). `TeamUpdate.name` y
+`UserCreate.name`/`UserUpdate.name` son `Field(min_length=2)` sin quitar
+espacios: `PATCH /teams/mine {"name": "  "}` responde **200** en HEAD (medido) y
+el club se queda sin nombre visible. El CLI repite la validación del API a
+propósito, así que `ops.py crear-equipo --nombre-equipo "   "` también pasa.
+
+Arreglo propuesto: el mismo que el macrociclo en TODO-24 (`Macrociclo.renombrar`
+rechaza el nombre en blanco): en el schema, con `str_strip_whitespace` o un
+validador, para que sea un **422** y no un 500 — y el CLI lo hereda solo.
+
+## TODO-29 — `purgar_auditoria.py` sale con 0 aunque su evento no se guarde (P3)
+
+Variante del hallazgo 2 del /cso de D1 (2026-10-14), preexistente.
+`contexto_de_auditoria` traga el fallo al escribir (lo correcto en una petición
+web, D0), y el CLI de operaciones ya lo mira (`ContextoDeAuditoria.perdidos`,
+salida 3). La purga no: si su `auditoria.purgada` se pierde, el cron no se entera.
+Arreglo: mirar `ctx.perdidos` al salir del contexto y devolver un código distinto
+de 0. Diez líneas y un test.

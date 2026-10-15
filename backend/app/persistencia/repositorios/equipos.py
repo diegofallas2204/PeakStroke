@@ -23,7 +23,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dominio.entidades import Equipo, Pertenencia
+from app.dominio.entidades import Equipo, OperacionDeEquipoImposible, Pertenencia
 from app.persistencia.mapeo.identidad import (
     equipo_desde_fila,
     pertenencia_desde_fila,
@@ -31,12 +31,19 @@ from app.persistencia.mapeo.identidad import (
     volcar_pertenencia,
 )
 from app.persistencia.tablas.atletas import Swimmer
+from app.persistencia.tablas.codigos import LinkCode
 from app.persistencia.tablas.equipos import (
     ROLE_ATHLETE,
     ROLE_COACH,
     CoachAthlete,
     Team,
     TeamMember,
+)
+from app.persistencia.tablas.planes import PlanCoach
+
+_CON_HISTORIA = (
+    "Esa cuenta tiene historia como entrenador en el club (atletas a cargo, "
+    "macrociclos o códigos emitidos): liberarla la borraría. Déjala revocada."
 )
 
 
@@ -53,14 +60,20 @@ class RepositorioDeEquipos:
     async def equipo(self, team_id: int) -> Team | None:
         return await self.db.get(Team, team_id)
 
-    async def crear(self, nombre: str) -> Team:
+    async def crear(self, nombre: str, *, confirmar: bool = True) -> Team:
         """Crea el equipo **sin dueño**: todavía no existe ningún miembro al que apuntar.
 
-        Es el arranque en frío (`tools/create_user.py --new-team`, `seed.py`), no
-        una operación del API: no hay endpoint que cree equipos.
+        Es el arranque en frío (`tools/ops.py crear-equipo`, `seed.py`), no
+        una operación del API: no hay endpoint que cree equipos. Con
+        `confirmar=False` solo le da id (`flush`): el CLI confirma el club junto
+        con la cuenta de su dueño, para que un fallo al crearla no deje un club
+        vacío (lo vio el revisor de D1).
         """
         equipo = Team(name=nombre)
         self.db.add(equipo)
+        if not confirmar:
+            await self.db.flush()
+            return equipo
         await self.db.commit()
         await self.db.refresh(equipo)
         return equipo
@@ -124,6 +137,71 @@ class RepositorioDeEquipos:
         await self.db.commit()
         await self.db.refresh(fila)
         return fila
+
+    async def liberar(self, pertenencia: Pertenencia) -> int | None:
+        """Deja la cuenta sin club: desliga su ficha y **borra** la pertenencia.
+        Confirma la sesión entera. Devuelve el id de la ficha desligada, si había.
+
+        Es la excepción documentada a «nada se borra» (TODO-26, 2026-10-14):
+        `team_members` tiene `UNIQUE(user_id)` y «sin club» es no tener fila, así
+        que no hay otra forma de dejar a alguien en el pool sin migrar el esquema.
+        El rastro queda en la auditoría (`miembro.liberado`), que no tiene FKs.
+
+        **La ficha se queda en su club**, con su histórico: solo pierde la
+        cuenta. Desligarla va **antes** de borrar, porque la FK compuesta
+        `swimmers(user_id, team_id) → team_members` lo exige, y además es lo que
+        deja a la persona canjear un código en otro club (`swimmers.user_id`
+        es único global).
+
+        Quién se puede liberar lo decide `Equipo.admite_liberar`. Esto se niega,
+        además, a dos cosas que la entidad no ve: una pertenencia **activa**
+        (borrar a alguien con el acceso vivo es echarlo sin que conste que se le
+        echó) y una con **historia de entrenador** (`historia_de_entrenador`):
+        las tres FKs que la citan son `ON DELETE CASCADE` y se la llevarían.
+        """
+        if pertenencia.activa:
+            raise OperacionDeEquipoImposible(
+                "Primero revoca el acceso: solo se libera una pertenencia revocada",
+            )
+        if any((await self.historia_de_entrenador(pertenencia)).values()):
+            raise OperacionDeEquipoImposible(_CON_HISTORIA)
+        fila = (
+            await self.db.get(TeamMember, pertenencia.id) if pertenencia.id is not None else None
+        )
+        if fila is None:
+            raise LookupError(f"No hay ninguna pertenencia con id {pertenencia.id}")
+        ficha = (await self.db.execute(
+            select(Swimmer).where(
+                Swimmer.user_id == pertenencia.usuario_id,
+                Swimmer.team_id == pertenencia.equipo_id,
+            ),
+        )).scalar_one_or_none()
+        if ficha is not None:
+            ficha.user_id = None
+            await self.db.flush()
+        await self.db.delete(fila)
+        await self.db.commit()
+        return ficha.id if ficha is not None else None
+
+    async def historia_de_entrenador(self, pertenencia: Pertenencia) -> dict[str, int]:
+        """Las filas que citan a esta pertenencia **como entrenador**, por tabla.
+
+        Un atleta también puede tenerlas: basta con que antes fuera entrenador
+        (el rol se cambia por `PATCH /auth/members`). Las tres FKs son
+        `ON DELETE CASCADE` contra `team_members(user_id, team_id)`, así que
+        borrar la pertenencia las borraría sin avisar: a quién llevaba, en qué
+        macrociclos estaba y los códigos que emitió, gastados incluidos.
+        """
+        uid, tid = pertenencia.usuario_id, pertenencia.equipo_id
+        consultas = {
+            "atletas a cargo": select(func.count()).select_from(CoachAthlete).where(
+                CoachAthlete.coach_id == uid, CoachAthlete.team_id == tid),
+            "macrociclos": select(func.count()).select_from(PlanCoach).where(
+                PlanCoach.coach_id == uid, PlanCoach.team_id == tid),
+            "códigos emitidos": select(func.count()).select_from(LinkCode).where(
+                LinkCode.created_by == uid, LinkCode.team_id == tid),
+        }
+        return {nombre: (await self.db.execute(c)).scalar_one() for nombre, c in consultas.items()}
 
     async def conteos(self, team_id: int) -> tuple[int, int, int]:
         """(entrenadores activos, atletas activos, nadadores activos) del equipo."""

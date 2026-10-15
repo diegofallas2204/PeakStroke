@@ -24,7 +24,9 @@ RAIZ = Path(__file__).resolve().parents[1]
 
 
 def _archivos() -> list[Path]:
-    return [*(RAIZ / "app").rglob("*.py"), RAIZ / "seed.py", *(RAIZ / "tools").glob("*.py")]
+    # `rglob` también en `tools/`: el CLI de D1 vive en el subpaquete
+    # `tools/operaciones/`, y con `glob` el guarda no lo habría leído.
+    return [*(RAIZ / "app").rglob("*.py"), RAIZ / "seed.py", *(RAIZ / "tools").rglob("*.py")]
 
 
 def _destinos(nodo: ast.AST) -> Iterable[ast.AST]:

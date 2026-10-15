@@ -31,8 +31,10 @@ cd backend && .venv\Scripts\python -m alembic upgrade head
 cd backend && .venv\Scripts\python -m alembic revision --autogenerate -m "qué cambia"
 cd backend && .venv\Scripts\python -m alembic current
 
-# Crear una cuenta sin borrar datos (bootstrap del primer entrenador)
-cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "Ana" --role coach
+# CLI de operaciones (D1): club y dueño, cuentas, revocar/liberar, sesiones,
+# contraseña temporal, transferir y salud. Cada comando, en tools/README.md
+cd backend && .venv\Scripts\python tools/ops.py crear-equipo --nombre-equipo "Club" --correo x@y.dev --nombre "Ana"
+cd backend && .venv\Scripts\python tools/ops.py salud
 ```
 
 ## Ramas
@@ -152,6 +154,11 @@ cd backend && .venv\Scripts\python tools/create_user.py --email x@y.dev --name "
 - Recurso ajeno (de otro equipo o de otro atleta) → **404, nunca 403**. El 403 se
   reserva para "tu rol no alcanza", que es una afirmación distinta
 - **La identidad también son entidades** (C9, 2026-10-14): `Usuario` (`revocar_sesiones`, `rotar_refresh`, `cambiar_password(nuevo_hash)`, `registrar_login`), `Equipo`/`Pertenencia` (`transferir_propiedad`, `es_jefe`, `admite_cambio`, `revocar`/`restaurar`, `rol_de_dominio`) y `CodigoDeVinculacion` (`es_servible`, `es_para`, `admite`, `canjear`, `revocar`), con su mapeo en `persistencia/mapeo/identidad.py`. Las lecturas siguen dando filas (`Principal` las lleva); para escribir, `repo.entidad(fila)`/`como_equipo`/`como_pertenencia`/`como_codigo` y `guardar…`. **Sus campos de estado solo cambian por sus métodos** (`entidades.base.CamposGobernados`: asignarlos levanta `AttributeError`), y `tests/escrituras_ast.py` impide que nadie fuera de `mapeo/identidad.py` asigne `token_version`, `refresh_rotation`, `password_hash`, `owner_id`, `role`, `used_at`, `used_by` ni `revoked_at` (cubre `setattr`, tuplas y `update().values()`)
+- **Revocar una pertenencia corta las sesiones** de esa cuenta en el mismo commit
+  (D1, decisión del 2026-10-14): `auth/service.update_member` sube `token_version`
+  por `RepositorioDeUsuarios.anotar` (vuelca sin confirmar) antes de
+  `guardar_pertenencia`. Revocar dos veces corta una; restaurar no corta. Lo usan
+  el API y el CLI (`tools/ops.py revocar`)
 - Cerrar sesión y cambiar la contraseña **revocan de verdad** (`token_version`),
   y el refresh token **solo sirve una vez** (`refresh_rotation`): reusar uno
   gastado se trata como robo y corta todas las sesiones
@@ -220,6 +227,12 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   sistema y no pertenece a ningún club. Es el pool global. Entra, ve su perfil y
   sus solicitudes de ingreso, y nada más; `Principal` sigue devolviendo 403 en
   todo lo demás. `role` y `team_id` viajan a `None` juntos
+- **Liberar no es revocar** (TODO-26, decidido el 2026-10-14): para que alguien
+  cambie de club, `tools/ops.py liberar` deja la cuenta **sin club a propósito**.
+  Solo sobre la pertenencia revocada de un atleta (`Equipo.admite_liberar`) y sin
+  historia de entrenador (`RepositorioDeEquipos.historia_de_entrenador`). Borra
+  la fila, desliga su ficha (que se queda en el club con su histórico) y corta
+  las sesiones. No hay endpoint: solo el CLI. `redeem` no cambió
 - **Revocado ≠ sin equipo.** `get_membership` filtra `is_active` y devuelve
   `None` en los dos casos, así que quien decida sobre el login o sobre `/auth/me`
   **tiene que pedir `include_inactive=True`** para separarlos. Confundirlos deja
@@ -248,7 +261,8 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
 - `team_id` sale **siempre de la sesión**, nunca del cuerpo de la petición
 - Recurso de otro equipo → **404, nunca 403**: un 403 confirmaría que existe
 - El primer equipo y su dueño se crean con
-  `python tools/create_user.py --new-team "Nombre" --role coach`
+  `python tools/ops.py crear-equipo --nombre-equipo "Nombre" --correo … --nombre …`
+  (`tools/create_user.py` se retiró en D1: aceptaba `--password` por argumento y no auditaba)
 
 ## Integridad y borrado
 - **Las FKs se aplican de verdad**: `core/database.py` activa `PRAGMA
@@ -256,6 +270,10 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   solo se aplicarían en PostgreSQL — el peor sitio para descubrirlo
 - **FKs compuestas contra `(id, team_id)`** en toda tabla de relación: la base de
   datos hace imposible mezclar equipos aunque el código tenga un bug
+- **Borrar una fila de `team_members` arrastra su historia**: `coach_athletes`,
+  `plan_coaches` y `link_codes` la citan con `ON DELETE CASCADE` (`swimmers` y el
+  dueño del club, no). La única escritura que la borra es `liberar`, y antes mira
+  `historia_de_entrenador`; un borrado nuevo tiene que hacer lo mismo (/cso de D1)
 - **Nada se borra: se da de baja.** `swimmers.is_active`, `team_members.is_active`,
   `users.is_active`. `DELETE /swimmers/{id}` desactiva y devuelve el atleta
 - **El tiempo nadado es del atleta, no del plan** (C6, 2026-09-22): vive en
@@ -292,6 +310,11 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   bajas, borrados de verdad) **añade su `TipoDeEvento` y su `auditar`**. Si es de
   acceso, va también en `TIPOS_DE_ACCESO` y en el filtro de las dos vistas de
   eventos (`test_auditoria_vistas.py` compara los tres)
+- **Fuera de una petición**, un script abre `contexto_de_auditoria()` y apunta
+  como actor `os:<usuario>@<host>` (`tools/operaciones/comun.actor`: por uid, y
+  con `(sudo:<quien>)` bajo sudo), con el comando en `detail`. Si el volcado
+  falla, `ContextoDeAuditoria.perdidos` lo dice y el CLI sale con **3**: en un
+  script no puede pasar en silencio. `tools/README.md` tiene cada comando
 - `auditoria` es **append-only por trigger**: la base rechaza `UPDATE`, y `DELETE`
   de lo que tenga menos de 24 meses. La única escritura que borra es
   `tools/purgar_auditoria.py` (cron mensual). Sin FKs: el rastro sobrevive a lo

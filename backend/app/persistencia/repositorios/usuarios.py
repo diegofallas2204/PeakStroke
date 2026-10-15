@@ -78,6 +78,21 @@ class RepositorioDeUsuarios:
         """
         return usuario_desde_fila(fila)
 
+    async def anotar(self, usuario: Usuario) -> None:
+        """Vuelca lo que la entidad cambió **sin confirmar**: lo confirma quien
+        cierre la unidad de trabajo, en el mismo commit.
+
+        Existe para que cortar las sesiones viaje con el gesto que las corta
+        (D1, 2026-10-14): revocar una pertenencia (`guardar_pertenencia`) y
+        liberarla (`RepositorioDeEquipos.liberar`) confirman la sesión entera.
+        Dos commits dejarían, si el segundo fallara, a alguien echado del club y
+        con su token vivo — o con el token muerto y todavía dentro.
+        """
+        fila = await self.db.get(User, usuario.id) if usuario.id is not None else None
+        if fila is None:
+            raise LookupError(f"No hay ninguna cuenta con id {usuario.id}")
+        volcar_usuario(usuario, fila)
+
     async def guardar(self, usuario: Usuario) -> User:
         """Escribe lo que la entidad gobierna —sesiones, hash, último acceso— y
         confirma. Devuelve la fila, que es la misma que ya tenga la sesión: quien

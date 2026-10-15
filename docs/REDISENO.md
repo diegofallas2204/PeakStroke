@@ -17,9 +17,9 @@
 > | 4 | §5.8 `Semana` | la entidad, con `zonas()`, `real()` y `desviacion()` derivados | código | ✅ 2026-10-13 (ver la enmienda del §5.8) |
 > | — | §5.13 `CodigoDeVinculacion` | `es_servible()`, `canjear(usuario)`, `revocar()` como comportamiento | código | ✅ 2026-10-14 (ver la enmienda del §5.13; R5.3 sigue abierta) |
 > | — | §7.2 fila 6 | `CHECK` en zona, nivel, perfil, estilo, especialidad, tipo_de_test, piscina, estado y modo_de_ingreso | migración | ✅ 2026-10-14 (`c9e1a4d7b2f6`; zona, nivel y perfil no tienen columna) |
-> | — | §7.2 fila 9 | nombres de tabla en español | migración | ⬜ pendiente (pide decisión: es renombrar todo el esquema) |
-> | 5 | §10.2 punto 3 | **R5.3**: el orden de las comprobaciones en `redeem` | decisión + código | ⬜ pide decisión: invertirlo rompe «revocado ≠ sin equipo» y choca con `UNIQUE(user_id)`; las dos lecturas en TODO-26 |
-> | 6 | §10.3 | **N1** y **N2**: qué entra en el promedio semanal | decisión | ⬜ abiertas |
+> | — | §7.2 fila 9 | nombres de tabla en español | migración | ⬜ aparcada (decisión de la persona, 2026-10-14: renombrar todo el esquema y las cuatro vistas no aporta hoy) |
+> | 5 | §10.2 punto 3 | **R5.3**: el orden de las comprobaciones en `redeem` | decisión + código | ✅ decidida 2026-10-14 (lectura 2 de TODO-26): `redeem` no cambia; cambiar de club es `ops.py liberar` (D1), y revocar corta las sesiones |
+> | 6 | §10.3 | **N1** y **N2**: qué entra en el promedio semanal | decisión | ⬜ aparcadas (2026-10-14: se cruzan con el módulo diario) |
 > | 7 | §10.3 | **N3** y **N5**: sesiones por semana y sesión estructurada | decisión | ⬜ abiertas, del módulo diario (fuera del rediseño) |
 >
 > **Corrección del cierre:** el marcado de la mañana del 2026-10-05 omitió §5.1,
@@ -955,6 +955,11 @@ tres columnas que hay que comprobar a mano.
 > `team_members`, crear la pertenencia nueva sin mover la vieja daría un 500.
 > Sí se llega aquí (un access token vivo tras revocar, o una cuenta sin ficha),
 > así que es una decisión de producto: TODO-26.
+>
+> **Decidida el 2026-10-14 (D1)**: la lectura 2. `redeem` se queda en el orden
+> de siempre; quien tiene que cambiar de club pasa por `ops.py liberar` (solo un
+> atleta revocado y sin historia de entrenador), y revocar corta las sesiones, así
+> que el access token vivo tras revocar ya no existe.
 
 ---
 

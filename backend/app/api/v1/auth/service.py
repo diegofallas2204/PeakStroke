@@ -227,6 +227,12 @@ async def update_member(
     explícito no cambia nada**: ninguno de los tres puede quedar vacío, y hasta
     el 2026-10-14 `{"name": null}` llegaba a una columna `NOT NULL` y salía como
     un 500. Va en un solo commit: `guardar_pertenencia` confirma también el nombre.
+
+    **Revocar corta las sesiones** de esa cuenta en ese mismo commit (D1,
+    decidido el 2026-10-14): antes, el access token emitido antes seguía
+    valiendo 15 minutos, y con él `/link-codes/redeem`. Solo si la revocación
+    cambió algo: revocar a quien ya lo estaba no vuelve a echarlo de ningún
+    sitio. Restaurar no corta nada. Lo usan el API y el CLI (`tools/ops`).
     """
     campos = data.model_dump(exclude_unset=True)
     pertenencia = equipos.como_pertenencia(membership)
@@ -234,8 +240,11 @@ async def update_member(
         pertenencia.cambiar_rol(campos["role"])
     if campos.get("is_active") is True:
         pertenencia.restaurar()
-    elif campos.get("is_active") is False:
-        pertenencia.revocar()
+    elif campos.get("is_active") is False and pertenencia.revocar():
+        usuarios = RepositorioDeUsuarios(equipos.db)
+        usuario = usuarios.entidad(user)
+        usuario.revocar_sesiones()
+        await usuarios.anotar(usuario)
     if campos.get("name") is not None:
         user.name = campos["name"]
     await equipos.guardar_pertenencia(pertenencia)

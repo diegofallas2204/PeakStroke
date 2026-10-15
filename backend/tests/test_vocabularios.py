@@ -151,7 +151,9 @@ def test_la_migracion_sube_y_baja_en_sqlite(tmp_path, monkeypatch):
     # los recrearía sin ellos en silencio (lo apuntó el revisor de C9).
     assert {"ck_resultados_context", "ck_resultados_pool", "ck_resultados_time_positive",
             "ck_resultados_stroke"} <= set(arriba["resultados"][2])
-    command.downgrade(cfg, "-1")
+    # Hasta la revisión de antes de C9, no `-1`: desde D1 (`d1a7c3e9f5b2`) el head
+    # ya no es esta migración, y `-1` solo deshacía la de las vistas.
+    command.downgrade(cfg, "b2d7f5a8c1e4")
     assert acepta_basura()
     abajo = forma()
     assert "ck_resultados_context" in abajo["resultados"][2] and "ck_resultados_stroke" not in abajo["resultados"][2]

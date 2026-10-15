@@ -49,6 +49,18 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 
 ## Dónde estamos y qué sigue — medido el 2026-09-22
 
+> **Actualizado el 2026-10-14 (noche). D1 está hecho**, y con él las decisiones
+> que dejó C9. **El CLI de operaciones** es `backend/tools/ops.py`: crear club y
+> dueño, alta de cuenta, revocar, restaurar, **liberar** (TODO-26, lectura 2),
+> cortar sesiones, restablecer la contraseña, transferir y salud. Todo comando
+> que escribe audita con el actor `os:<usuario>@<host>`; los destructivos se
+> confirman escribiendo el nombre y tienen `--dry-run`; ninguna contraseña entra
+> por argumento. `tools/create_user.py` se retiró. **Revocar corta las
+> sesiones** (también por el API). Migración `d1a7c3e9f5b2` (los dos tipos de
+> acceso nuevos en las vistas), probada en SQLite y PostgreSQL. Las tablas en
+> español y N1/N2 **siguen aparcadas**. **1393 tests.** Detalle en el bloque D1.
+> El PR #4 (C9 → `main`) quedó abierto. La base de desarrollo sigue sin migrar.
+
 > **Actualizado el 2026-10-14. C9 está entero salvo las decisiones.** Seis
 > bloques en una sesión: las invariantes del macrociclo (TODO-24: fases que
 > cubren el macro, competencias dentro, nombre no en blanco; **422 nuevo**, solo
@@ -149,7 +161,7 @@ macrociclos, y ese se deja: su división natural llega con C6-C7.
 | ~~5~~ | ~~**C3 · R4 y R5.4**~~ | — | ✅ **HECHO el 2026-09-24.** Estaban asignados a C3 desde C0 y no habían entrado. **R5.3 (`redeem`) sigue abierta**: ver el bloque C3 |
 | 6 | **C9 · Mutadores y las tres entidades de escritura** (§5.3-5.8 de REDISENO) | medio | En el orden del modelo: ~~`Atleta`~~ ✅ `b3f13d9` → ~~`Inscripcion` + `Macrociclo.inscribir`~~ ✅ `37a6a0e` → ~~`PruebaObjetivo`~~ ✅ `ee65c3c` (enmienda en REDISENO §5.7) → ~~`Semana`~~ ✅ 2026-10-13 (enmienda en REDISENO §5.8). **Los cuatro puntos, hechos.** Línea base **1175 tests** (con el macrociclo, fila 6b) |
 | ~~6b~~ | ~~**C9 · lo que el marcado de la mañana omitió**~~ | — | ✅ **HECHO el 2026-10-14** salvo §7.2 fila 9 (tablas en español, pide decisión): ~~§5.4 el macrociclo~~ (2026-10-13) y sus invariantes (TODO-24) · ~~§5.1 `Usuario`~~ · ~~§5.2 `Equipo`/`Pertenencia`~~ · ~~§5.13 `CodigoDeVinculacion`~~ · ~~§7.2 fila 6~~ (`c9e1a4d7b2f6`) · y TODO-22/23. Bitácora `.gstack/bitacora/2026-10-14-c9-resto.md` |
-| 7 | **R5.3 · El orden en `redeem`** (§10.2 punto 3) | bajo, zona de seguridad | Pide decisión: choca con «revocado ≠ sin equipo» y con `UNIQUE(user_id)`. Las dos lecturas y la recomendación en **TODO-26** (2026-10-14) |
+| ~~7~~ | ~~**R5.3 · El orden en `redeem`**~~ (§10.2 punto 3) | — | ✅ **DECIDIDO el 2026-10-14** (lectura 2 de TODO-26): `redeem` no cambia; cambiar de club es `ops.py liberar`, construido en D1 |
 | 8 | **N1 y N2** (§10.3) | — | Decisiones de producto sobre el promedio semanal. N3 y N5 son del módulo diario, fuera del rediseño; N4 cerrada (PDF en cliente) |
 
 ### Cinco cabos sueltos concretos
@@ -2528,7 +2540,50 @@ Enséñame el coste medido por petición y una consulta de ejemplo sobre cada vi
 
 ---
 
-## D1 · CLI de operaciones
+## D1 · CLI de operaciones — ✅ HECHO (2026-10-14)
+
+### Cómo quedó
+
+- **`backend/tools/ops.py`** + el paquete `tools/operaciones/` (`comun`, `acceso`,
+  `equipos`, `salud`). Nueve comandos: `crear-equipo`, `crear-cuenta`, `revocar`,
+  `restaurar`, `liberar`, `cortar-sesiones`, `restablecer-password`, `transferir`
+  y `salud`. Cada uno y cuándo usarlo: `tools/README.md`, que cubre también
+  `recalcular_carga`, `purgar_auditoria` y `grafo_de_imports`.
+- **Ninguna regla vive en el CLI.** Revocar y restaurar pasan por el mismo
+  `auth/service.update_member` que el API; la contraseña, por
+  `credenciales.change_password`; transferir, por `equipos/service.transfer_ownership`;
+  y lo que se admite lo deciden `Equipo.admite_cambio`, `Equipo.admite_liberar`
+  (nueva) y `Equipo.transferir_propiedad`. Las validaciones de correo, nombre y
+  contraseña son las de `UserCreate`/`TeamUpdate`.
+- **Auditoría**: actor `os:<usuario>@<host>` en `actor_email` (por uid, y con
+  `(sudo:<quien>)` bajo sudo), el comando en `detail`, sin migración de columnas.
+  Cuatro tipos nuevos: `sesion.cortadas` y `cuenta.password_restablecida` son de
+  **acceso** (migración `d1a7c3e9f5b2`, que recrea las dos vistas de eventos);
+  `miembro.liberado` y `equipo.creado`, de actividad. `--dry-run` y `salud` no
+  auditan. Si el evento no se guarda, el CLI sale con **3** y lo dice.
+- **Revocar corta las sesiones** (decisión de la persona): `update_member` sube
+  `token_version` en el mismo commit que la revocación (`RepositorioDeUsuarios.anotar`,
+  que vuelca sin confirmar). Restaurar no corta; revocar dos veces corta una.
+- **`liberar`** (TODO-26): `Equipo.admite_liberar` (del club, no dueño, atleta,
+  revocada) + `RepositorioDeEquipos.liberar` (desliga la ficha, borra la fila,
+  confirma junto con el corte de sesiones). **Se niega con historia de
+  entrenador**: `coach_athletes`, `plan_coaches` y `link_codes` son `ON DELETE
+  CASCADE` contra `team_members` y se la llevarían en silencio (lo encontró el
+  /cso; un atleta que antes fue entrenador la tiene).
+- **`tools/create_user.py` retirado**: aceptaba `--password` y no auditaba.
+- **Tests**: 1316 → **1393** (`test_liberar_y_revocar`, `test_cli_acceso`,
+  `test_cli_equipos`, `test_cli_hallazgos`, `test_cli_revision`). Head de Alembic `d1a7c3e9f5b2`. `escrituras_ast`
+  recorre ya `tools/` entero (con `glob` se le escapaba el subpaquete).
+- **Puertas**: matriz de códigos 928 = HEAD; escenario de identidad = HEAD salvo
+  cinco pasos que usan el token de una cuenta revocada (ahora 401) y
+  `token_version` +1 por revocación; migración arriba/abajo/arriba y `alembic
+  check` en SQLite y en PostgreSQL (`peakstroke_c9`); los nueve comandos corridos
+  contra PostgreSQL; /cso comprehensive sin altos abiertos
+  (`security-reports/2026-10-14-d1.json`). Bitácora
+  `.gstack/bitacora/2026-10-14-d1-cli.md`.
+- **Lo que abrió**: TODO-27 (la temporal no caduca), TODO-28 (nombres de solo
+  espacios, también en el API) y TODO-29 (la purga traga un fallo de auditoría).
+
 
 ### Qué pasa
 
@@ -2544,10 +2599,12 @@ documento entero, y ya la tienes a medias en `tools/create_user.py`.
 
 **Bajo.** Amplía un patrón que ya existe.
 
-### Antes de ejecutarlo — anotado al cerrar D0 (2026-09-25)
+### Antes de ejecutarlo — anotado al cerrar D0 (2026-09-25), corregido tras C9 (2026-10-14)
 
 El prompt de abajo se escribió antes de que D0 existiera. Lo que hoy es distinto,
-y dos decisiones que conviene tomar **antes** de escribir código:
+y dos decisiones que conviene tomar **antes** de escribir código. **Corregido el
+2026-10-14**, al empezar D1: C9 movió la lógica a las entidades, y las tres
+decisiones (puntos 2, 3 y 4) quedaron tomadas — van marcadas en su punto.
 
 1. **Cómo audita un script ya está resuelto**: `async with
    contexto_de_auditoria(...)` y dentro `auditar(TipoDeEvento.X, ...)`. Lo usa
@@ -2559,29 +2616,52 @@ y dos decisiones que conviene tomar **antes** de escribir código:
    `familia_de()`, que solo reconoce navegadores: `"tools/…"` queda como `otro`.
    Opciones: un prefijo en `actor_email` (`os:diego@host`), el origen en
    `detail`, o una columna `origin` nueva, que es migración y cambia las vistas.
+   **Decidido (2026-10-14): las dos primeras juntas** — `actor_email =
+   os:<usuario>@<host>` y el origen en `detail`. Sin migración ni cambio de vistas.
 3. **Un tipo de evento nuevo cae solo en `v_admin_actividad`** (esa vista es
    «todo lo que no es acceso»). Si alguno es de acceso —por ejemplo forzar la
    revocación de sesiones o resetear una contraseña—, va en `TIPOS_DE_ACCESO` y
    exige una **migración que recree las dos vistas de eventos**:
    `test_auditoria_vistas.py` falla si el enum y las vistas no coinciden.
+   **Decidido (2026-10-14): los dos son de acceso.** Forzar la revocación de
+   sesiones y restablecer la contraseña van en `TIPOS_DE_ACCESO`, con la
+   migración que recrea las dos vistas de eventos.
 4. **DECIDIR: el punto «cuentas de PSAdmin» depende de D2**, que es donde se
    diseñan esas cuentas (tabla, 2FA, sesión propia). O se deja fuera de D1, o se
-   adelanta el diseño de la tabla.
+   adelanta el diseño de la tabla. **Decidido (2026-10-14): fuera de D1**; son de D2.
 5. **`tools/create_user.py` incumple hoy dos requisitos del propio prompt**:
    acepta `--password` como argumento (queda en el historial del shell) y no
-   audita. Unificarlo bajo el CLI tiene que arreglar las dos cosas.
-6. **Hay lógica que ya existe y no hay que duplicar.** Revocar/restaurar
-   (`api/v1/auth/service.update_member`), transferir
-   (`api/v1/equipos/service.transfer_ownership`), cortar sesiones
-   (`RepositorioDeUsuarios.revocar_sesiones`) y la regla «el dueño no se queda
-   sin acceso» (`api/v1/auth/members.update_member`). Esa regla vive hoy en el
-   **router**: el CLI la necesita, y es buen momento para bajarla a un sitio
-   común en vez de copiarla.
+   audita. Unificarlo bajo el CLI tiene que arreglar las dos cosas. (Desde C9 ya
+   pone el primer dueño por la entidad, `Equipo.transferir_propiedad`; los dos
+   defectos siguen.)
+6. **Hay lógica que ya existe y no hay que duplicar**, y desde C9 vive en las
+   entidades:
+   - revocar/restaurar: `Pertenencia.revocar()`/`restaurar()`, con
+     `RepositorioDeEquipos.como_pertenencia` + `guardar_pertenencia`;
+   - «el dueño no se queda sin acceso»: `Equipo.admite_cambio` (ya no está en el
+     router);
+   - transferir: `Equipo.transferir_propiedad` + `guardar_equipo`;
+   - cortar sesiones: `Usuario.revocar_sesiones()` + `RepositorioDeUsuarios.guardar`;
+   - resetear la contraseña: `Usuario.cambiar_password(hash)`, que revoca en el
+     mismo commit (ver `api/v1/auth/credenciales.py`).
+
+   El CLI usa esas puertas: no copia reglas ni asigna columnas. Los guardas AST
+   de `tests/escrituras_ast.py` lo comprueban, y los campos gobernados levantan
+   `AttributeError`.
 7. Otros scripts que ya existen en `tools/`: `recalcular_carga.py`,
    `purgar_auditoria.py` y `grafo_de_imports.py`. El README que pide el prompt
    debería cubrirlos también.
-8. Línea base: **1069 tests** (SQLite). PostgreSQL 17 ya funciona (contenedor
-   `peakstroke-db`), pero la suite no corre en él.
+8. Línea base: **1316 tests** (SQLite, al cerrar C9). PostgreSQL 17 se prueba en
+   el contenedor `peakstroke-db` con una base aparte, `peakstroke_c9`; la base
+   `peakstroke` del contenedor no se toca. La suite no corre en él.
+9. **Añadido al empezar D1 (decisiones de la persona, 2026-10-14):**
+   - **TODO-26 / R5.3 → `liberar`**, un comando nuevo del CLI. Solo actúa sobre
+     la pertenencia **revocada** de un atleta. Borra su fila de `team_members`
+     (excepción documentada a «nada se borra», auditada), desliga la ficha del
+     club viejo y corta las sesiones. `redeem` no cambia.
+   - **Revocar una pertenencia corta las sesiones** (`token_version`) en el mismo
+     commit, por el API y por el CLI. Restaurar no las toca.
+   - Las tablas en español (§7.2 fila 9) y N1/N2 **siguen aparcadas**.
 
 ### Prompt
 
