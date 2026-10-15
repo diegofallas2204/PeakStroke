@@ -56,7 +56,6 @@ from app.api.v1.macrociclos.schemas import (  # noqa: E402
     EventInput,
     PlanCreate,
 )
-from app.api.v1.macrociclos.service import nuevo_desde  # noqa: E402
 from app.api.v1.tests.schemas import AerobicTestCreate  # noqa: E402
 from app.api.v1.tests.service import create_test  # noqa: E402
 from app.core.config import settings  # noqa: E402
@@ -272,11 +271,11 @@ async def world(db: AsyncSession) -> World:
     sin_cuenta_sw = await nadador("Nadador Sin Cuenta", None)
 
     lunes = date.today() - timedelta(days=date.today().weekday()) - timedelta(weeks=3)
-    plan = await repo.guardar(nuevo_desde(PlanCreate(
+    plan = await repo.guardar(PlanCreate(
         name="Macrociclo de Prueba", start_date=lunes, total_weeks=12,
         weeks_per_micro=4, total_km=300,
         competitions=[CompetitionInput(name="Nacional", week_number=12, days=2, is_main=True)],
-    )))
+    ).a_entidad())
     macro = await repo.recargar(plan.id)
 
     eventos = {}

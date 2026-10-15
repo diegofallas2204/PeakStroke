@@ -18,11 +18,11 @@ de las dos cambiara.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.dominio.entidades import Usuario
+from app.persistencia.mapeo.identidad import usuario_desde_fila, volcar_usuario
 from app.persistencia.tablas.usuarios import User
 
 
@@ -70,31 +70,28 @@ class RepositorioDeUsuarios:
         await self.db.flush()
         return user
 
-    async def revocar_sesiones(self, user: User) -> None:
-        """Invalida todos los tokens ya emitidos para esa cuenta.
+    def entidad(self, fila: User) -> Usuario:
+        """La cuenta como `Usuario`, para pedirle que cambie (§5.1).
 
-        Sube la generación de sesiones. Cualquier access o refresh que lleve la
-        anterior deja de validar en la siguiente petición — no en 15 minutos ni
-        en 30 días, en la siguiente.
-
-        Es lo que convierte `logout` en algo más que borrar una cookie del
-        navegador. Un refresh token capturado sobrevivía a "cerrar sesión" y
-        servía para emitir access tokens nuevos durante un mes.
+        Las lecturas siguen devolviendo filas: `Principal` y las dependencias
+        las llevan encima en cada petición. La entidad es para escribir.
         """
-        user.token_version += 1
-        await self.db.commit()
+        return usuario_desde_fila(fila)
 
-    async def fijar_password_hash(self, user: User, password_hash: str) -> User:
-        user.password_hash = password_hash
-        await self.db.commit()
-        await self.db.refresh(user)
-        return user
+    async def guardar(self, usuario: Usuario) -> User:
+        """Escribe lo que la entidad gobierna —sesiones, hash, último acceso— y
+        confirma. Devuelve la fila, que es la misma que ya tenga la sesión: quien
+        la llevaba encima ve los contadores nuevos sin volver a leerla.
 
-    async def marcar_login(self, user: User, *, nuevo_hash: str | None = None) -> User:
-        """Sella el último acceso y, si hacía falta, rehashea la contraseña."""
-        if nuevo_hash is not None:
-            user.password_hash = nuevo_hash
-        user.last_login_at = datetime.now(UTC)
+        Hasta el 2026-10-14 había un método por cambio (`revocar_sesiones`,
+        `fijar_password_hash`, `marcar_login`) y `auth/sessions.py` subía la
+        rotación a mano. Ahora el cambio lo decide la entidad y aquí solo se
+        persiste.
+        """
+        fila = await self.db.get(User, usuario.id) if usuario.id is not None else None
+        if fila is None:
+            raise LookupError(f"No hay ninguna cuenta con id {usuario.id}")
+        volcar_usuario(usuario, fila)
         await self.db.commit()
-        await self.db.refresh(user)
-        return user
+        await self.db.refresh(fila)
+        return fila

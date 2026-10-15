@@ -1,24 +1,24 @@
 # PeakStroke — Modelo del rediseño
 
-> **Estado al 2026-10-13 (C9 puntos 1-4 y el macrociclo hechos): los ocho pasos del §9 son código**
+> **Estado al 2026-10-14 (C9 entero salvo decisiones): los ocho pasos del §9 son código**
 > (el 7 y el 8 el 2026-09-23; sus pantallas el 2026-10-01). Cada sección lleva en
 > su encabezado ✅ (construida, con fecha) o ⬜ (falta). **Lo que falta, en el
 > orden de este documento:**
 >
 > | # | Dónde | Qué | Tipo | Estado |
 > |---|---|---|---|---|
-> | — | §5.1 `Usuario` | la entidad: `revocar_sesiones()`, `rotar_refresh()`, `cambiar_password()` (hoy en `auth/service.py`) | código | ⬜ pendiente |
-> | — | §5.2 `Equipo` + `Pertenencia` | las entidades: `transferir_propiedad()`, `es_jefe()`, `rol_de_dominio()`, `revocar()`/`restaurar()` | código | ⬜ pendiente |
+> | — | §5.1 `Usuario` | la entidad: `revocar_sesiones()`, `rotar_refresh()`, `cambiar_password()` (antes en `auth/service.py`) | código | ✅ 2026-10-14 (ver la enmienda del §5.1) |
+> | — | §5.2 `Equipo` + `Pertenencia` | las entidades: `transferir_propiedad()`, `es_jefe()`, `rol_de_dominio()`, `revocar()`/`restaurar()` | código | ✅ 2026-10-14 (ver la enmienda del §5.2) |
 > | 1 | §5.3 `Atleta` | `dar_de_baja()` / `restaurar()` | código | ✅ 2026-10-05 (`b3f13d9`) |
 > | 2 | §5.4 + §5.6 `Inscripcion` | la entidad y `Macrociclo.inscribir()` | código | ✅ 2026-10-05 (`37a6a0e`) |
 > | — | §5.4 `Macrociclo` | crear, editar y borrar por la entidad (`api/v1/macrociclos/service.py` armaba `Plan`, `PlanPhase` y `Competition` a mano) | código | ✅ 2026-10-13 (ver la enmienda del §5.4) |
-> | — | §5.4 + §5.5 | invariantes de fases y competencias: que quepan en el macro, que las fases no se solapen | decisión + código | ⬜ pide decisión (TODO-24): hoy nadie lo valida |
+> | — | §5.4 + §5.5 | invariantes de fases y competencias: que quepan en el macro, que las fases no se solapen | decisión + código | ✅ 2026-10-14 (TODO-24: se valida al crear y al renombrar, nunca al leer; ver la enmienda del §5.4) |
 > | 3 | §5.7 `PruebaObjetivo` | la entidad, con `mejora_pedida()` y `factibilidad()` | código | ✅ 2026-10-13 (ver la enmienda del §5.7) |
 > | 4 | §5.8 `Semana` | la entidad, con `zonas()`, `real()` y `desviacion()` derivados | código | ✅ 2026-10-13 (ver la enmienda del §5.8) |
-> | — | §5.13 `CodigoDeVinculacion` | `es_servible()`, `canjear(usuario)`, `revocar()` como comportamiento | código | ⬜ pendiente — va con R5.3 (`redeem`) |
-> | — | §7.2 fila 6 | `CHECK` en zona, nivel, perfil, estilo, especialidad, tipo_de_test, piscina, estado y modo_de_ingreso | migración | ⬜ a medias: hoy solo fase, rol y `resultados` |
+> | — | §5.13 `CodigoDeVinculacion` | `es_servible()`, `canjear(usuario)`, `revocar()` como comportamiento | código | ✅ 2026-10-14 (ver la enmienda del §5.13; R5.3 sigue abierta) |
+> | — | §7.2 fila 6 | `CHECK` en zona, nivel, perfil, estilo, especialidad, tipo_de_test, piscina, estado y modo_de_ingreso | migración | ✅ 2026-10-14 (`c9e1a4d7b2f6`; zona, nivel y perfil no tienen columna) |
 > | — | §7.2 fila 9 | nombres de tabla en español | migración | ⬜ pendiente (pide decisión: es renombrar todo el esquema) |
-> | 5 | §10.2 punto 3 | **R5.3**: el orden de las comprobaciones en `redeem` | decisión + código | ⬜ pide decisión |
+> | 5 | §10.2 punto 3 | **R5.3**: el orden de las comprobaciones en `redeem` | decisión + código | ⬜ pide decisión: invertirlo rompe «revocado ≠ sin equipo» y choca con `UNIQUE(user_id)`; las dos lecturas en TODO-26 |
 > | 6 | §10.3 | **N1** y **N2**: qué entra en el promedio semanal | decisión | ⬜ abiertas |
 > | 7 | §10.3 | **N3** y **N5**: sesiones por semana y sesión estructurada | decisión | ⬜ abiertas, del módulo diario (fuera del rediseño) |
 >
@@ -36,6 +36,17 @@
 > demás filas «—» y las decisiones. Las **vistas** siguen leyendo las semanas
 > como filas; no escriben. **N4 está cerrada**: el PDF se arma en el
 > cliente (construido el 2026-08-25).
+>
+> **Y la identidad, el 2026-10-14**: `Usuario`, `Equipo`/`Pertenencia` y
+> `CodigoDeVinculacion` son entidades (`dominio/entidades/usuario.py`,
+> `equipo.py`, `codigo_de_vinculacion.py`), con su mapeo en
+> `persistencia/mapeo/identidad.py`. Sus campos de estado —contadores de
+> sesión, hash, dueño, rol, acceso, ciclo de vida del código— **solo cambian por
+> sus métodos** (`base.CamposGobernados`, el patrón de `Semana.esperado`), y un
+> guarda por AST (`tests/escrituras_ast.py`) impide que nadie fuera del mapeo
+> asigne las columnas. El mismo día: los `CHECK` de §7.2 fila 6, las
+> invariantes de fases y competencias (TODO-24), TODO-22 y TODO-23. **Lo que
+> queda son decisiones**: R5.3, §7.2 fila 9, N1/N2 (y N3/N5, fuera del rediseño).
 >
 > Lo que sigue debajo es la historia del documento, en orden de fecha.
 >
@@ -520,7 +531,7 @@ meta no).
 Identidad + ciclo de vida. El nombre nuevo va primero; entre paréntesis, cómo se
 llama hoy.
 
-### 5.1 `Usuario` (User) — ⬜ sin construir
+### 5.1 `Usuario` (User) — ✅ 2026-10-14
 
 ```
 correo · nombre · hash · activo · version_de_token · rotacion_de_refresh
@@ -534,7 +545,16 @@ cambiar_password(nueva)     rehash + revocar_sesiones()
 Sin cambios de modelo. Solo recupera el comportamiento que hoy está en
 `auth/service.py`.
 
-### 5.2 `Equipo` (Team) y `Pertenencia` (TeamMember) — ⬜ sin construir
+> **Enmienda del 2026-10-14 (construido).** `cambiar_password()` recibe el
+> **hash**, no la contraseña: el dominio no importa nada fuera de la biblioteca
+> estándar y Argon2 no lo es. Lo que la entidad garantiza es que cambiarlo
+> revoca las sesiones —y `/me/password` lo hace ahora en un solo commit, antes
+> eran dos—. Se añadió `registrar_login(cuando, nuevo_hash=None)`: renovar el
+> hash al entrar **no** revoca. Las lecturas del repositorio siguen devolviendo
+> filas (`Principal` las lleva); se escribe con `RepositorioDeUsuarios.entidad()`
+> y `guardar()`.
+
+### 5.2 `Equipo` (Team) y `Pertenencia` (TeamMember) — ✅ 2026-10-14
 
 ```
 Equipo:       nombre · dueño_id · activo
@@ -549,6 +569,14 @@ Pertenencia:  usuario · equipo · rol · activa · desde
 **`revocada ≠ sin equipo`** se conserva como está: son dos estados distintos y
 confundirlos deja entrar a quien acabas de echar. Sigue exigiendo
 `incluir_inactivas=True` explícito para separarlos.
+
+> **Enmienda del 2026-10-14 (construido).** Además de lo de arriba,
+> `Equipo.admite_cambio(pertenencia, revocar=, a_atleta=)`: al dueño no se le
+> revoca ni se le baja a atleta (estaba en `auth/members.py`). La fábrica del
+> rol es `entidades.equipo.rol_para` y `core/principal.rol_de` le delega. El
+> dueño, el rol y el acceso solo cambian por sus métodos: `club.dueno_id = 5`
+> levanta `AttributeError` (lo vio el revisor: saltaba las tres comprobaciones).
+> Un `null` explícito en `PATCH /auth/members/{id}` ya no da 500: no cambia nada.
 
 ### 5.3 `Atleta` (Swimmer) — ✅ 2026-08-16 (consultas) y 2026-10-05 (mutadores)
 
@@ -633,6 +661,18 @@ Raíz del agregado de planificación. Absorbe las funciones sueltas de
 >   macro y no se solapen, y que una competencia caiga dentro de él. Nadie lo
 >   validó nunca y el mapeo corre en cada lectura; rechazarlo cambia qué se
 >   acepta y pide decisión (TODO-24).
+>
+> **Enmienda del 2026-10-14 (TODO-24, decidido).** `Macrociclo.nuevo()` exige
+> que las fases, si vienen, cubran de la semana 1 a la última **sin solapes ni
+> huecos** (en cualquier orden: se guardan como llegaron), que cada competencia
+> caiga entre la 1 y la última, y que el nombre no sean solo espacios;
+> `renombrar()`, lo último. Huecos también: el plan generado manda una semana
+> sin tramo al último, el taper. **Solo al escribir**: el constructor no lo
+> mira, y un macrociclo guardado antes se sigue abriendo. El schema construye
+> la entidad al validar (`PlanCreate.a_entidad()`, que sustituye a
+> `service.nuevo_desde`), así que lo que no cabe es un 422; el asistente del
+> frontend aplica la misma regla antes de enviar. Las reglas viven con los
+> tramos en `entidades/calendario_del_macro.py`.
 
 ### 5.5 `FaseDelMacro` (PlanPhase) y `Competencia` (Competition) — ✅ 2026-08-16 (`fase` obligatoria desde P3, 2026-09-22)
 
@@ -895,7 +935,7 @@ La nota 05 del vault, por fin construible.
 > desde cero tras cualquier secuencia de escrituras. Se guarda por escala —muchas
 > lecturas, una escritura al día por atleta—, no porque sea un hecho.
 
-### 5.13 Relaciones auxiliares — ⬜ el ciclo de vida de `CodigoDeVinculacion` sin construir
+### 5.13 Relaciones auxiliares — ✅ 2026-10-14 (el ciclo de vida de `CodigoDeVinculacion`)
 
 ```
 CodigoDeVinculacion (LinkCode)     ficha ↔ cuenta; caduca, se gasta, dos lados
@@ -906,6 +946,15 @@ EntrenadorDelMacro  (PlanCoach)    M:N, decide VISIBILIDAD del macrociclo
 Sin cambios de modelo. `CodigoDeVinculacion` gana el ciclo de vida como
 comportamiento (`es_servible()`, `canjear(usuario)`, `revocar()`) en vez de
 tres columnas que hay que comprobar a mano.
+
+> **Enmienda del 2026-10-14 (construido).** Más `es_para(correo)` y
+> `admite(pertenencia) -> bool` (si hay que crear la pertenencia), que es la
+> cadena de `elif` de `redeem` **en el orden de siempre**. `revocar()` es
+> idempotente y conserva la primera fecha. **R5.3 no se aplica**: invertir el
+> orden trata «revocado» como «sin club» y, por `UNIQUE(user_id)` en
+> `team_members`, crear la pertenencia nueva sin mover la vieja daría un 500.
+> Sí se llega aquí (un access token vivo tras revocar, o una cuenta sin ficha),
+> así que es una decisión de producto: TODO-26.
 
 ---
 
@@ -1051,8 +1100,10 @@ codigos_de_vinculacion ── atletas · pertenencias · usuarios
 > **Estado al 2026-10-05:** ✅ 1 (C7, `real_time` retirada) · ✅ 2 (C6) · ✅ 3
 > (C7; `series` fuera) · ✅ 4 (C8) · ✅ 5 (P3) · ✅ 7 (no se añadió nada) · ✅ 8
 > (`core/model_registry.py`, importado por `alembic/env.py` y `seed.py`) ·
-> ⬜ **6 a medias** (hay `CHECK` en fase, rol y `resultados`; faltan zona, nivel,
-> perfil, estilo, especialidad, tipo_de_test, piscina, estado y modo_de_ingreso) ·
+> ✅ **6** (2026-10-14, `c9e1a4d7b2f6`: `CHECK` en género, especialidad y estilo
+> de la ficha, piscina y estado del macro, estilo de la prueba y del resultado,
+> tipo y modo de ingreso del test; **zona, nivel y perfil no tienen columna**:
+> son derivados. La migración convierte antes los alias de estilo a su clave) ·
 > ⬜ **9** (las tablas siguen en inglés salvo las nuevas: renombrar es una
 > migración de todo el esquema y pide decisión).
 

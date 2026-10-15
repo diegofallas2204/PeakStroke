@@ -49,6 +49,18 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 
 ## Dónde estamos y qué sigue — medido el 2026-09-22
 
+> **Actualizado el 2026-10-14. C9 está entero salvo las decisiones.** Seis
+> bloques en una sesión: las invariantes del macrociclo (TODO-24: fases que
+> cubren el macro, competencias dentro, nombre no en blanco; **422 nuevo**, solo
+> al escribir); `Usuario`, `Equipo`/`Pertenencia` y `CodigoDeVinculacion` como
+> entidades, con sus campos de estado cambiando solo por sus métodos; los
+> `CHECK` de §7.2 fila 6 (migración `c9e1a4d7b2f6`, probada en SQLite y
+> PostgreSQL, que convierte los alias de estilo); TODO-22 (las competencias del
+> POST por semana) y TODO-23 (los números no finitos, que HEAD llegaba a
+> **guardar**, dan 422). **1316 tests.** Quedan solo decisiones: R5.3 (TODO-26,
+> con las dos lecturas), §7.2 fila 9 (tablas en español) y N1/N2. La base de
+> desarrollo **no está migrada**: `alembic upgrade head` cuando se quiera.
+
 > **Actualizado el 2026-10-13.** C9 punto 3 hecho: **`PruebaObjetivo` es
 > entidad** (REDISENO §5.7, con su enmienda) y el alta de un atleta ya no arma
 > filas del ORM desde `api/v1/`. 1127 tests. De paso salió un fallo que no era
@@ -136,8 +148,8 @@ macrociclos, y ese se deja: su división natural llega con C6-C7.
 | ~~4~~ | ~~**C8 · `CargaDiaria` + Banister**~~ | — | ✅ **HECHO el 2026-09-23.** Ver el bloque. Con C8 están hechos los ocho bloques de la parte C; siguen pendientes los mutadores (`dar_de_baja`, `inscribir`) |
 | ~~5~~ | ~~**C3 · R4 y R5.4**~~ | — | ✅ **HECHO el 2026-09-24.** Estaban asignados a C3 desde C0 y no habían entrado. **R5.3 (`redeem`) sigue abierta**: ver el bloque C3 |
 | 6 | **C9 · Mutadores y las tres entidades de escritura** (§5.3-5.8 de REDISENO) | medio | En el orden del modelo: ~~`Atleta`~~ ✅ `b3f13d9` → ~~`Inscripcion` + `Macrociclo.inscribir`~~ ✅ `37a6a0e` → ~~`PruebaObjetivo`~~ ✅ `ee65c3c` (enmienda en REDISENO §5.7) → ~~`Semana`~~ ✅ 2026-10-13 (enmienda en REDISENO §5.8). **Los cuatro puntos, hechos.** Línea base **1175 tests** (con el macrociclo, fila 6b) |
-| 6b | **C9 · lo que el marcado de la mañana omitió** | medio | ~~§5.4 el macrociclo en sí~~ ✅ 2026-10-13 (se crea, se edita y se borra por `Macrociclo`; falta decidir sus invariantes de fases y competencias, TODO-24); §5.1 `Usuario` y §5.2 `Equipo`/`Pertenencia` como entidades; §5.13 el ciclo de vida de `CodigoDeVinculacion` (va con R5.3); §7.2 fila 6 (`CHECK` que faltan) y fila 9 (tablas en español, pide decisión). Ver la cabecera de REDISENO |
-| 7 | **R5.3 · El orden en `redeem`** (§10.2 punto 3) | bajo, zona de seguridad | Pide decisión: choca con «revocado ≠ sin equipo» |
+| ~~6b~~ | ~~**C9 · lo que el marcado de la mañana omitió**~~ | — | ✅ **HECHO el 2026-10-14** salvo §7.2 fila 9 (tablas en español, pide decisión): ~~§5.4 el macrociclo~~ (2026-10-13) y sus invariantes (TODO-24) · ~~§5.1 `Usuario`~~ · ~~§5.2 `Equipo`/`Pertenencia`~~ · ~~§5.13 `CodigoDeVinculacion`~~ · ~~§7.2 fila 6~~ (`c9e1a4d7b2f6`) · y TODO-22/23. Bitácora `.gstack/bitacora/2026-10-14-c9-resto.md` |
+| 7 | **R5.3 · El orden en `redeem`** (§10.2 punto 3) | bajo, zona de seguridad | Pide decisión: choca con «revocado ≠ sin equipo» y con `UNIQUE(user_id)`. Las dos lecturas y la recomendación en **TODO-26** (2026-10-14) |
 | 8 | **N1 y N2** (§10.3) | — | Decisiones de producto sobre el promedio semanal. N3 y N5 son del módulo diario, fuera del rediseño; N4 cerrada (PDF en cliente) |
 
 ### Cinco cabos sueltos concretos

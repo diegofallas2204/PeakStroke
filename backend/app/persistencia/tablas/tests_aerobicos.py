@@ -18,11 +18,15 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.persistencia.tablas import vocabulario as voc
 
 
 class AerobicTest(Base):
     __tablename__ = "aerobic_tests"
     __table_args__ = (
+        # Vocabularios cerrados (§7.2 fila 6, migración c9e1a4d7b2f6).
+        voc.en("test_type", voc.TIPOS_DE_TEST, nombre="ck_aerobic_tests_test_type"),
+        voc.en("input_mode", voc.MODOS_DE_INGRESO, nombre="ck_aerobic_tests_input_mode"),
         # Nadador y macrociclo, del mismo equipo que el test. Con plan_id a NULL
         # (test suelto, sin macrociclo) la segunda constraint no se evalúa.
         ForeignKeyConstraint(

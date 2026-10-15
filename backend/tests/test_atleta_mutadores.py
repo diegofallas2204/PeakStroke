@@ -8,8 +8,10 @@ escriben **canónicos**, aunque la fila viniera con un alias («crol»).
 """
 from __future__ import annotations
 
+import pytest
 from conftest import API, World, como
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 
 from app.core.auditoria import TipoDeEvento
 from app.dominio.entidades import Atleta
@@ -50,16 +52,14 @@ async def test_la_baja_repetida_no_falla_ni_se_audita_dos_veces(client, db, worl
     assert await _eventos(db, TipoDeEvento.NADADOR_RESTAURADO) == 1
 
 
-async def test_guardar_escribe_canonico_lo_que_venia_crudo(client, db, world: World):
-    """Una ficha antigua con «crol» se lee igual, y al guardarla queda «libre»."""
-    await db.execute(update(Swimmer).where(Swimmer.id == world.sofia_swimmer_id)
-                     .values(main_stroke="crol"))
-    await db.commit()
-
-    r = await client.put(f"{API}/swimmers/{world.sofia_swimmer_id}",
-                         json={"notes": "nueva nota"}, headers=como(world.owner_email))
-    assert r.status_code == 200
-    assert (r.json()["main_stroke"], r.json()["notes"]) == ("libre", "nueva nota")
+async def test_una_ficha_con_un_alias_ya_no_puede_existir(db, world: World):
+    """Antes: una ficha antigua con «crol» se leía igual y al guardarla quedaba
+    «libre». Desde `c9e1a4d7b2f6` (§7.2 fila 6) la migración convirtió los alias
+    a su clave y un CHECK no deja entrar otros: la premisa ya no se puede dar."""
+    with pytest.raises(IntegrityError):
+        await db.execute(update(Swimmer).where(Swimmer.id == world.sofia_swimmer_id)
+                         .values(main_stroke="crol"))
+    await db.rollback()
 
 
 async def test_put_parcial_solo_toca_lo_que_llega_y_null_borra_lo_opcional(client, world: World):

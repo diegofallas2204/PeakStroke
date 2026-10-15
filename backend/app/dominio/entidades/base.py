@@ -10,6 +10,8 @@ De ahí que las entidades se declaren `eq=False`: el `__eq__` que genera
 """
 from __future__ import annotations
 
+from typing import ClassVar
+
 
 class PorIdentidad:
     """Igualdad y hash por `(clase, id)`. Sin `id`, solo consigo misma.
@@ -41,3 +43,28 @@ class PorIdentidad:
         if self.id is None:
             return object.__hash__(self)
         return hash((type(self).__name__, self.id))
+
+
+class CamposGobernados:
+    """Campos que, una vez construida la entidad, **solo cambian por sus métodos**.
+
+    Es el patrón de `Semana.esperado` generalizado (C9, 2026-10-14): el revisor
+    del bloque de `Equipo` vio que `club.dueno_id = 5` y `guardar_equipo(club)`
+    saltaban las tres comprobaciones de `transferir_propiedad`. Una regla que
+    vive en un método no protege nada si el campo se puede asignar al lado.
+
+    La subclase declara `_GOBERNADOS`; sus métodos escriben con
+    `object.__setattr__`. El constructor asigna libremente (el campo todavía no
+    existe), y el mapeo fila → entidad construye, no asigna.
+    """
+
+    __slots__ = ()
+    _GOBERNADOS: ClassVar[frozenset[str]] = frozenset()
+
+    def __setattr__(self, nombre: str, valor: object) -> None:
+        # `hasattr` es falso mientras el constructor lo asigna por primera vez.
+        if nombre in self._GOBERNADOS and hasattr(self, nombre):
+            raise AttributeError(
+                f"`{nombre}` de {type(self).__name__} solo cambia por sus métodos",
+            )
+        object.__setattr__(self, nombre, valor)

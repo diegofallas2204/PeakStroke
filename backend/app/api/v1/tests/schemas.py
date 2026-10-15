@@ -5,8 +5,10 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.api.entrada import Entrada
 
-class AerobicTestCreate(BaseModel):
+
+class AerobicTestCreate(Entrada):
     swimmer_id: int
     plan_id: int | None = None
     test_type: str = Field(pattern="^(T30|T15|CUSTOM|CSS|DIRECT)$")
@@ -63,7 +65,7 @@ class AerobicTestResponse(BaseModel):
     missed_intervals: list[int] = []       # repeticiones que no llegaron a tiempo
 
 
-class AnalyzePreviewRequest(BaseModel):
+class AnalyzePreviewRequest(Entrada):
     splits: list[float] = Field(min_length=1, max_length=200)
     rep_distance: int = Field(default=100, ge=25, le=2000)
     send_off: float | None = Field(default=None, gt=0, le=3600)

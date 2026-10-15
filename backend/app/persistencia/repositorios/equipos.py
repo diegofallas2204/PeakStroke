@@ -11,16 +11,25 @@ sale de la sesión, nunca del cuerpo de la petición**. Todos los endpoints de
 `api/v1/equipos/` operan sobre `principal.team_id` y ninguno acepta un id de
 equipo del cliente.
 
-Las reglas de negocio —quién puede ser dueño, qué pasa si está revocado— **no
-están aquí** sino en `api/v1/equipos/service.py`. Aquí solo están las consultas.
-Cuando `Equipo` y `Pertenencia` sean entidades (§5.2), esas reglas se mudan
-dentro de ellas y este archivo se queda solo con el SQL.
+Las reglas de negocio —quién puede ser dueño, qué pasa si está revocado, que al
+dueño no se le revoca— **no están aquí**: son de `dominio.entidades.Equipo` y
+`Pertenencia` desde el 2026-10-14 (§5.2). Aquí están las consultas, la traducción
+a entidad (`como_equipo`, `como_pertenencia`) y `guardar_*`, que escribe lo que
+la entidad cambió. Las lecturas siguen devolviendo filas: `Principal` y la
+presentación las llevan encima.
 """
 from __future__ import annotations
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.dominio.entidades import Equipo, Pertenencia
+from app.persistencia.mapeo.identidad import (
+    equipo_desde_fila,
+    pertenencia_desde_fila,
+    volcar_equipo,
+    volcar_pertenencia,
+)
 from app.persistencia.tablas.atletas import Swimmer
 from app.persistencia.tablas.equipos import (
     ROLE_ATHLETE,
@@ -56,23 +65,23 @@ class RepositorioDeEquipos:
         await self.db.refresh(equipo)
         return equipo
 
-    async def renombrar(self, equipo: Team, nombre: str) -> Team:
-        equipo.name = nombre
-        await self.db.commit()
-        await self.db.refresh(equipo)
-        return equipo
+    def como_equipo(self, fila: Team) -> Equipo:
+        return equipo_desde_fila(fila)
 
-    async def fijar_dueno(self, equipo: Team, user_id: int) -> Team:
-        """Escribe el nuevo dueño. **Las tres comprobaciones no están aquí.**
+    async def guardar_equipo(self, equipo: Equipo) -> Team:
+        """Escribe el nombre y el dueño que la entidad decidió, y confirma.
 
-        Quién puede serlo —entrenador, miembro de este equipo y con el acceso
-        vivo— lo decide `api/v1/equipos/service.transfer_ownership`, porque es
-        una regla de negocio y no una consulta.
+        Hasta el 2026-10-14 eran `renombrar` y `fijar_dueno`, y el segundo
+        escribía cualquier id que le llegara: las tres comprobaciones vivían en
+        el service. Ahora el dueño solo cambia por `Equipo.transferir_propiedad`.
         """
-        equipo.owner_id = user_id
+        fila = await self.db.get(Team, equipo.id) if equipo.id is not None else None
+        if fila is None:
+            raise LookupError(f"No hay ningún equipo con id {equipo.id}")
+        volcar_equipo(equipo, fila)
         await self.db.commit()
-        await self.db.refresh(equipo)
-        return equipo
+        await self.db.refresh(fila)
+        return fila
 
     # ── La pertenencia ───────────────────────────────────────────────────────
 
@@ -97,6 +106,24 @@ class RepositorioDeEquipos:
         if not incluir_inactivas:
             stmt = stmt.where(TeamMember.is_active.is_(True))
         return (await self.db.execute(stmt)).scalar_one_or_none()
+
+    def como_pertenencia(self, fila: TeamMember) -> Pertenencia:
+        return pertenencia_desde_fila(fila)
+
+    async def guardar_pertenencia(self, pertenencia: Pertenencia) -> TeamMember:
+        """Escribe el rol y el acceso, y confirma. **Confirma la sesión entera**:
+        si quien llama cambió algo más en la misma unidad de trabajo (el nombre
+        de la cuenta, en `auth/service.update_member`), viaja en el mismo commit.
+        """
+        fila = (
+            await self.db.get(TeamMember, pertenencia.id) if pertenencia.id is not None else None
+        )
+        if fila is None:
+            raise LookupError(f"No hay ninguna pertenencia con id {pertenencia.id}")
+        volcar_pertenencia(pertenencia, fila)
+        await self.db.commit()
+        await self.db.refresh(fila)
+        return fila
 
     async def conteos(self, team_id: int) -> tuple[int, int, int]:
         """(entrenadores activos, atletas activos, nadadores activos) del equipo."""

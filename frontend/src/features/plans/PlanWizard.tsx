@@ -7,6 +7,7 @@ import { api } from '../../lib/api'
 import { POOLS } from '../../lib/constants'
 import type { ClaveDeFase, PhaseInput } from '../../lib/types'
 import { Field, Modal } from '../../components/ui/primitives'
+import { enBlanco, problemaDelCalendario } from './calendario'
 
 type PhaseDraft = PhaseInput
 interface CompDraft { name: string; week_number: number; days: number; is_main: boolean }
@@ -66,18 +67,18 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
     onError: (e: Error) => setError(e.message),
   })
 
-  const phasesValid = useMemo(
-    () => phases.every((p) => p.week_start >= 1 && p.week_end <= form.total_weeks && p.week_start <= p.week_end && p.name.trim()),
-    [phases, form.total_weeks],
+  const problemaDeFases = useMemo(
+    () => problemaDelCalendario(phases, comps, form.total_weeks),
+    [phases, comps, form.total_weeks],
   )
 
   const next = () => {
     setError('')
     if (step === 0) {
-      if (form.name.trim().length < 2) { setError('Ponle un nombre al macrociclo.'); return }
+      if (enBlanco(form.name) || form.name.trim().length < 2) { setError('Ponle un nombre al macrociclo.'); return }
       if (!form.start_date) { setError('Selecciona la fecha de inicio.'); return }
     }
-    if (step === 1 && !phasesValid) { setError('Revisa los rangos de semanas de las fases.'); return }
+    if (step === 1 && problemaDeFases) { setError(problemaDeFases); return }
     setStep((s) => Math.min(s + 1, 2))
   }
 

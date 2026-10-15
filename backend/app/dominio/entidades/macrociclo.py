@@ -18,11 +18,13 @@ construye y los mutadores de abajo son lo único que una ruta puede cambiarle:
 las fechas, las semanas, los kilómetros, las fases y las competencias se fijan
 al crearlo y no tienen quien los edite.
 
-**Lo que este tipo todavía NO comprueba**, a propósito: que las fases quepan en
-el macro y no se solapen, que una competencia caiga dentro de él, o que el
-nombre no sean solo espacios. Nadie lo validó nunca, el mapeo corre en cada
-lectura y rechazarlo ahora cambiaría qué se acepta: es una decisión (TODO-24),
-no un descuido de este bloque.
+**Qué rechaza, y cuándo** (TODO-24, 2026-10-14): `nuevo()` exige que las
+fases cubran de la semana 1 a la última sin solaparse ni dejar huecos, que las
+competencias caigan dentro y que el nombre no sean solo espacios, y
+`renombrar()` lo último. **Solo al escribir**: el constructor no lo mira,
+porque el mapeo fila → entidad corre en cada lectura y un macrociclo guardado
+antes de la regla tiene que poder seguir abriéndose. Las reglas viven en
+`calendario_del_macro.py`, con los tramos.
 """
 from __future__ import annotations
 
@@ -30,9 +32,15 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from ..valores import EstadoDeMacro, Fase, Piscina, Ritmo
+from ..valores import EstadoDeMacro, Piscina, Ritmo
 from .atleta import Atleta
 from .base import PorIdentidad
+from .calendario_del_macro import (
+    Competencia,
+    FaseDelMacro,
+    comprobar_calendario,
+    exigir_nombre,
+)
 from .inscripcion import Inscripcion, InscripcionImposible
 
 # Estados que el entrenador pone a mano y mandan tal cual sobre la fecha.
@@ -58,55 +66,6 @@ def lunes_de(inicio: date, semana: int) -> date:
     """
     base = inicio - timedelta(days=inicio.weekday())
     return base + timedelta(weeks=semana - 1)
-
-
-@dataclass(slots=True, eq=False)
-class FaseDelMacro(PorIdentidad):
-    """Un tramo del macrociclo, con el nombre que el entrenador le puso.
-
-    `nombre` es texto libre de la interfaz y `fase` es la clave de dominio: el
-    entrenador puede llamarle "Construcción" a lo que el motor conoce como
-    `base_especifica` sin que ninguno de los dos pierda su vocabulario.
-
-    Hasta P3 había un tercero, `tipo` (`base|build|peak|taper`), que era lo que la
-    base guardaba de verdad mientras `fase` viajaba en `None`. Se fue con la
-    migración que convirtió esas filas: hoy la columna guarda la clave de `Fase`.
-
-    `fase` es obligatoria y no admite la extensión: un tramo del plan sin fase
-    no le dice nada a la ciencia, y la extensión es lo que viene después del
-    macro, no una parte de él.
-    """
-
-    fase: Fase
-    id: int | None = None
-    nombre: str = ""
-    semana_inicio: int = 1
-    semana_fin: int = 1
-    color: str = "#8b5cf6"
-    orden: int = 0
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.fase, Fase):
-            raise TypeError("La fase de un tramo del macrociclo es una Fase, no un texto")
-        if self.fase.es_extension:
-            raise ValueError("La extensión no es una fase del macrociclo")
-
-    def contiene(self, semana: int) -> bool:
-        return self.semana_inicio <= semana <= self.semana_fin
-
-    def duracion_en_semanas(self) -> int:
-        return max(self.semana_fin - self.semana_inicio + 1, 0)
-
-
-@dataclass(slots=True, eq=False)
-class Competencia(PorIdentidad):
-    """Una competencia dentro del macrociclo, anclada a una semana."""
-
-    id: int | None = None
-    nombre: str = ""
-    semana: int = 1
-    dias: int = 1
-    es_principal: bool = False
 
 
 @dataclass(slots=True, eq=False)
@@ -143,13 +102,19 @@ class Macrociclo(PorIdentidad):
 
         Nace activo y sin equipo: el equipo y el entrenador a cargo los pone el
         repositorio al guardarlo, de quien lo crea. Nunca de la petición.
+        Levanta `ValueError` si no cabe (ver la cabecera).
         """
+        # Las competencias, por semana (orden estable): es como las devuelve la
+        # base, y la respuesta del alta pinta la colección en el orden en que
+        # se armó (TODO-22). Las fases se guardan como llegaron.
+        fases, competencias = list(fases), sorted(competencias, key=lambda c: c.semana)
+        comprobar_calendario(semanas, fases, competencias)
         return cls(
-            inicio=inicio, semanas=semanas, nombre=nombre,
+            inicio=inicio, semanas=semanas, nombre=exigir_nombre(nombre),
             semanas_por_micro=semanas_por_micro, km_totales=km_totales,
             piscina=Piscina.desde_texto(piscina), n_mac=n_mac,
             prueba_principal=prueba_principal, notas=notas,
-            fases=list(fases), competencias=list(competencias),
+            fases=fases, competencias=competencias,
         )
 
     # ── Edición ──────────────────────────────────────────────────────────────
@@ -158,11 +123,10 @@ class Macrociclo(PorIdentidad):
     # dueño es de permisos, no de aquí: lo decide el router (R4).
 
     def renombrar(self, nombre: str) -> None:
-        """Sin validar el texto, a propósito: qué nombre vale lo decide hoy el
-        formulario (2 a 120 caracteres, sin recortar), y un `ValueError` aquí
-        saldría como un 500 en una petición que antes se aceptaba. Va con las
-        demás invariantes que este tipo no impone todavía (TODO-24)."""
-        self.nombre = nombre
+        """Un nombre de solo espacios no vale (TODO-24). El formulario aplica la
+        misma regla antes de llegar aquí (`PlanUpdate`): si solo la aplicara la
+        entidad, saldría como un 500 y no como un 422."""
+        self.nombre = exigir_nombre(nombre)
 
     def anotar(self, notas: str | None) -> None:
         self.notas = notas

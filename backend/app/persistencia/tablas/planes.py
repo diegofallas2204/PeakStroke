@@ -28,6 +28,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.dominio.valores import Fase
+from app.persistencia.tablas import vocabulario as voc
 
 # Lo único que las columnas de fase admiten: la clave de `Fase`, nunca la
 # etiqueta (P3). La extensión no entra porque no es un tramo del macro y ninguna
@@ -38,6 +39,9 @@ FASES_DEL_MACRO: tuple[str, ...] = tuple(f.value for f in Fase.secuencia())
 class Plan(Base):
     __tablename__ = "plans"
     __table_args__ = (
+        # Vocabularios cerrados (§7.2 fila 6, migración c9e1a4d7b2f6).
+        voc.en("pool", voc.PISCINAS, nombre="ck_plans_pool"),
+        voc.en("status", voc.ESTADOS_DE_MACRO, nombre="ck_plans_status"),
         # Clave candidata para las FKs compuestas de todo lo que cuelga del plan.
         UniqueConstraint("id", "team_id", name="uq_plans_id_team"),
     )
@@ -63,8 +67,11 @@ class Plan(Base):
     phases: Mapped[list[PlanPhase]] = relationship(
         back_populates="plan", cascade="all, delete-orphan", order_by="PlanPhase.sort"
     )
+    # Por semana y, si dos caen en la misma, por orden de alta: sin el desempate
+    # el orden de dos competencias de la misma semana dependía del motor.
     competitions: Mapped[list[Competition]] = relationship(
-        back_populates="plan", cascade="all, delete-orphan", order_by="Competition.week_number"
+        back_populates="plan", cascade="all, delete-orphan",
+        order_by="(Competition.week_number, Competition.id)",
     )
     athlete_plans: Mapped[list[AthletePlan]] = relationship(
         back_populates="plan", cascade="all, delete-orphan"
@@ -186,6 +193,10 @@ class AthletePlan(Base):
 class AthleteEvent(Base):
     """Prueba objetivo de un atleta dentro del plan (hasta 3 recomendadas)."""
     __tablename__ = "athlete_events"
+    __table_args__ = (
+        # Vocabulario cerrado (§7.2 fila 6, migración c9e1a4d7b2f6).
+        voc.en("stroke", voc.ESTILOS, nombre="ck_athlete_events_stroke"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     athlete_plan_id: Mapped[int] = mapped_column(

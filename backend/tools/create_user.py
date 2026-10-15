@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.v1.auth.schemas import UserCreate
 from app.api.v1.auth.service import create_user, get_by_email
 from app.core.database import AsyncSessionLocal, engine
+from app.persistencia.repositorios import RepositorioDeEquipos
 from app.persistencia.tablas.equipos import ROLE_COACH, ROLES, Team
 
 
@@ -78,10 +79,14 @@ async def main(args: argparse.Namespace) -> int:
             email=args.email, name=args.name, password=password, role=args.role,
         ), team.id)
 
-        # Un equipo recién creado necesita dueño, y solo un entrenador puede serlo.
+        # Un equipo recién creado necesita dueño, y solo un entrenador puede serlo
+        # (lo comprueba `Equipo.transferir_propiedad`, la misma regla del API).
         if team.owner_id is None and args.role == ROLE_COACH:
-            team.owner_id = user.id
-            await db.commit()
+            equipos = RepositorioDeEquipos(db)
+            club = equipos.como_equipo(team)
+            miembro = await equipos.pertenencia(user.id)
+            club.transferir_propiedad(equipos.como_pertenencia(miembro) if miembro else None)
+            team = await equipos.guardar_equipo(club)
             print(f"{user.name} queda como dueño de '{team.name}'")
 
     await engine.dispose()

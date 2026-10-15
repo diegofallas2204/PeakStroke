@@ -97,7 +97,9 @@ def test_el_factor_depende_del_perfil_de_la_prueba():
 
 
 def test_el_estilo_crudo_es_la_misma_prueba():
-    """`"crol"` sigue guardado en filas viejas; tiene que casar con `"libre"`."""
+    """Un alias (`"crol"`) es la misma prueba que su clave (`"libre"`). Desde
+    `c9e1a4d7b2f6` la base ya no guarda alias, pero `Prueba` los sigue aceptando
+    al construirse desde la entrada."""
     assert _real([_r(128.0, prueba=Prueba(200, "crol"))]) == Tiempo(128.0)
 
 

@@ -6,10 +6,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.api.entrada import Entrada
 from app.dominio.valores import Prueba
 
 
-class SimulationRequest(BaseModel):
+class SimulationRequest(Entrada):
     distance: int = Field(ge=25, le=10000)
     stroke: str = "libre"
     current_time: float = Field(gt=0)
@@ -67,7 +68,7 @@ class SimulationResponse(BaseModel):
 
 
 # ── Proyección ANUAL (temporada = N macrociclos encadenados) ──────────────────
-class SeasonRequest(BaseModel):
+class SeasonRequest(Entrada):
     distance: int = Field(ge=25, le=10000)
     stroke: str = "libre"
     current_time: float = Field(gt=0)

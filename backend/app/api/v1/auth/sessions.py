@@ -16,11 +16,11 @@ from app.core.auditoria import TipoDeEvento, auditar
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import TokenError, create_access_token, create_refresh_token, decode_token
-from app.persistencia.repositorios import RepositorioDeEquipos
+from app.persistencia.repositorios import RepositorioDeEquipos, RepositorioDeUsuarios
 from app.persistencia.repositorios.usuarios import normalizar_correo
 from app.persistencia.tablas.usuarios import User
 
-from . import service
+from . import credenciales, service
 from .schemas import LoginRequest, SessionResponse
 
 logger = logging.getLogger(__name__)
@@ -54,12 +54,14 @@ async def _issue_session(db: AsyncSession, response: Response, user: User) -> Se
     # dejarla fuera del login la dejaría sin poder canjear el código que la
     # metería en el club.
 
-    user.refresh_rotation += 1
-    await db.commit()
+    usuarios = RepositorioDeUsuarios(db)
+    usuario = usuarios.entidad(user)
+    usuario.rotar_refresh()
+    await usuarios.guardar(usuario)
 
     response.set_cookie(
         key=settings.refresh_cookie_name,
-        value=create_refresh_token(user.id, user.token_version, user.refresh_rotation),
+        value=create_refresh_token(user.id, usuario.version_de_token, usuario.rotacion_de_refresh),
         httponly=True,                       # invisible para cualquier JS de la página
         secure=settings.refresh_cookie_secure,
         samesite="lax",                      # corta el CSRF de terceros manteniendo la navegación normal
@@ -67,7 +69,7 @@ async def _issue_session(db: AsyncSession, response: Response, user: User) -> Se
         path="/api/v1/auth",                 # la cookie solo viaja a los endpoints que la necesitan
     )
     return SessionResponse(
-        access_token=create_access_token(user.id, user.token_version),
+        access_token=create_access_token(user.id, usuario.version_de_token),
         expires_in=settings.access_token_minutes * 60,
         user=await service.get_member(db, user, membership),
     )
@@ -75,7 +77,7 @@ async def _issue_session(db: AsyncSession, response: Response, user: User) -> Se
 
 @router.post("/login", response_model=SessionResponse)
 async def login(data: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
-    user, motivo = await service.comprobar_credenciales(db, data.email, data.password)
+    user, motivo = await credenciales.comprobar_credenciales(db, data.email, data.password)
     if user is None:
         # El correo TECLEADO, exista o no: es lo que deja ver un barrido.
         auditar(
@@ -125,17 +127,18 @@ async def refresh(request: Request, response: Response, db: AsyncSession = Depen
     user = await service.get_user(db, claims.user_id)
     if user is None or not user.is_active:
         raise _BAD_CREDENTIALS
+    usuario = RepositorioDeUsuarios(db).entidad(user)
     # Un refresh emitido antes del último `logout` no vuelve a la vida.
-    if user.token_version != claims.token_version:
+    if not usuario.acepta_generacion(claims.token_version):
         raise _BAD_CREDENTIALS
 
-    if claims.rotation != user.refresh_rotation:
+    if usuario.refresh_gastado(claims.rotation):
         logger.warning(
             "Refresh token reusado para %s (rotación %s, esperada %s): "
             "se revocan todas las sesiones",
             user.email, claims.rotation, user.refresh_rotation,
         )
-        await service.revoke_sessions(db, user)
+        await credenciales.revoke_sessions(db, user)
         # El evento más importante del registro: un refresh gastado que vuelve
         # es una cookie copiada. `fallo` porque el refresh se rechazó.
         auditar(
@@ -173,6 +176,6 @@ async def logout(request: Request, response: Response, db: AsyncSession = Depend
         if claims is not None:
             user = await service.get_user(db, claims.user_id)
             if user is not None:
-                await service.revoke_sessions(db, user)
+                await credenciales.revoke_sessions(db, user)
                 auditar(TipoDeEvento.LOGOUT, user, detalle="se revocan todas las sesiones")
     response.delete_cookie(settings.refresh_cookie_name, path="/api/v1/auth")

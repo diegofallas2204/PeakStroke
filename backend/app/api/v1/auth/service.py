@@ -17,7 +17,7 @@ import secrets
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import hash_password, needs_rehash, verify_password
+from app.core.security import hash_password
 from app.persistencia.repositorios import RepositorioDeEquipos, RepositorioDeUsuarios
 from app.persistencia.tablas.atletas import Swimmer
 from app.persistencia.tablas.equipos import Team, TeamMember
@@ -57,51 +57,6 @@ async def create_user(db: AsyncSession, data: UserCreate, team_id: int) -> User:
     await db.commit()
     await db.refresh(user)
     return user
-
-
-async def revoke_sessions(db: AsyncSession, user: User) -> None:
-    """Invalida todos los tokens ya emitidos para esa cuenta. Ver el repositorio."""
-    await RepositorioDeUsuarios(db).revocar_sesiones(user)
-
-
-async def set_password(db: AsyncSession, user: User, new_password: str) -> User:
-    return await RepositorioDeUsuarios(db).fijar_password_hash(
-        user, hash_password(new_password),
-    )
-
-
-async def authenticate(db: AsyncSession, email: str, password: str) -> User | None:
-    """Devuelve el usuario si las credenciales son válidas, None si no.
-
-    Un único None para "no existe", "contraseña incorrecta" y "cuenta
-    desactivada": distinguirlos en la respuesta permitiría enumerar qué emails
-    están registrados.
-    """
-    user, _ = await comprobar_credenciales(db, email, password)
-    return user
-
-
-async def comprobar_credenciales(
-    db: AsyncSession, email: str, password: str,
-) -> tuple[User | None, str]:
-    """Como `authenticate`, y además **por qué** no: para la auditoría, NUNCA
-    para la respuesta, que sigue siendo el mismo 401. Cincuenta
-    `cuenta_inexistente` son un barrido; cincuenta `password_incorrecta` sobre
-    una cuenta, un ataque a esa cuenta."""
-    usuarios = RepositorioDeUsuarios(db)
-    user = await usuarios.por_correo(email)
-    if user is None:
-        # Hash de descarte para que la respuesta tarde lo mismo exista o no el
-        # usuario. Sin esto, el tiempo de respuesta delata qué emails son reales.
-        hash_password(password)
-        return None, "cuenta_inexistente"
-    if not verify_password(password, user.password_hash):
-        return None, "password_incorrecta"
-    if not user.is_active:
-        return None, "cuenta_desactivada"
-
-    nuevo = hash_password(password) if needs_rehash(user.password_hash) else None
-    return await usuarios.marcar_login(user, nuevo_hash=nuevo), ""
 
 
 # --- Miembros del equipo (sección Perfil) -----------------------------------
@@ -264,17 +219,26 @@ async def member_of_team(
 
 
 async def update_member(
-    db: AsyncSession, user: User, membership: TeamMember, data: UserUpdate,
+    equipos: RepositorioDeEquipos, user: User, membership: TeamMember, data: UserUpdate,
 ) -> None:
-    """El nombre vive en la cuenta; el rol y el acceso, en la pertenencia."""
+    """El nombre vive en la cuenta; el rol y el acceso, en la `Pertenencia`.
+
+    Revocar y restaurar son de la entidad (§5.2, 2026-10-14). **Un `null`
+    explícito no cambia nada**: ninguno de los tres puede quedar vacío, y hasta
+    el 2026-10-14 `{"name": null}` llegaba a una columna `NOT NULL` y salía como
+    un 500. Va en un solo commit: `guardar_pertenencia` confirma también el nombre.
+    """
     campos = data.model_dump(exclude_unset=True)
-    if "name" in campos:
+    pertenencia = equipos.como_pertenencia(membership)
+    if campos.get("role") is not None:
+        pertenencia.cambiar_rol(campos["role"])
+    if campos.get("is_active") is True:
+        pertenencia.restaurar()
+    elif campos.get("is_active") is False:
+        pertenencia.revocar()
+    if campos.get("name") is not None:
         user.name = campos["name"]
-    if "role" in campos:
-        membership.role = campos["role"]
-    if "is_active" in campos:
-        membership.is_active = campos["is_active"]
-    await db.commit()
+    await equipos.guardar_pertenencia(pertenencia)
 
 
 async def create_member(

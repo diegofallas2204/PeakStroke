@@ -4,8 +4,10 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.entrada import validacion_pintable
 from app.api.v1.atletas.router import router as swimmers_router
 from app.api.v1.auth.router import router as auth_router
 from app.api.v1.carga.router import router as training_load_router
@@ -33,6 +35,8 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title=settings.app_name, version=settings.version, lifespan=lifespan)
+# Un 422 cuyo `input` trae un número no finito se pinta igual (TODO-23).
+app.add_exception_handler(RequestValidationError, validacion_pintable)
 
 # La auditoría envuelve cada petición: apunta durante y escribe al terminar, ya
 # enviada la respuesta. Ver `core/auditoria.py`.

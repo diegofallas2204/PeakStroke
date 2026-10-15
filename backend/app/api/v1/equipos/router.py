@@ -47,7 +47,7 @@ async def rename_team(
     repo: RepositorioDeEquipos = Depends(repo_de_equipos),
     db: AsyncSession = Depends(get_db),
 ):
-    equipo = await repo.renombrar(await _mio(repo, principal), data.name)
+    equipo = await service.rename_team(repo, await _mio(repo, principal), data.name)
     return await service.to_response(db, repo, equipo, principal)
 
 
@@ -73,7 +73,7 @@ async def transfer_ownership(
         objetivo=("user", data.new_owner_id),
         detalle=f"de la cuenta {principal.id} a la {data.new_owner_id}",
     )
-    # `is_owner` del principal ya no vale: quien pregunta acaba de dejar de serlo.
+    # `is_owner` sale del equipo ya transferido, no del `Principal` (que es de antes).
     return await service.to_response(db, repo, equipo, principal)
 
 

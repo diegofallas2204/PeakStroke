@@ -7,11 +7,11 @@ endpoints del sistema que usan `get_current_user` en vez de `get_current_princip
 Un repositorio que exigiera `team_id` no podría contestarles. El equipo, cuando
 aplica, entra como argumento explícito y sale siempre de la sesión.
 
-**Aquí está lo que decide si un código sigue vivo** (`sigue_vivo`), y cómo se
-compara contra el reloj. La otra mitad de la mecánica —de qué símbolos se hace,
-cómo se dicta— vive en `api/v1/codigos/codigos.py`: el corte es entre lo que se
-**guarda y se compara** y lo que se **acuña y se enseña**. Cuando §5.13 se
-construya, las dos se juntan dentro de la entidad.
+**Si un código sigue vivo lo decide la entidad** (`CodigoDeVinculacion.es_servible`,
+§5.13, 2026-10-14), y también gastarlo y revocarlo. Aquí quedan las consultas,
+la traducción (`como_codigo`) y `guardar`. Las lecturas siguen devolviendo filas:
+la presentación (`_to_response`) y el canje las llevan encima. De qué símbolos
+se hace el código y cómo se dicta sigue en `api/v1/codigos/codigos.py`.
 """
 from __future__ import annotations
 
@@ -20,6 +20,8 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.dominio.entidades import CodigoDeVinculacion
+from app.persistencia.mapeo.identidad import codigo_desde_fila, fila_de_codigo, volcar_codigo
 from app.persistencia.repositorios.usuarios import normalizar_correo
 from app.persistencia.tablas.atletas import Swimmer
 from app.persistencia.tablas.codigos import LinkCode
@@ -38,23 +40,6 @@ def ahora_utc() -> datetime:
     return datetime.now(UTC)
 
 
-def _con_zona(valor: datetime) -> datetime:
-    """SQLite devuelve datetimes naive aunque la columna sea `timezone=True`.
-
-    Compararlos con un `datetime.now(UTC)` revienta con `TypeError`, y hacerlo
-    en el sitio donde se compara —y no aquí— es como se acaba con la mitad de
-    las comparaciones sin arreglar. Se asume UTC porque es lo único que se
-    escribe.
-    """
-    return valor if valor.tzinfo is not None else valor.replace(tzinfo=UTC)
-
-
-def sigue_vivo(code: LinkCode, *, ahora: datetime | None = None) -> bool:
-    return (
-        code.used_at is None
-        and code.revoked_at is None
-        and _con_zona(code.expires_at) > (ahora or ahora_utc())
-    )
 
 
 class RepositorioDeCodigos:
@@ -79,7 +64,7 @@ class RepositorioDeCodigos:
     async def _vivos(self, stmt) -> list[LinkCode]:
         ahora = ahora_utc()
         filas = (await self.db.execute(self._sin_gastar(stmt))).scalars()
-        return [c for c in filas if sigue_vivo(c, ahora=ahora)]
+        return [c for c in filas if codigo_desde_fila(c).es_servible(ahora)]
 
     async def activos_del_equipo(self, team_id: int) -> list[LinkCode]:
         """Los códigos que todavía sirven, del equipo entero."""
@@ -155,12 +140,34 @@ class RepositorioDeCodigos:
 
     # ── Escrituras ───────────────────────────────────────────────────────────
 
-    async def guardar(self, code: LinkCode) -> LinkCode:
-        self.db.add(code)
-        await self.db.commit()
-        await self.db.refresh(code)
-        return code
+    def como_codigo(self, fila: LinkCode) -> CodigoDeVinculacion:
+        return codigo_desde_fila(fila)
 
-    async def revocar(self, code: LinkCode) -> None:
-        code.revoked_at = ahora_utc()
+    async def anotar(self, codigo: CodigoDeVinculacion) -> None:
+        """Escribe el ciclo de vida en su fila **sin confirmar**: lo confirma el
+        `guardar` que venga después en la misma petición (reemitir revoca los
+        anteriores y crea el nuevo en un solo commit)."""
+        fila = await self.db.get(LinkCode, codigo.id) if codigo.id is not None else None
+        if fila is None:
+            raise LookupError(f"No hay ningún código con id {codigo.id}")
+        volcar_codigo(codigo, fila)
+
+    async def guardar(self, codigo: CodigoDeVinculacion) -> LinkCode:
+        """Inserta uno recién emitido o escribe su ciclo de vida, y confirma.
+
+        **Confirma la sesión entera**: el canje deja en la misma unidad de
+        trabajo la pertenencia nueva y la ficha ligada, y los tres van juntos.
+        Devuelve la fila, que es lo que pinta la respuesta.
+        """
+        if codigo.id is None:
+            fila = fila_de_codigo(codigo)
+            self.db.add(fila)
+        else:
+            fila = await self.db.get(LinkCode, codigo.id)
+            if fila is None:
+                raise LookupError(f"No hay ningún código con id {codigo.id}")
+            volcar_codigo(codigo, fila)
         await self.db.commit()
+        await self.db.refresh(fila)
+        codigo.id = fila.id
+        return fila

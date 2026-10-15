@@ -6,8 +6,10 @@ un macrociclo vivo) en `inscripcion.py`. Este módulo asume que las dos ya se
 comprobaron.
 
 **Este archivo ya no importa ninguna tabla** (C9, 2026-10-13). Traduce el
-formulario a la entidad —`nuevo_desde` construye un `Macrociclo`, `aplicar` le
-pide que cambie— y quien guarda es el repositorio. Antes armaba la fila con
+formulario a la entidad —`aplicar` le pide al `Macrociclo` que cambie— y quien
+guarda es el repositorio. Construirlo es de `PlanCreate.a_entidad()` desde el
+2026-10-14 (TODO-24): el schema lo construye al validar, como `EventInput`, para
+que lo que no cabe salga como un 422. Antes armaba la fila con
 `Plan(**data.model_dump())` y la editaba con un `setattr` por campo. Cómo se
 presenta el resultado está en `presentacion.py`.
 
@@ -18,44 +20,11 @@ del `Macrociclo` (`semana_actual()`, `estado_efectivo()`).
 """
 from __future__ import annotations
 
-from app.dominio.entidades import Competencia, FaseDelMacro, Macrociclo
-from app.dominio.servicios.motor import fases_por_defecto
-from app.dominio.valores import EstadoDeMacro, Fase, Piscina
+from app.dominio.entidades import Macrociclo
+from app.dominio.valores import EstadoDeMacro, Piscina
 from app.persistencia.repositorios import RepositorioDeMacrociclos
 
-from .schemas import PlanCreate, PlanUpdate
-
-
-def nuevo_desde(data: PlanCreate) -> Macrociclo:
-    """El macrociclo del formulario, sin guardar.
-
-    **El equipo y el entrenador a cargo no están aquí**, ni en el formulario: los
-    pone el repositorio al guardarlo, de la sesión de quien lo crea. Si el
-    equipo fuese un campo del schema, cualquiera podría crear macrociclos dentro
-    de un equipo ajeno con solo cambiar un número en la petición.
-
-    Sin fases en el formulario, las cinco por defecto del motor.
-    """
-    fases = [p.model_dump() for p in data.phases] or fases_por_defecto(data.total_weeks)
-    return Macrociclo.nuevo(
-        data.name, data.start_date, data.total_weeks,
-        semanas_por_micro=data.weeks_per_micro, km_totales=data.total_km,
-        piscina=data.pool, n_mac=data.n_mac,
-        prueba_principal=data.main_event, notas=data.notes,
-        fases=[
-            FaseDelMacro(
-                fase=Fase.del_macro(p["type"]), nombre=p["name"], color=p["color"],
-                semana_inicio=p["week_start"], semana_fin=p["week_end"], orden=i,
-            )
-            for i, p in enumerate(fases)
-        ],
-        competencias=[
-            Competencia(
-                nombre=c.name, semana=c.week_number, dias=c.days, es_principal=c.is_main,
-            )
-            for c in data.competitions
-        ],
-    )
+from .schemas import PlanUpdate
 
 
 def aplicar(macro: Macrociclo, data: PlanUpdate) -> None:

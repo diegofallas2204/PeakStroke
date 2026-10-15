@@ -41,7 +41,6 @@ from app.api.v1.macrociclos.schemas import (
     WeekUpdateRequest,
 )
 from app.api.v1.macrociclos.semanas import update_week
-from app.api.v1.macrociclos.service import nuevo_desde
 from app.api.v1.tests.schemas import AerobicTestCreate
 from app.api.v1.tests.service import create_test
 from app.core.config import settings
@@ -242,9 +241,14 @@ async def seed() -> None:
                 email=email, name=name, password=DEV_PASSWORD, role=role,
             ), team.id)
 
-        # El entrenador es el dueño del equipo (ve todos los macrociclos).
+        # El entrenador es el dueño del equipo (ve todos los macrociclos). Por la
+        # misma puerta que el API: `Equipo.transferir_propiedad` comprueba que sea
+        # entrenador, del club y activo, también para el primer dueño.
         coach = accounts[DEV_ACCOUNTS[0][0]]
-        team.owner_id = coach.id
+        club = equipos.como_equipo(team)
+        miembro = await equipos.pertenencia(coach.id)
+        club.transferir_propiedad(equipos.como_pertenencia(miembro) if miembro else None)
+        team = await equipos.guardar_equipo(club)
 
         # La cuenta del pool, a mano y sin pertenencia: `create_user` siempre la
         # crea, y aquí lo que se quiere probar es la aplicación sin ella.
@@ -301,7 +305,7 @@ async def seed() -> None:
         await atletas.guardar(de_baja)
 
         start = plan_start_date(date.today())
-        plan = await repo.guardar(nuevo_desde(PlanCreate(
+        plan = await repo.guardar(PlanCreate(
             name="Temporada Nacional 2026", start_date=start, total_weeks=12,
             weeks_per_micro=4, total_km=320,
             main_event="Nacional Juvenil", notes=(
@@ -312,7 +316,7 @@ async def seed() -> None:
                 CompetitionInput(name="Copa Invitacional", week_number=5, days=2),
                 CompetitionInput(name="Nacional Juvenil", week_number=12, days=3, is_main=True),
             ],
-        )))
+        ).a_entidad())
         macro = await repo.recargar(plan.id)
 
         for idx, events, aerobic_base in EVENTS:

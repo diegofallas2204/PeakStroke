@@ -9,8 +9,8 @@ Decisiones (opción recomendada, 2026-10-13):
   y número de macro;
 - un `null` explícito en un campo que no puede quedar vacío no cambia nada
   (antes: 500);
-- **sin** invariantes nuevas sobre fases y competencias: es una decisión
-  aparte (TODO-24).
+- **sin** invariantes nuevas sobre fases y competencias: era una decisión
+  aparte (TODO-24), tomada el 2026-10-14 — ver `test_calendario_del_macro.py`.
 """
 from __future__ import annotations
 
@@ -22,7 +22,6 @@ from sqlalchemy import select
 
 from app.api.v1.auth.service import get_by_email
 from app.api.v1.macrociclos.schemas import PlanCreate
-from app.api.v1.macrociclos.service import nuevo_desde
 from app.core.dependencies import _principal_for
 from app.dominio.entidades import Competencia, FaseDelMacro, Macrociclo
 from app.dominio.valores import EstadoDeMacro, Fase, Piscina
@@ -49,10 +48,12 @@ def test_un_macrociclo_nuevo_nace_activo_sin_equipo_y_con_la_piscina_como_valor(
 
 
 def test_el_macrociclo_lleva_sus_fases_y_competencias_y_no_comparte_las_listas():
-    fases = [FaseDelMacro(fase=Fase.TAPER, nombre="Afinar", semana_inicio=10, semana_fin=12)]
+    # Desde TODO-24 las fases cubren el macro entero: antes valía un tramo suelto.
+    fases = [FaseDelMacro(fase=Fase.BASE_GENERAL, nombre="Base", semana_inicio=1, semana_fin=9),
+             FaseDelMacro(fase=Fase.TAPER, nombre="Afinar", semana_inicio=10, semana_fin=12)]
     macro = _macro(fases=fases, competencias=[Competencia(nombre="Final", semana=12)])
     fases.clear()
-    assert [f.nombre for f in macro.fases] == ["Afinar"]
+    assert [f.nombre for f in macro.fases] == ["Base", "Afinar"]
     assert macro.fase_de(11).fase is Fase.TAPER and macro.competencias[0].semana == 12
 
 
@@ -86,9 +87,9 @@ def test_lo_que_se_le_puede_editar_y_lo_que_no_admite():
 
 
 def test_el_formulario_sin_fases_trae_las_cinco_por_defecto():
-    macro = nuevo_desde(PlanCreate(
+    macro = PlanCreate(
         name="Sin fases", start_date=date(2027, 1, 4), total_weeks=15, total_km=400,
-    ))
+    ).a_entidad()
     assert [f.fase for f in macro.fases] == list(Fase.secuencia())
     assert [f.orden for f in macro.fases] == [0, 1, 2, 3, 4]
     assert (macro.fases[0].semana_inicio, macro.fases[-1].semana_fin) == (1, 15)
@@ -187,24 +188,26 @@ async def test_un_null_en_lo_que_no_puede_quedar_vacio_no_cambia_nada(
     assert r.json() == antes
 
 
-async def test_un_nombre_que_el_formulario_acepta_no_lo_rechaza_la_entidad(
+async def test_un_nombre_que_la_entidad_rechaza_lo_rechaza_antes_el_formulario(
     client, world: World,
 ):
-    """El formulario pide de 2 a 120 caracteres y no recorta: dos espacios valen.
+    """Una entidad más estricta que su formulario no da un 422: da un 500.
 
-    Es feo y está apuntado (TODO-24), pero una entidad más estricta que su
-    formulario no da un 422: da un 500, en una petición que antes devolvía 200.
-    Lo cazó el revisor de este bloque con `renombrar` rechazando los espacios.
+    Lo cazó el revisor del 2026-10-13 con `renombrar` rechazando los espacios
+    mientras el schema los aceptaba. Desde TODO-24 (2026-10-14) los rechazan los
+    dos: el schema llama a la misma regla, así que sale un 422. El máximo que el
+    formulario acepta sigue valiendo.
     """
     jefe = como(world.owner_email)
-    for nombre in ("  ", "\t\t", "a" * 120):
+    for nombre in ("  ", "\t\t"):
         r = await client.patch(f"{API}/plans/{world.plan_id}", json={"name": nombre}, headers=jefe)
-        assert r.status_code == 200, r.text
-        assert r.json()["name"] == nombre
+        assert r.status_code == 422, r.text
+    r = await client.patch(f"{API}/plans/{world.plan_id}", json={"name": "a" * 120}, headers=jefe)
+    assert r.status_code == 200 and r.json()["name"] == "a" * 120
     r = await client.post(f"{API}/plans/", json={
         "name": "  ", "start_date": "2027-03-01", "total_weeks": 10, "total_km": 250,
     }, headers=jefe)
-    assert r.status_code == 201 and r.json()["name"] == "  "
+    assert r.status_code == 422, r.text
 
 
 async def test_un_null_en_las_notas_o_en_la_meta_las_borra(client, world: World):
@@ -250,3 +253,30 @@ async def test_crear_responde_lo_mismo_que_leer_despues(client, world: World):
     ]
     assert (creado["status"], creado["effective_status"], creado["athletes"]) == ("active", "active", [])
     assert (await client.get(f"{API}/plans/{creado['id']}", headers=jefe)).json() == creado
+
+
+async def test_crear_responde_las_competencias_por_semana_aunque_lleguen_desordenadas(
+    client, world: World,
+):
+    """TODO-22: la respuesta del POST pintaba las competencias en el orden en que
+    llegaron —la fila recién creada sigue viva en la sesión y su colección no se
+    reordena— y el GET siguiente, por semana. Con el recolector apagado, que es
+    cuando la fila no se recarga, tienen que coincidir."""
+    import gc
+
+    jefe = como(world.owner_email)
+    gc.collect()
+    gc.disable()
+    try:
+        r = await client.post(f"{API}/plans/", json={
+            "name": "Desordenado", "start_date": "2027-03-01", "total_weeks": 12, "total_km": 300,
+            "competitions": [{"name": "Final", "week_number": 12, "is_main": True},
+                             {"name": "Control", "week_number": 4},
+                             {"name": "Copa", "week_number": 8, "days": 2},
+                             {"name": "Otra de la 4", "week_number": 4}],
+        }, headers=jefe)
+    finally:
+        gc.enable()
+    assert r.status_code == 201, r.text
+    assert [c["name"] for c in r.json()["competitions"]] == ["Control", "Otra de la 4", "Copa", "Final"]
+    assert (await client.get(f"{API}/plans/{r.json()['id']}", headers=jefe)).json() == r.json()

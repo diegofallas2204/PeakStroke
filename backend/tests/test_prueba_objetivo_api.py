@@ -12,7 +12,8 @@ from pathlib import Path
 
 import pytest
 from conftest import API, World, como
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 
 from app.dominio.entidades import PruebaObjetivo, Semana
 from app.dominio.servicios.motor import MOTOR
@@ -132,10 +133,9 @@ async def test_guardar_da_identidad_a_las_pruebas_y_solo_las_admite_al_crear(db,
     repo = RepositorioDeInscripciones(macros)
     # Un macrociclo terminado: no ocupa el calendario de nadie y admite al atleta.
     from app.api.v1.macrociclos.schemas import PlanCreate
-    from app.api.v1.macrociclos.service import nuevo_desde
-    plan = await macros.guardar(nuevo_desde(PlanCreate(
+    plan = await macros.guardar(PlanCreate(
         name="Macro pasado", start_date=date(2025, 1, 6), total_weeks=12, total_km=300,
-    )))
+    ).a_entidad())
     macro = await macros.recargar(plan.id)
     atleta = Atleta.nueva("Recién Llegada")
     await RepositorioDeAtletas(db, jefe).guardar(atleta)
@@ -184,20 +184,14 @@ async def test_guardar_da_identidad_a_las_pruebas_y_solo_las_admite_al_crear(db,
         await repo.guardar(inscripcion, pruebas=[(PruebaObjetivo.nueva(50, "libre", 28.0, 27.5), [])])
 
 
-async def test_una_fila_de_antes_con_alias_se_sigue_leyendo_igual(client, db, world: World):
-    """Las filas viejas no se tocan: una que guarda «crol» pinta su tabla y su tablero."""
-    fila = await db.get(AthleteEvent, world.carlos_event_id)
-    jefe = como(world.owner_email)
-    antes = (await client.get(f"{API}/plans/events/{fila.id}/weeks", headers=jefe)).json()
-    fila.stroke = "crol"
-    await db.commit()
-
-    r = await client.get(f"{API}/plans/events/{fila.id}/weeks", headers=jefe)
-    assert r.status_code == 200, r.text
-    assert r.json() == antes                      # mismas zonas, mismos tiempos
-    for ruta in ("/dashboard/summary", "/dashboard/team-week"):
-        assert (await client.get(f"{API}{ruta}", headers=jefe)).status_code == 200
-    assert (await db.get(AthleteEvent, fila.id)).stroke == "crol"   # leer no la reescribe
+async def test_una_prueba_con_un_alias_ya_no_puede_existir(db, world: World):
+    """Antes: «las filas viejas no se tocan», y una que guardaba «crol» se leía
+    igual. Desde `c9e1a4d7b2f6` la migración las convirtió a su clave y el CHECK
+    `ck_athlete_events_stroke` no deja entrar otra cosa."""
+    with pytest.raises(IntegrityError):
+        await db.execute(update(AthleteEvent).where(AthleteEvent.id == world.carlos_event_id)
+                         .values(stroke="crol"))
+    await db.rollback()
 
 
 # ── La estructura ────────────────────────────────────────────────────────────

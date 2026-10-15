@@ -18,7 +18,7 @@ from app.api.v1.auth.service import get_by_email
 from app.core.dependencies import _principal_for
 from app.dominio.valores import Tiempo
 from app.persistencia.repositorios import RepositorioDeMacrociclos, RepositorioDeSemanas
-from app.persistencia.tablas.planes import AthleteEvent, WeeklyPlan
+from app.persistencia.tablas.planes import WeeklyPlan
 from app.persistencia.tablas.resultados import Result
 
 
@@ -133,20 +133,18 @@ async def test_el_resultado_apuntado_es_del_equipo_de_quien_escribe_y_de_la_prue
     assert resultado.result_date == semana.week_date
 
 
-async def test_una_prueba_de_antes_con_alias_apunta_su_resultado_canonico(
+async def test_el_resultado_de_una_semana_sale_con_el_estilo_canonico(
     client, db, world: World,
 ):
-    """La fila guarda «crol»; el resultado nuevo sale «libre» y la semana lo encuentra."""
-    prueba = await db.get(AthleteEvent, world.carlos_event_id)
-    prueba.stroke = "crol"
-    await db.commit()
+    """Antes partía de una prueba que guardaba «crol» (fila de antes de C9). Desde
+    `c9e1a4d7b2f6` esa fila no puede existir (la migración convirtió los alias y
+    un CHECK lo impide): queda lo que importa, que el resultado sale canónico y
+    la semana lo encuentra."""
     semana = (await _filas(db, world.carlos_event_id))[2]
-
     r = await _patch(client, world, semana.id, {"real_time": 128.4})
     assert r.status_code == 200, r.text
     assert next(w for w in r.json() if w["id"] == semana.id)["real_time"] == 128.4
     assert (await db.execute(select(Result))).scalars().one().stroke == "libre"
-    assert (await db.get(AthleteEvent, world.carlos_event_id)).stroke == "crol"
 
 
 # ── Lo que enseña la tabla ───────────────────────────────────────────────────

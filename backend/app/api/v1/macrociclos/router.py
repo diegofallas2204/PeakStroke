@@ -68,7 +68,7 @@ async def create_plan(
 ):
     # Quien lo crea queda automáticamente a cargo, y en su equipo: los dos
     # salen del `Principal` del repositorio, no de la petición.
-    fila = await repo.guardar(service.nuevo_desde(data))
+    fila = await repo.guardar(data.a_entidad())
     return await to_plan_response(db, fila, coach)
 
 

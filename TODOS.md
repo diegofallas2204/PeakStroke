@@ -41,6 +41,10 @@ Prioridad: P1 = bloquea trabajo en curso · P2 = debería caer pronto · P3 = de
 > desarrollador en Ajustes, navegación filtrada por rol con guardas de ruta,
 > versión de atleta de las 4 páginas y estados vacíos por rol (T12–T18 del plan).
 > ~~TODO-3~~ sigue abierto pero cambió de forma: ver abajo.
+>
+> **Cerrados el 2026-10-14** (C9, lo que quedaba del rediseño): ~~TODO-22~~,
+> ~~TODO-23~~ y ~~TODO-24~~. **Abiertos el mismo día**: TODO-25 (dos refresh
+> concurrentes) y TODO-26 (R5.3, decisión con dos lecturas).
 
 ---
 
@@ -383,7 +387,23 @@ Medido el 2026-10-01 a 375 px: `/pruebas` mide 889 px de ancho y `/` 940
 (grids fijos como `grid-cols-[300px_1fr]` y `grid-cols-3`). `PageHeader` ya hace
 `flex-wrap` en sus acciones; lo que falta son esos grids, con prefijos `lg:`.
 
-## TODO-22 — Otras rutas que escriben y releen pueden responder con datos rancios (P2)
+## ~~TODO-22 — Otras rutas que escriben y releen pueden responder con datos rancios~~ — CERRADO 2026-10-14
+
+**Cómo quedó**: barrido de las 21 escrituras que responden con un cuerpo, cada
+una con el recolector apagado (`gc.disable()`) y contra un GET inmediato del
+mismo recurso. Solo difería el primo ya apuntado: `POST /plans/` respondía las
+competencias en el orden en que llegaron. `PlanCreate.a_entidad()` las ordena
+por semana y la relación desempata por `id`
+(`test_crear_responde_las_competencias_por_semana_aunque_lleguen_desordenadas`).
+Las demás (fases, nómina, semanas, tests con parciales, sesiones, fichas,
+miembros, equipo, códigos) ya respondían lo mismo que su GET. Fuera del barrido:
+login, refresh, `/me/password` y `redeem` (no tienen un GET con el que
+compararse). El revisor encontró una respuesta rancia de otra clase, también de
+HEAD: `POST /teams/mine/transfer` decía `is_owner: True` a quien acababa de
+ceder la propiedad (salía del `Principal` tomado antes de escribir); ahora sale
+del equipo transferido, con test.
+
+Lo que decía el TODO al abrirse:
 
 Destapado el 2026-10-13 al construir `PruebaObjetivo` (C9 punto 3). El alta de un
 atleta (`POST /plans/{id}/athletes`) leía el macrociclo, inscribía y lo volvía a
@@ -405,7 +425,18 @@ Un primo del mismo problema, visto el 2026-10-13: `POST /plans/` responde las
 competencias **en el orden en que llegaron** (la fila recién creada sigue viva y
 su colección no se reordena) y el `GET` siguiente las devuelve por semana.
 
-## TODO-23 — Un número infinito en el cuerpo de una petición da 500 (P3)
+## ~~TODO-23 — Un número infinito en el cuerpo de una petición da 500~~ — CERRADO 2026-10-14
+
+**Cómo quedó**: era peor de lo apuntado. Medido en HEAD (`a9c2317`):
+`Infinity` en `weight_kg`, `height_cm` o `total_km` daba **201 y se guardaba**;
+`NaN` y el resto de rutas, 500. Ahora todo cuerpo con un `float` hereda de
+`api.entrada.Entrada` (`allow_inf_nan=False`) —un test recorre las rutas y falla
+si uno nuevo no lo hace— y el manejador de `RequestValidationError`
+(`validacion_pintable`) es el de FastAPI salvo que escribe los no finitos como
+texto. Ocho rutas × `Infinity`/`-Infinity`/`NaN`/`1e999` → 422; los demás 422
+salen byte a byte iguales (test). La base de desarrollo no tenía ningún no finito.
+
+Lo que decía el TODO al abrirse:
 
 `Field(gt=0)` deja pasar `Infinity`, que el `json` de Python acepta al leer.
 Preexistente: en el alta de un atleta llegaba al motor y reventaba allí. Desde
@@ -417,7 +448,18 @@ el `input`. Afecta a todos los schemas con tiempos, no solo a este: también a
 `PATCH /weeks/{id}`, donde `real_time: 1e999` pasa `gt=0` y revienta al construir
 el `Tiempo` (visto por el revisor de C9 punto 4; antes se guardaba).
 
-## TODO-24 — Un macrociclo acepta fases y competencias que no caben en él (P2, decisión)
+## ~~TODO-24 — Un macrociclo acepta fases y competencias que no caben en él~~ — CERRADO 2026-10-14
+
+**Cómo quedó** (opción recomendada): se valida **al crear y al renombrar**,
+nunca al leer. Las fases, si vienen, cubren de la semana 1 a la última sin
+solapes ni huecos (huecos también: una semana sin tramo se planificaba como
+taper), en cualquier orden; cada competencia cae dentro; el nombre no son solo
+espacios. Es un **422 nuevo**. La regla vive en
+`dominio/entidades/calendario_del_macro.py`, el schema la aplica al construir la
+entidad y el asistente del frontend la repite antes de enviar. La base de
+desarrollo no tenía ningún macro que la incumpliera.
+
+Lo que decía el TODO al abrirse:
 
 Visto el 2026-10-13 al pasar la escritura del macrociclo a su entidad. Nada
 valida, ni en el schema ni en el dominio, que:
@@ -440,3 +482,54 @@ lectura, así que una invariante nueva convierte cualquier macrociclo ya guardad
 que la incumpla en un 500 al abrirlo. Hay que decidir primero **qué** se rechaza
 (¿huecos también, o solo solapes y desbordes?), mirar si la base real tiene
 alguno, y validar al crear (`Macrociclo.nuevo`) antes que al leer.
+
+## TODO-25 — Dos `/auth/refresh` a la vez con la misma cookie pasan los dos (P3)
+
+Visto por `/cso` y el revisor de C9 (2026-10-14); **anterior a C9**, el bloque
+no lo cambió. La comprobación de la rotación y la escritura de la nueva son
+leer-comparar-escribir en Python, sin `UPDATE` condicional: dos peticiones
+simultáneas leen la misma rotación, las dos pasan `refresh_gastado` y las dos
+escriben la siguiente. Ninguna se trata como reuso.
+
+Escenario: quien copió la cookie la usa en el mismo instante que la víctima; los
+dos reciben un par válido y el robo no se detecta. Con SQLite las escrituras se
+serializan pero las lecturas no.
+
+Arreglo propuesto: `RepositorioDeUsuarios.guardar` (el único sitio que escribe
+la rotación desde C9) con `UPDATE users SET refresh_rotation = :n+1 WHERE id =
+:id AND refresh_rotation = :n`, y 0 filas → reuso. Ojo con `login`, que también
+rota: dos logins simultáneos no son un robo. Se prueba con dos sesiones contra
+PostgreSQL, no en un solo proceso SQLite.
+
+## TODO-26 — R5.3: ¿puede un atleta revocado entrar en otro club? (P2, decisión)
+
+`redeem` mira el club antes que el acceso (`CodigoDeVinculacion.admite`), así
+que a una cuenta revocada en el club A que canjea un código del club B le
+responde «Tu cuenta ya pertenece a otro equipo». R5.3 (REDISENO §10.2 punto 3)
+pedía mirar el acceso primero para que pudiera entrar en B. **No se aplicó**
+(C9, 2026-10-14), y no es un arreglo mecánico:
+
+- **Sí se llega a ese punto.** Revocar una pertenencia no sube `token_version`,
+  así que un access token emitido antes sigue valiendo hasta que caduca (15 min);
+  y una cuenta de atleta dada de alta por `POST /auth/members` no tiene ficha
+  que la pare antes. (El login sí la rechaza: con el token caducado ya no entra.)
+- **Invertir el orden no basta.** `team_members` tiene `UNIQUE(user_id)`: crear
+  la pertenencia de B sin mover o borrar la de A daría un `IntegrityError` (500).
+
+Las dos lecturas:
+
+1. **La de R5.3**: una pertenencia revocada libera a la persona para otro club.
+   Pide que el login admita a una cuenta revocada en un modo mínimo (perfil y
+   canje), que el canje **mude** la pertenencia (o permita varias filas con una
+   sola activa, que choca con R5.4) y que la ficha del club viejo se desligue.
+   Rompe «revocado ≠ sin equipo» tal como está escrita en CLAUDE.md.
+2. **La de CLAUDE.md**: revocar es echar, y quien fue echado no entra en ningún
+   sitio hasta que su club lo restaure. Para cambiar de club haría falta una
+   operación nueva y distinta —«liberar» o «dar de baja del club»— que deje la
+   cuenta en el pool a propósito (y desligue la ficha), en vez de reinterpretar
+   «revocado».
+
+Recomendación: la 2, con la operación nueva como su propio bloque. De paso,
+decidir si revocar una pertenencia debe cortar las sesiones (subir
+`token_version`): hoy el token viejo vale 15 minutos más, aunque solo alcanza
+`/auth/me` (403), `/link-codes/mine` y `/link-codes/redeem`.
