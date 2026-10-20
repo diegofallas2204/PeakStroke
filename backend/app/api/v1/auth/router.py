@@ -24,7 +24,7 @@ from app.persistencia.tablas.usuarios import User
 
 from . import credenciales, members, service, sessions
 from .schemas import AuthConfig, DevIdentity, MemberResponse, PasswordChange, SessionResponse
-from .sessions import _issue_session
+from .sessions import _SIN_ROTACION, _issue_session
 
 router = APIRouter()
 router.include_router(sessions.router)
@@ -122,4 +122,14 @@ async def change_password(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La contraseña actual no es correcta")
     await credenciales.change_password(db, principal.user, data.new_password)
     auditar(TipoDeEvento.PASSWORD_CAMBIADA, principal, detalle="se revocan las demás sesiones")
-    return await _issue_session(db, response, principal.user)
+    try:
+        return await _issue_session(db, response, principal.user)
+    except HTTPException as exc:
+        if exc is not _SIN_ROTACION:
+            raise
+        # El 503 genérico («inténtalo de nuevo») engañaba aquí: la contraseña ya
+        # cambió y las sesiones ya se cortaron; lo que falló es abrir la nueva.
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "La contraseña ya cambió, pero no se pudo abrir la sesión nueva: entra con la nueva",
+        ) from None

@@ -22,13 +22,31 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dominio.entidades import Usuario
-from app.persistencia.mapeo.identidad import usuario_desde_fila, volcar_usuario
+from app.persistencia.mapeo.identidad import (
+    asentar_rotacion,
+    rotacion_condicional,
+    usuario_desde_fila,
+    volcar_usuario,
+)
 from app.persistencia.tablas.usuarios import User
 
 
 def normalizar_correo(correo: str) -> str:
     """Los correos se guardan y se buscan siempre en minúsculas y sin espacios."""
     return correo.strip().lower()
+
+
+class RotacionPerdida(Exception):
+    """Otra petición gastó la rotación del refresh entre leerla y escribirla.
+
+    Quién la pierde decide qué significa (TODO-25): para `refresh` es el reuso
+    —dos partes con la misma cookie—; para `login` y el cambio de contraseña, la
+    rotación de otra emisión legítima, y se vuelve a rotar sobre la nueva.
+    """
+
+    def __init__(self, user_id: int | None) -> None:
+        super().__init__(f"La rotación del refresh de la cuenta {user_id} ya se gastó")
+        self.user_id = user_id
 
 
 class RepositorioDeUsuarios:
@@ -88,9 +106,10 @@ class RepositorioDeUsuarios:
         Dos commits dejarían, si el segundo fallara, a alguien echado del club y
         con su token vivo — o con el token muerto y todavía dentro.
         """
-        fila = await self.db.get(User, usuario.id) if usuario.id is not None else None
-        if fila is None:
-            raise LookupError(f"No hay ninguna cuenta con id {usuario.id}")
+        fila = await self._fila(usuario)
+        if rotacion_condicional(usuario, fila) is not None:
+            # Perderla obligaría a deshacer la unidad de trabajo de quien llama.
+            raise ValueError("Rotar el refresh se confirma solo: usa `guardar`")
         volcar_usuario(usuario, fila)
 
     async def guardar(self, usuario: Usuario) -> User:
@@ -102,11 +121,40 @@ class RepositorioDeUsuarios:
         `fijar_password_hash`, `marcar_login`) y `auth/sessions.py` subía la
         rotación a mano. Ahora el cambio lo decide la entidad y aquí solo se
         persiste.
+
+        **La rotación se gasta con un `UPDATE` condicional** (TODO-25), antes de
+        volcar nada más: si otra petición la gastó desde que se leyó, no se
+        escribe nada de la entidad, se relee la fila —quien la lleve ve la
+        rotación que ganó— y levanta `RotacionPerdida`.
+
+        Al perderla se **confirma** la transacción vacía, no se deshace: un
+        `rollback` caduca todo lo cargado en la sesión, y quien reintenta —el
+        login, con la pertenencia ya leída— lo leería por carga perezosa, que en
+        async es un `MissingGreenlet` (500). Lo vio el revisor de TODO-25 con
+        una cuenta con club. Confirmar no caduca nada (`expire_on_commit=False`)
+        y del `UPDATE` de 0 filas no queda nada que guardar — **siempre que la
+        sesión no traiga nada pendiente**, y por eso se exige: si lo trajera, se
+        confirmaría aunque la rotación se perdiera.
         """
-        fila = await self.db.get(User, usuario.id) if usuario.id is not None else None
-        if fila is None:
-            raise LookupError(f"No hay ninguna cuenta con id {usuario.id}")
+        fila = await self._fila(usuario)
+        rotar = rotacion_condicional(usuario, fila)
+        if rotar is not None:
+            if self.db.new or self.db.dirty or self.db.deleted:
+                raise ValueError(
+                    "Rotar el refresh se guarda con la sesión limpia: confirma antes lo pendiente",
+                )
+            if (await self.db.execute(rotar)).rowcount != 1:
+                await self.db.commit()
+                await self.db.refresh(fila)
+                raise RotacionPerdida(usuario.id)
+            asentar_rotacion(usuario, fila)
         volcar_usuario(usuario, fila)
         await self.db.commit()
         await self.db.refresh(fila)
+        return fila
+
+    async def _fila(self, usuario: Usuario) -> User:
+        fila = await self.db.get(User, usuario.id) if usuario.id is not None else None
+        if fila is None:
+            raise LookupError(f"No hay ninguna cuenta con id {usuario.id}")
         return fila

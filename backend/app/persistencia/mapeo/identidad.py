@@ -12,6 +12,9 @@ entidad y la guarda por su repositorio.
 """
 from __future__ import annotations
 
+from sqlalchemy import Update, update
+from sqlalchemy.orm.attributes import set_committed_value
+
 from app.dominio.entidades import CodigoDeVinculacion, Equipo, Pertenencia, Usuario
 from app.persistencia.tablas.codigos import LinkCode
 from app.persistencia.tablas.equipos import Team, TeamMember
@@ -28,13 +31,42 @@ def usuario_desde_fila(fila: User) -> Usuario:
 
 
 def volcar_usuario(usuario: Usuario, fila: User) -> None:
-    """Escribe en la fila **solo lo que la entidad gobierna**: las sesiones, el
+    """Escribe en la fila **solo lo que la entidad gobierna**: la generación, el
     hash y el último acceso. El correo, el nombre y la baja de la cuenta tienen
-    otras puertas (el alta y la edición del miembro)."""
+    otras puertas (el alta y la edición del miembro).
+
+    **La rotación no**: se gasta con `rotacion_condicional` (TODO-25)."""
     fila.password_hash = usuario.hash_de_password
     fila.token_version = usuario.version_de_token
-    fila.refresh_rotation = usuario.rotacion_de_refresh
     fila.last_login_at = usuario.ultimo_login
+
+
+def rotacion_condicional(usuario: Usuario, fila: User) -> Update | None:
+    """El `UPDATE` que gasta la rotación **solo si nadie la gastó antes**, o
+    `None` si la entidad no rotó.
+
+    Asignarla en la fila era leer-comparar-escribir en Python: dos refresh a la
+    vez con la misma cookie leían la misma rotación, pasaban `refresh_gastado`
+    los dos y escribían los dos la siguiente (TODO-25). Con la condición en el
+    `WHERE`, la base decide quién llegó primero y la otra ve 0 filas. Se compara
+    contra `rotacion_leida` —de la que partió la entidad—, **no** contra la
+    fila: la sesión guarda las filas con referencia débil, y una releída ya trae
+    la rotación de quien ganó.
+    """
+    if not usuario.roto_el_refresh():
+        return None
+    return (
+        update(User)
+        .where(User.id == fila.id, User.refresh_rotation == usuario.rotacion_leida)
+        .values(refresh_rotation=usuario.rotacion_de_refresh)
+        .execution_options(synchronize_session=False)
+    )
+
+
+def asentar_rotacion(usuario: Usuario, fila: User) -> None:
+    """Tras un `rotacion_condicional` que tocó su fila: la fila ya la tiene la
+    base, así que se apunta como confirmada, sin otro `UPDATE`."""
+    set_committed_value(fila, "refresh_rotation", usuario.rotacion_de_refresh)
 
 
 def equipo_desde_fila(fila: Team) -> Equipo:

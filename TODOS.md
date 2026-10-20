@@ -50,6 +50,9 @@ Prioridad: P1 = bloquea trabajo en curso · P2 = debería caer pronto · P3 = de
 > y el comando `liberar`. **Abiertos el mismo día** por el /cso y el escenario de
 > límites de D1: TODO-27 (la temporal no caduca), TODO-28 (nombres de solo
 > espacios) y TODO-29 (la purga traga un fallo de auditoría).
+>
+> **Cerrado el 2026-10-15**: ~~TODO-25~~ (refresh concurrente, `UPDATE` condicional).
+> **Abierto el mismo día** por su /cso: TODO-30 (una cadena de refresh por cuenta).
 
 ---
 
@@ -488,7 +491,30 @@ que la incumpla en un 500 al abrirlo. Hay que decidir primero **qué** se rechaz
 (¿huecos también, o solo solapes y desbordes?), mirar si la base real tiene
 alguno, y validar al crear (`Macrociclo.nuevo`) antes que al leer.
 
-## TODO-25 — Dos `/auth/refresh` a la vez con la misma cookie pasan los dos (P3)
+## ~~TODO-25 — Dos `/auth/refresh` a la vez con la misma cookie pasan los dos~~ — CERRADO 2026-10-15
+
+**Hecho como se proponía.** La rotación se gasta con `UPDATE users SET
+refresh_rotation = :n+1 WHERE id = :id AND refresh_rotation = :n`
+(`mapeo/identidad.rotacion_condicional`, que ejecuta `RepositorioDeUsuarios.guardar`);
+con 0 filas, `guardar` confirma la transacción vacía (**no** `rollback`: caducaría la
+pertenencia ya leída y el reintento del login daba 500 con cuentas con club — lo vio el
+revisor), relee la fila y levanta `RotacionPerdida`. `refresh` lo trata
+como el reuso de siempre (revoca, `REFRESH_REUSADO` con «a la vez», 401); `login` y
+`/me/password` reintentan sobre la rotación nueva (3 veces; luego 503): dos logins a
+la vez entran los dos con rotaciones distintas. **`:n` es la rotación con la que se
+construyó la entidad (`Usuario.rotacion_leida`), no la que diga la fila**: la sesión
+guarda las filas con referencia débil y una releída ya trae la de quien ganó — la
+primera versión del arreglo comparaba contra la fila y se saltaba el CAS.
+`anotar` no rota (`ValueError`), y `guardar` solo rota con la sesión limpia. Un refresh
+que pierde contra un cambio de contraseña o un logout (la generación ya subió) es un 401
+simple, no reuso; y si `/me/password` no puede abrir la sesión nueva, su 503 dice que la
+contraseña ya cambió (las tres, de la segunda vuelta del revisor). Probado con dos sesiones y una barrera en
+`tests/test_refresh_concurrente.py`, con cuenta sin club y con club, en SQLite siempre
+y en PostgreSQL con `PEAKSTROKE_TEST_POSTGRES_URL`; el archivo corre también contra HEAD
+(rojo en los dos motores: 200 y 200). Lo que deja
+abierto, en TODO-30. El texto de abajo es el de antes.
+
+### Lo que decía
 
 Visto por `/cso` y el revisor de C9 (2026-10-14); **anterior a C9**, el bloque
 no lo cambió. La comprobación de la rotación y la escritura de la nueva son
@@ -585,3 +611,26 @@ web, D0), y el CLI de operaciones ya lo mira (`ContextoDeAuditoria.perdidos`,
 salida 3). La purga no: si su `auditoria.purgada` se pierde, el cron no se entera.
 Arreglo: mirar `ctx.perdidos` al salir del contexto y devolver un código distinto
 de 0. Diez líneas y un test.
+
+## TODO-30 — Una cadena de refresh por cuenta: dos pestañas o dos dispositivos se echan (P2)
+
+Visto por el /cso de TODO-25 (2026-10-15). **No alcanzable hoy**: el frontend no tiene
+login ni llama a `/auth/refresh`. Hay que decidirlo **antes** de encender el login real.
+
+- **Dos pestañas del mismo navegador** comparten la cookie httpOnly. Desde TODO-25, si
+  las dos refrescan a la vez (access caducado al volver al equipo), la segunda pierde
+  la rotación y es reuso: las dos fuera y un `REFRESH_REUSADO` falso. Lo nuevo de TODO-25
+  es solo este caso; antes las dos recibían la misma rotación.
+- **Un login en otro dispositivo a la vez que un refresh** (desde TODO-25): el refresh
+  pierde la rotación y, como el login no sube la generación, cuenta como reuso. (Contra un
+  cambio de contraseña o un logout no: eso ya es un 401 simple.)
+- **Dos dispositivos** (preexistente, desde la rotación real de TODO-14):
+  `refresh_rotation` es una por cuenta, así que un login en el móvil deja gastada la
+  cookie del portátil, y su siguiente refresh corta las dos.
+
+Opciones: en el cliente, un solo refresh en vuelo por navegador
+(`navigator.locks.request('peakstroke-refresh', …)` o un `BroadcastChannel` que reparta
+el par); en el servidor, rotación **por sesión abierta** (una fila por dispositivo con su
+propia rotación) o una ventana de gracia corta que acepte la anterior. Lo de las
+pestañas lo resuelve el cliente; lo de los dispositivos, solo el servidor.
+

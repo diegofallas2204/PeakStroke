@@ -25,7 +25,7 @@ que la entidad garantiza es qué pasa con las sesiones cuando el hash cambia.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import ClassVar
 
@@ -41,6 +41,7 @@ class Usuario(PorIdentidad, CamposGobernados):
 
     _GOBERNADOS: ClassVar[frozenset[str]] = frozenset({
         "hash_de_password", "version_de_token", "rotacion_de_refresh", "ultimo_login",
+        "rotacion_leida",
     })
 
     correo: str
@@ -52,6 +53,14 @@ class Usuario(PorIdentidad, CamposGobernados):
     rotacion_de_refresh: int = 0
     creado: datetime | None = None
     ultimo_login: datetime | None = None
+    # La rotación con la que se construyó. Gastarla es «pasar de esta a la
+    # siguiente», y eso es lo que el repositorio le pide a la base (TODO-25):
+    # comparar contra lo que diga la fila en ese momento no vale, porque una
+    # fila releída ya trae la rotación de quien ganó.
+    rotacion_leida: int = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "rotacion_leida", self.rotacion_de_refresh)
 
     # ── Sesiones ─────────────────────────────────────────────────────────────
 
@@ -86,6 +95,10 @@ class Usuario(PorIdentidad, CamposGobernados):
     def acepta_generacion(self, version: int) -> bool:
         """Si un token de esa generación sigue vivo (no hubo revocación después)."""
         return version == self.version_de_token
+
+    def roto_el_refresh(self) -> bool:
+        """Si desde que se construyó se gastó alguna rotación."""
+        return self.rotacion_de_refresh != self.rotacion_leida
 
     def refresh_gastado(self, rotacion: int) -> bool:
         """Si un refresh con esa rotación ya se usó: reaparecer es robo."""

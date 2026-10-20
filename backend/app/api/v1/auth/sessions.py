@@ -16,8 +16,9 @@ from app.core.auditoria import TipoDeEvento, auditar
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import TokenError, create_access_token, create_refresh_token, decode_token
+from app.dominio.entidades import Usuario
 from app.persistencia.repositorios import RepositorioDeEquipos, RepositorioDeUsuarios
-from app.persistencia.repositorios.usuarios import normalizar_correo
+from app.persistencia.repositorios.usuarios import RotacionPerdida, normalizar_correo
 from app.persistencia.tablas.usuarios import User
 
 from . import credenciales, service
@@ -32,13 +33,29 @@ _BAD_CREDENTIALS = HTTPException(
     detail="Email o contraseña incorrectos",
 )
 
+# Cuántas veces una emisión legítima (login, cambio de contraseña) vuelve a
+# rotar si otra le gana la rotación. Perder tres seguidas no es una carrera
+# normal entre dos pestañas: se contesta 503 y que lo intente otra vez.
+_INTENTOS_DE_ROTAR = 3
+_SIN_ROTACION = HTTPException(
+    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+    detail="No se pudo abrir la sesión: inténtalo de nuevo",
+)
 
-async def _issue_session(db: AsyncSession, response: Response, user: User) -> SessionResponse:
+
+async def _issue_session(
+    db: AsyncSession, response: Response, user: User, *, reintentar: bool = True,
+) -> SessionResponse:
     """Emite el par de tokens: access en el cuerpo, refresh en cookie httpOnly.
 
     Cada emisión gasta una rotación. El refresh que se acaba de entregar es el
     único válido a partir de aquí; el anterior queda marcado como usado y su
     reaparición se trata como robo.
+
+    Si otra petición gasta la rotación a la vez (TODO-25), `reintentar` dice
+    qué es: en login y en el cambio de contraseña, otra emisión legítima —se
+    rota sobre la nueva—; en `refresh` (`reintentar=False`), el reuso, y
+    `RotacionPerdida` sube hasta él.
     """
     # `include_inactive=True` **no es un detalle**: sin él, `get_membership`
     # devuelve None tanto para "no está en ningún club" como para "está y se lo
@@ -54,10 +71,7 @@ async def _issue_session(db: AsyncSession, response: Response, user: User) -> Se
     # dejarla fuera del login la dejaría sin poder canjear el código que la
     # metería en el club.
 
-    usuarios = RepositorioDeUsuarios(db)
-    usuario = usuarios.entidad(user)
-    usuario.rotar_refresh()
-    await usuarios.guardar(usuario)
+    usuario = await _rotar(db, user, intentos=_INTENTOS_DE_ROTAR if reintentar else 1)
 
     response.set_cookie(
         key=settings.refresh_cookie_name,
@@ -75,6 +89,45 @@ async def _issue_session(db: AsyncSession, response: Response, user: User) -> Se
     )
 
 
+async def _rotar(db: AsyncSession, user: User, *, intentos: int) -> Usuario:
+    """Gasta una rotación con el `UPDATE` condicional del repositorio. Tras
+    perderla, `guardar` ya dejó la fila releída: se rota sobre la que ganó."""
+    usuarios = RepositorioDeUsuarios(db)
+    for intento in range(intentos):
+        usuario = usuarios.entidad(user)
+        usuario.rotar_refresh()
+        try:
+            await usuarios.guardar(usuario)
+            return usuario
+        except RotacionPerdida:
+            if intentos == 1:
+                raise
+            logger.info("Rotación perdida para %s (intento %s)", user.email, intento + 1)
+    raise _SIN_ROTACION
+
+
+async def _cortar_por_reuso(
+    db: AsyncSession, response: Response, user: User, rotacion: int, *, a_la_vez: bool,
+) -> HTTPException:
+    """Un refresh que reaparece —después o a la vez— corta todas las sesiones."""
+    motivo = (
+        f"rotación {rotacion} gastada a la vez por otra petición" if a_la_vez
+        else f"rotación {rotacion}, esperada {user.refresh_rotation}"
+    )
+    logger.warning(
+        "Refresh token reusado para %s (%s): se revocan todas las sesiones", user.email, motivo,
+    )
+    await credenciales.revoke_sessions(db, user)
+    # El evento más importante del registro: un refresh gastado que vuelve
+    # es una cookie copiada. `fallo` porque el refresh se rechazó.
+    auditar(
+        TipoDeEvento.REFRESH_REUSADO, user, fallo=True,
+        detalle=f"{motivo}: se revocan todas las sesiones",
+    )
+    response.delete_cookie(settings.refresh_cookie_name, path="/api/v1/auth")
+    return _BAD_CREDENTIALS
+
+
 @router.post("/login", response_model=SessionResponse)
 async def login(data: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
     user, motivo = await credenciales.comprobar_credenciales(db, data.email, data.password)
@@ -87,9 +140,13 @@ async def login(data: LoginRequest, response: Response, db: AsyncSession = Depen
         raise _BAD_CREDENTIALS
     try:
         sesion = await _issue_session(db, response, user)
-    except HTTPException:
-        # La contraseña era buena, pero el club le revocó el acceso.
-        auditar(TipoDeEvento.LOGIN, user, fallo=True, detalle="acceso_revocado")
+    except HTTPException as exc:
+        # La contraseña era buena, pero el club le revocó el acceso — o la
+        # rotación se perdió tres veces seguidas (503).
+        if exc is _BAD_CREDENTIALS:
+            auditar(TipoDeEvento.LOGIN, user, fallo=True, detalle="acceso_revocado")
+        elif exc is _SIN_ROTACION:
+            auditar(TipoDeEvento.LOGIN, user, fallo=True, detalle="rotacion_perdida")
         raise
     auditar(TipoDeEvento.LOGIN, user, equipo=sesion.user.team_id)
     return sesion
@@ -133,25 +190,25 @@ async def refresh(request: Request, response: Response, db: AsyncSession = Depen
         raise _BAD_CREDENTIALS
 
     if usuario.refresh_gastado(claims.rotation):
-        logger.warning(
-            "Refresh token reusado para %s (rotación %s, esperada %s): "
-            "se revocan todas las sesiones",
-            user.email, claims.rotation, user.refresh_rotation,
-        )
-        await credenciales.revoke_sessions(db, user)
-        # El evento más importante del registro: un refresh gastado que vuelve
-        # es una cookie copiada. `fallo` porque el refresh se rechazó.
-        auditar(
-            TipoDeEvento.REFRESH_REUSADO, user, fallo=True,
-            detalle=(
-                f"rotación {claims.rotation}, esperada {user.refresh_rotation}: "
-                "se revocan todas las sesiones"
-            ),
-        )
-        response.delete_cookie(settings.refresh_cookie_name, path="/api/v1/auth")
-        raise _BAD_CREDENTIALS
+        raise await _cortar_por_reuso(db, response, user, claims.rotation, a_la_vez=False)
 
-    return await _issue_session(db, response, user)
+    # Comprobar arriba no basta: otra petición con la misma cookie puede pasar
+    # la misma comprobación a la vez. Quien gasta la rotación lo decide la base
+    # (TODO-25), y la que llega segunda es el mismo reuso.
+    try:
+        return await _issue_session(db, response, user, reintentar=False)
+    except RotacionPerdida:
+        # Quien ganó pudo ser un cambio de contraseña o un logout, que suben la
+        # generación: entonces esta cookie ya estaba muerta y es el 401 del
+        # camino secuencial, que mira la generación antes que la rotación. Sin
+        # esto, un refresh de otra pestaña revocaba la sesión recién emitida a
+        # quien acababa de cambiar la contraseña (revisor de TODO-25, vuelta 2).
+        # `guardar` ya dejó la fila releída.
+        if not RepositorioDeUsuarios(db).entidad(user).acepta_generacion(claims.token_version):
+            raise _BAD_CREDENTIALS from None
+        raise await _cortar_por_reuso(
+            db, response, user, claims.rotation, a_la_vez=True,
+        ) from None
 
 
 @router.post("/logout", status_code=204)

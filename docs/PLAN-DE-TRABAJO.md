@@ -49,6 +49,15 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 
 ## Dónde estamos y qué sigue — medido el 2026-09-22
 
+> **Actualizado el 2026-10-18. TODO-25 cerrado** (fuera de los bloques): dos
+> `/auth/refresh` a la vez con la misma cookie ya no pasan los dos. La rotación
+> se gasta con un `UPDATE` condicional (`mapeo/identidad.rotacion_condicional`,
+> desde `RepositorioDeUsuarios.guardar`); la que pierde en `refresh` es reuso
+> (corta todo), en login y `/me/password` reintenta. Probado con dos sesiones en
+> SQLite y PostgreSQL (`tests/test_refresh_concurrente.py`). Su /cso abrió
+> **TODO-30** (una cadena de refresh por cuenta: pestañas y dispositivos se
+> echan; decidir antes del login del frontend). **1409 tests.** Sin migración.
+>
 > **Actualizado el 2026-10-14 (noche). D1 está hecho**, y con él las decisiones
 > que dejó C9. **El CLI de operaciones** es `backend/tools/ops.py`: crear club y
 > dueño, alta de cuenta, revocar, restaurar, **liberar** (TODO-26, lectura 2),
@@ -60,11 +69,12 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 > acceso nuevos en las vistas), probada en SQLite y PostgreSQL. Las tablas en
 > español y N1/N2 **siguen aparcadas**. **1393 tests.** Detalle en el bloque D1.
 > **C9 + D1 entraron en `main` con el PR #4 (fusionado el 2026-10-15).** La base
-> de desarrollo sigue sin migrar (está en `b2d7f5a8c1e4`).
+> de desarrollo se migró al head `d1a7c3e9f5b2` el 2026-10-15 (con copia
+> `peakstroke.db.antes-c9-d1`; 0 filas incumplían los CHECK).
 >
 > **Lo que queda.** Del plan, solo **D2** y **D3** (PSAdmin), con **R10** y **R12**
 > por decidir; ver «Antes de ejecutarlo» en D2. Los pendientes de `TODOS.md`
-> (TODO-1, 2, 3, 17, 18, 20, 21, 25, 27, 28 y 29). Aparcados a propósito: tablas
+> (TODO-1, 2, 3, 17, 18, 20, 21, 27, 28, 29 y 30). Aparcados a propósito: tablas
 > en español y N1/N2. **Extras para después del rediseño, ya desbloqueados**
 > (no son bloques de este plan; viven en el vault): el **test de lactato**
 > (notas 26 y 28, con su prompt en `Workflows/Prompt — Sesión del Test de
