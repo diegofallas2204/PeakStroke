@@ -1,15 +1,16 @@
 # PeakStroke — Performance Planner para Natación Competitiva
 
 Sistema de planificación de macrociclos y predicción de rendimiento para
-entrenadores de natación de alto rendimiento. Local-first hoy, diseñado para
-convertirse en SaaS sin reescrituras.
+entrenadores de natación de alto rendimiento. Hoy es una aplicación web
+local-first para un club; está construida para convertirse en SaaS multi-club
+sin reescrituras: equipos aislados, roles, auditoría y PostgreSQL ya probados.
 
-![Stack](https://img.shields.io/badge/FastAPI-Python_3.12+-009688) ![Frontend](https://img.shields.io/badge/React_19-TypeScript_strict-3178c6) ![UI](https://img.shields.io/badge/Tailwind_v4-GSAP_·_Three.js-8b5cf6)
+![Stack](https://img.shields.io/badge/FastAPI-Python_3.12+-009688) ![Frontend](https://img.shields.io/badge/React_19-TypeScript_strict-3178c6) ![UI](https://img.shields.io/badge/Tailwind_v4-GSAP_·_Three.js-8b5cf6) ![DB](https://img.shields.io/badge/SQLite_·_PostgreSQL_17-Alembic-336791)
 
 ![Dashboard](docs/dashboard.png)
-*Capturas reales de la app corriendo en local: [tabla del equipo](docs/tabla-equipo.png) ·
-[comparación ideal vs. real](docs/comparacion.png) · [base aeróbica](docs/base-aerobica.png) ·
-[simulador](docs/simulador.png)*
+*Capturas de junio de 2026, anteriores al rediseño del frontend:
+[tabla del equipo](docs/tabla-equipo.png) · [comparación](docs/comparacion.png) ·
+[base aeróbica](docs/base-aerobica.png) · [simulador](docs/simulador.png)*
 
 ---
 
@@ -17,387 +18,427 @@ convertirse en SaaS sin reescrituras.
 
 PeakStroke responde las preguntas centrales de un entrenador:
 
-- *¿Es realista bajar de 1:07.8 a 1:04.5 en 12 semanas?* → **Motor de factibilidad**
-- *¿Qué tiempo debo exigir cada semana y en cada zona?* → **Plan semanal automático**
-- *¿El atleta va adelantado o atrasado respecto al plan?* → **Comparación real vs. esperado**
-- *¿Cuál es la base aeróbica real del atleta?* → **Módulo T-30 / T-15 / CSS**
-- *¿Qué pasa si cambio semanas, kilómetros o la meta?* → **Simulador de escenarios**
+- *¿Es realista bajar de 1:07.8 a 1:04.5 en 12 semanas?* → **Factibilidad**
+- *¿Qué tiempo exijo cada semana, a qué ritmo y con qué salida en cada zona?* → **Plan semanal y tabla del equipo**
+- *¿El atleta va adelantado o atrasado respecto al plan?* → **Progresión real vs. esperada**
+- *¿Cuál es la base aeróbica real del atleta?* → **Tests T-30 / T-15 / N×D / CSS**
+- *¿Está acumulando fatiga?* → **Carga de entrenamiento (Banister: CTL / ATL / TSB)**
+- *¿Qué pasa si cambio semanas, kilómetros o la meta? ¿Y en la temporada entera?* → **Simulador**
 
-### Módulos funcionales
+---
 
-| Módulo | Qué hace |
+## 2. Estado — octubre de 2026
+
+| | |
 |---|---|
-| **Dashboard** | Pulso del macrociclo activo: semana actual, fases, estados del equipo, cumplimiento de registro, desviación media, próxima competencia, progresión planificada vs. real. |
-| **Macrociclos** | Asistente de 3 pasos: configuración (12–18 semanas, micros 3:1 o 4:1, km, curva) → fases configurables con colores → resumen. Competencias marcadas por semana. Relación 1:N con atletas. |
-| **Atletas** | CRUD con perfil deportivo: especialidad (velocidad / medio fondo / fondo / aguas abiertas), estilo principal, antropometría. |
-| **Base aeróbica** | 5 modos de ingreso: T-30, T-15, test personalizado N×D (ej. 12×400 → el sistema normaliza cada parcial a /100m), CSS 400/50 (Wakayoshi) e ingreso directo. Calcula promedio, desviación estándar y tendencia; gráfico de parciales con comparativa contra el test anterior. |
-| **Plan semanal** | La tabla central: fecha real (DD/MM), fase, km, tiempo esperado, pace/100, proyección recalculada, tiempo real editable inline, diferencia y estado. Panel de zonas por semana con km sugeridos por especialidad. Soporta **parones** (lesión/vacaciones): la semana se congela y la mejora restante se redistribuye. |
-| **Tabla del equipo** | Todos los atletas en una semana dada con sus tiempos objetivo por zona (R1–V) y km sugeridos. Gráfico de progreso colapsable. Navegación entre semanas. |
-| **Comparación** | Curva ideal vs. proyección ajustada vs. puntos reales, desviación semanal en barras, resumen de estados. |
-| **Simulador** | Stateless: modifica parámetros y el motor recalcula en vivo. Banner de factibilidad con tier fisiológico, ventanas realistas, semanas sugeridas si el objetivo es agresivo, comparación de las 4 curvas y plan completo. |
+| **Rediseño POO** (`docs/REDISENO.md`) | Los ocho pasos son código. Todo agregado se escribe por su entidad; quedan solo decisiones aparcadas (tablas en español, N1/N2) |
+| **Plan de trabajo** (`docs/PLAN-DE-TRABAJO.md`) | Partes A, B y C hechas; D0 (auditoría) y D1 (CLI de operaciones) hechos. Quedan **D2** y **D3** (PSAdmin) |
+| **Identidad** | Backend completo: login, refresh rotado, una sesión por dispositivo, revocación. **El frontend aún no tiene pantalla de login**: la app corre con `PEAKSTROKE_AUTH_ENABLED=false` |
+| **Tests** | 1516 en el backend (pytest); en el frontend, `tsc` y `eslint` |
+| **Base de datos** | SQLite en local; la cadena de migraciones corre también en PostgreSQL 17 |
+
+Lo que falta está en `TODOS.md` (los abiertos: TODO-1, 2, 3, 17, 18, 20, 21, 27,
+28, 29 y 31) y en la sección [12](#12-qué-queda).
 
 ---
 
-## 2. El motor de predicción (valor de negocio)
+## 3. Secciones de la aplicación
 
-Vive en `backend/app/engine/` como **funciones puras** (sin DB, sin HTTP):
-testeable, portable y ajustable de forma aislada. 33 tests unitarios lo cubren.
+Las secciones dependen del rol. La lista única de secciones y permisos es
+`frontend/src/components/layout/navConfig.ts`: la usan el menú, el drawer móvil
+y la guarda de ruta, así que esconder una sección y bloquearla son la misma cosa.
 
-### 2.1 Zonas de entrenamiento — `zones.py`
-Factores **por banda de distancia** derivados de la calculadora real de
-entrenadores (`pronosticos PABLO belen.xlsx`) y validados contra la teoría
-(Maglischo, Fernandes et al.). Cada zona tiene rango min–max sobre el
-`pace_100m` del tiempo esperado:
+| Sección | Rol | Qué hace |
+|---|---|---|
+| **Dashboard** | todos | Pulso del macrociclo de trabajo: semana actual, franja de fases, estados del equipo, cumplimiento de registro, desviación media y próxima competencia. El atleta ve su versión (`dashboard/vistaPorRol.ts`) |
+| **Macrociclos** | entrenador | Asistente de creación: semanas, micros 3:1 o 4:1, km totales, piscina. Las **cinco fases de la ciencia** (base general · base específica · umbral CSS · pre-competitivo · taper) llegan propuestas por el motor y el entrenador les pone nombre. Competencias por semana, nómina de atletas, estados (activo, completado, suspendido) |
+| **Atletas** | entrenador | El pool del club. Alta **por correo en un gesto**: crea la ficha, la cuenta y el código de vinculación. Cada tarjeta dice si la persona tiene cuenta, código pendiente o ninguno |
+| **Base aeróbica** | todos | Cinco modos de ingreso: T-30, T-15, test N×D (p. ej. 12×400), CSS 400/50 (Wakayoshi) e ingreso directo. Guarda la **salida** del test y si los números son tiempos nadados o llegadas del reloj. Promedio, desviación, tendencia, comparación contra el test anterior y **tiempos de entrenamiento** por zona |
+| **Entrenamiento** | todos | El atleta apunta lo que nadó cada día (metros, duración, RPE CR-10); el entrenador lo ve y lo corrige. Carga sTSS por sesión y curva CTL/ATL/TSB con alertas |
+| **Plan semanal** | todos | Tres vistas (`?vista=`): **Plan** (fecha, fase, km, tiempo esperado, proyección recalculada, tiempo real, diferencia, estado, parones), **Progresión** (curva ideal vs. proyección vs. reales, tabla de desviación) y **Zonas** |
+| **Tabla del equipo** | entrenador | Todos los atletas en una semana: ritmo y **salida** por zona (R1–V), km sugeridos y la forma de cada atleta. Exportable a PDF |
+| **Simulador** | entrenador | Sin persistencia: cambia parámetros y el motor recalcula. Factibilidad con su tier, las cinco curvas comparadas, extensión del macro si la meta no cabe, plan completo, **proyección de temporada** (3 macros). Exportable a PDF |
+| **Perfil** | todos | Cuenta y contraseña, ficha deportiva, canje de código, solicitudes de ingreso. El dueño gestiona miembros, qué atletas lleva cada entrenador y la transferencia del club |
+| **Ajustes** | todos | Tema (azul marino / negro / blanco) y, en desarrollo, el **conmutador de identidad** (ver §6.4) |
 
-| Prueba | R1 | R2 | MVO2 | RL | V |
-|---|---|---|---|---|---|
-| ≤50m | 1.26–1.35 | 1.20–1.25 | 1.15–1.20 | 1.06–1.12 | 1.02–1.05 |
-| 75–100m | 1.21–1.30 | 1.15–1.20 | 1.15–1.20 | 1.06–1.12 | 1.02–1.05 |
-| 150–200m | 1.20–1.30 | 1.12–1.18 | 1.10–1.15 | 1.05–1.10 | 1.02–1.05 |
-| 300–500m | 1.15–1.20 | 1.10–1.12 | 1.08–1.10 | — | — |
-| 600–1000m | 1.11–1.15 | 1.05–1.10 | 1.05–1.10 | — | — |
-| ≥1500m | 1.10–1.12 | 1.05–1.10 | — | — | — |
-
-A mayor distancia los factores se comprimen (el ritmo de competencia ya es casi
-aeróbico) y las zonas de velocidad dejan de prescribirse. Además define la
-**distribución de km por zona según especialidad** (Seiler 80/20, Issurin):
-un fondista acumula ~70% en R1; un velocista reparte hacia RL/V.
-
-### 2.2 Curvas de progresión — `curves.py`
-Cuatro curvas normalizadas (f(0)=0, f(1)=1) que distribuyen la mejora total:
-**sigmoidal** (adaptación → aceleración → meseta, la recomendada), lineal,
-exponencial y logarítmica.
-
-### 2.3 Distribución de kilometraje — `km_distribution.py`
-Combina la envolvente del macrociclo (rampa hasta ~70% del ciclo + taper de
-40–60%) con la **onda de supercompensación 3:1 / 4:1** (Bompa): tres o cuatro
-semanas de carga progresiva y una de descarga. Normalizado al total exacto.
-
-### 2.4 Factibilidad — `feasibility.py`
-Dos regímenes fisiológicos:
-
-- **Tier 1 (≥400m)**: mejora gobernada por la base aeróbica. Regla:
-  `1 s/micro × factor_distancia × factor_estilo × ratio_aeróbico`.
-- **Tier 2 (<400m)**: ventanas de mejora realista en s/microciclo por
-  combinación distancia+estilo (ej. 100 mariposa: 0.30–0.50 s/micro).
-
-Veredictos: `ok` / `warning` (hasta 1.5× el techo) / `aggressive` — en cuyo
-caso calcula **cuántas semanas necesitaría** el objetivo.
-
-### 2.5 Progresión y recálculo — `progression.py`
-- `generate_plan()`: semana a semana con **fecha real (lunes, DD/MM)**, tiempo
-  esperado, pace/100, zonas, km y fase.
-- `recalculate_remaining()`: ancla la curva al último tiempo real y reproyecta
-  las semanas restantes hacia la meta. Las semanas con parón no progresan y la
-  mejora se redistribuye entre las activas.
-- La curva ideal (`expected_time`) **nunca se modifica**; el recálculo vive en
-  `recalc_time`. Así el gráfico muestra ambas: plan original y proyección viva.
-- Estados con tolerancia ±0.4%: adelantado / en plan / atrasado.
-
-### 2.6 Base aeróbica — `aerobic.py`
-- `analyze_splits()`: normaliza cualquier test N×D a parciales /100m; promedio
-  (= base aeróbica), desviación estándar (consistencia) y tendencia por
-  regresión lineal (mejora / estable / se cae).
-- `css_from_400_50()`: Critical Swim Speed de Wakayoshi: `350/(T400−T50)`.
+Una cuenta sin club solo ve Perfil: existe en el sistema y todavía no pertenece
+a ningún equipo.
 
 ---
 
-## 3. Arquitectura
+## 4. El motor científico
+
+Uno solo, en `backend/app/dominio/servicios/`, como funciones puras que no
+importan nada fuera de la biblioteca estándar. `MotorCientifico` (`motor.py`)
+es la fachada; el cálculo está repartido en:
+
+| Módulo | Qué calcula |
+|---|---|
+| `tablas.py` | Las constantes científicas que no pertenecen a ningún objeto de valor, cada una con su referencia |
+| `curvas.py` | La forma de la progresión. **La de un plan real es siempre la científica** (distribución F_FASE, cargada hacia el final, pico en el taper). Sigmoide, exponencial, logarítmica y lineal existen solo en el simulador, porque a mitad de plan cambian el veredicto que ve el atleta |
+| `envolvente.py` | El techo de mejora del macro (I_max) y el ritmo máximo de una semana; la **factibilidad**: tier 1 (≥ 400 m, regla aeróbica) y tier 2 (< 400 m, ventanas de velocidad), con semanas recomendadas si la meta es agresiva |
+| `kilometraje.py` | Envolvente del volumen (rampa hasta ~70 % y descenso de 40–60 %) × onda 3:1 / 4:1. **El total lo pone el entrenador**; la banda científica es un aviso, no un valor |
+| `zonas.py` · `intervalos.py` | `zona = ritmo de carrera × factor[perfil][distancia] (+ estilo) × piscina`. Cada zona sale con **dos números**: ritmo y salida. El descanso es un ratio sobre el trabajo que crece con la intensidad, y la salida se redondea **hacia arriba** al múltiplo de 5 s |
+| `plan.py` | El plan semana a semana, su extensión y el recálculo desde un tiempo real. Ninguna semana mejora más rápido que el pico fisiológico: lo que no cabe se difiere a las siguientes |
+| `temporada.py` | Tres macrociclos encadenados con re-test y degradación del potencial (0,60) |
+| `banister.py` | CTL/ATL/TSB sobre el sTSS de las sesiones. La serie arranca en equilibrio; alertas TSB < −25 / < −40, TSB < 0 más de 14 días y CTL +7 en una semana |
+
+Reglas que el modelo impone por construcción, no por convención:
+
+- **La curva ideal nunca se modifica**: `Semana.esperado` no se puede reasignar y
+  el repositorio no lo escribe. La proyección viva va en `recalc_time`.
+- **El nivel del atleta sale de su test aeróbico cuando lo hay**; solo si no, se
+  estima desde el ritmo de carrera.
+- **En la base de datos va siempre el tiempo nadado**: la conversión de llegadas
+  del reloj ocurre en el constructor de `TestAerobico`.
+- `Tiempo` es siempre positivo; lo que puede ser cero o negativo es una
+  `Duracion`. La validez de una prueba la decide el constructor de `Prueba`.
+- Estados con tolerancia ±0,4 %: adelantado / en plan / atrasado.
+
+El análisis del test (`engine/aerobic.py`) y el formato de tiempos
+(`engine/time_utils.py`) son lo único que queda de la carpeta `engine/` original.
+
+---
+
+## 5. Arquitectura
 
 ```
 peakstroke/
-├── backend/                      FastAPI · SQLAlchemy async · SQLite
+├── backend/                        FastAPI · SQLAlchemy 2 async · Pydantic v2
 │   ├── app/
-│   │   ├── main.py               registra routers, CORS, lifespan (init DB)
-│   │   ├── core/
-│   │   │   ├── config.py         settings (env PEAKSTROKE_*, URL de DB)
-│   │   │   └── database.py       engine async, get_db, Base
-│   │   ├── engine/               ★ MOTOR PURO (sin DB) — 7 módulos
-│   │   │   ├── time_utils.py     'm:ss.cc' <-> segundos
-│   │   │   ├── zones.py          factores por distancia + mix por especialidad
-│   │   │   ├── curves.py         4 curvas de progresión
-│   │   │   ├── km_distribution.py envolvente + onda 3:1
-│   │   │   ├── feasibility.py    tiers, ventanas, semanas sugeridas
-│   │   │   ├── progression.py    generate_plan / recalculate / status
-│   │   │   └── aerobic.py        splits, tendencia, CSS
-│   │   └── modules/              ★ VERTICAL SLICES
-│   │       ├── swimmers/         models · schemas · service · router
-│   │       ├── plans/            macrociclos, fases, competencias,
-│   │       │                     athlete_plans, athlete_events, weekly_plans
-│   │       │                     + enrollment.py (un atleta, un macro vivo)
-│   │       ├── link_codes/       código que caduca: liga una cuenta a una ficha
-│   │       ├── aerobic_tests/    tests + splits
-│   │       ├── dashboard/        agregaciones (summary, team-week)
-│   │       └── simulator/        stateless, solo invoca el motor
-│   ├── tests/test_engine.py      33 tests del motor
-│   ├── seed.py                   datos demo realistas
-│   └── requirements.txt
+│   │   ├── main.py                 routers, CORS, middleware de auditoría
+│   │   ├── dominio/                ★ el modelo. No importa NADA de fuera
+│   │   │   ├── valores/            Tiempo, Duracion, Ritmo, Mejora, Prueba, Estilo,
+│   │   │   │                       Piscina, Zona, Fase, Nivel, Veredicto… (inmutables)
+│   │   │   ├── entidades/          Atleta, Macrociclo, Inscripcion, PruebaObjetivo,
+│   │   │   │                       Semana, Resultado, Sesion, TestAerobico, Usuario,
+│   │   │   │                       SesionAbierta, Equipo, CodigoDeVinculacion
+│   │   │   ├── roles/              Rol → EntrenadorEnJefe · Entrenador · AtletaRol
+│   │   │   └── servicios/          el motor científico (§4)
+│   │   ├── persistencia/
+│   │   │   ├── tablas/             modelos SQLAlchemy por agregado + vocabularios (CHECK)
+│   │   │   ├── repositorios/       la única puerta a cada agregado
+│   │   │   └── mapeo/              fila ↔ entidad, en las dos direcciones
+│   │   ├── api/v1/                 una rebanada por agregado: router · schemas · service
+│   │   │   ├── atletas/  codigos/  equipos/  macrociclos/  sesiones/  tests/  auth/
+│   │   │   ├── carga/              solo lectura (CTL/ATL/TSB)
+│   │   │   ├── simulador/          sin tabla
+│   │   │   └── vistas/             pantallas compuestas: tablero y tabla del equipo
+│   │   ├── core/                   config, base de datos, Principal, guards,
+│   │   │                           seguridad (Argon2id + JWT), auditoría
+│   │   └── engine/                 aerobic.py · time_utils.py
+│   ├── alembic/                    20 migraciones; la única fuente del esquema
+│   ├── tools/                      ops.py y herramientas de servidor (§8)
+│   ├── tests/                      1516 tests
+│   └── seed.py                     datos demo
 │
-└── frontend/                     React 19 · Vite · TS strict · Tailwind v4
-    └── src/
-        ├── lib/                  api.ts (cliente tipado) · types.ts · format.ts · constants.ts
-        ├── hooks/                usePageEnter (GSAP stagger) · useCountUp
-        ├── components/
-        │   ├── layout/           Sidebar (nav animada + chip de macro) · PageHeader
-        │   ├── ui/               Card, StatCard (count-up), RingGauge (SVG+GSAP),
-        │   │                     Modal, Badge, EventPicker, Toggle, EmptyState
-        │   ├── charts/           tema Recharts + ProgressionChart (Y invertido)
-        │   └── three/            WaveBackground (shader GLSL de ondas)
-        └── features/             ★ espejo del backend
-            ├── dashboard/  ├── plans/  ├── swimmers/  ├── aerobic/
-            ├── weekly/     ├── team/   ├── comparison/ └── simulator/
+├── frontend/                       React 19 · Vite · TS strict · Tailwind v4
+│   └── src/
+│       ├── lib/                    api.ts (cliente tipado), types/, constants, format, pdf
+│       ├── hooks/                  useSession, useSelectedPlan, useTheme, useDevIdentity…
+│       ├── components/             layout (rail, drawer, navConfig) · ui · charts · three
+│       └── features/               dashboard · plans · swimmers · aerobic · training ·
+│                                   weekly · team · simulator · profile · settings
+│
+├── docker-compose.yml              PostgreSQL 17 para cuando toque desplegar
+├── start-peakstroke.bat            lanzador de doble clic (backend + frontend)
+└── docs/                           REDISENO.md, PLAN-DE-TRABAJO.md, capturas
 ```
 
-### Principios aplicados
-- **Vertical slice**: cada feature es autocontenida (modelos→API→UI). Agregar
-  una feature nueva = una carpeta nueva en cada lado, sin tocar las demás.
-- **Motor puro**: la lógica de negocio de mayor valor no conoce la
-  infraestructura. Se puede ajustar, versionar y testear sin levantar nada.
-- **Router sin lógica**: los endpoints reciben, delegan al service y retornan.
-- **Una responsabilidad por archivo**, ningún archivo >300 líneas.
-- **Fuente de verdad única**: zonas en `dominio/servicios/zonas.py`, catálogos UI en
-  `lib/constants.ts`.
+### Principios
 
-### API (REST, versionada `/api/v1`)
-```
-GET/POST/PUT/DELETE  /swimmers
-GET/POST/DELETE      /link-codes      + POST /redeem   liga cuenta ↔ ficha
-GET/POST/PATCH/DELETE /plans            (+ fases y competencias embebidas)
-GET                  /plans/{id}/assignable-athletes  quién puede entrar hoy
-POST/DELETE          /plans/{id}/athletes          genera el plan semanal
-GET                  /plans/events/{id}/weeks       semanas + zonas + estado
-PATCH                /plans/weeks/{id}              tiempo real / parón → recalcula
-GET/POST/DELETE      /aerobic-tests   + POST /analyze (preview sin persistir)
-GET                  /dashboard/summary · /dashboard/team-week
-POST                 /simulator/run                 motor en vivo, sin persistencia
-GET                  /health
-```
-Documentación interactiva: `http://localhost:8000/docs` (Swagger automático).
+- **Las dependencias apuntan hacia dentro**: `api → persistencia → dominio`, y el
+  dominio no apunta a nada. `tests/test_dependencias_de_capas.py` lo comprueba
+  por AST y su lista de violaciones conocidas está vacía.
+- **Entre rebanadas del API no se importa nada.** Para preguntarle algo a otro
+  agregado se pide a su repositorio.
+- **La entidad se construye desde la fila, no la envuelve.** Los campos de
+  estado de la identidad (generación de sesión, hash, dueño, rol, ciclo de vida
+  del código) solo cambian por sus métodos; un guarda por AST lo impide fuera
+  del mapeo.
+- **Router sin lógica**: recibe, delega y responde.
+- Ningún archivo pasa de ~300 líneas; type hints en todo Python.
 
 ---
 
-## 4. Experiencia de usuario
+## 6. Equipos, roles e identidad
 
-Diseño basado en las referencias visuales del proyecto (`dashboard.jpg`,
-`analisis ui.jpg`, `estética de gráficos.jpg`):
+### 6.1 El equipo es la frontera de todo
+- Fichas, macrociclos y tests llevan `team_id` NOT NULL, y las tablas de relación
+  tienen FKs compuestas contra `(id, team_id)`: la base de datos hace imposible
+  mezclar clubes aunque el código tenga un bug.
+- Toda consulta pasa por un `Principal` (usuario + pertenencia + propiedad). Los
+  repositorios se construyen con él, así que el alcance no se puede olvidar.
+- `team_id` sale **siempre** de la sesión, nunca del cuerpo de la petición.
+- Recurso de otro equipo → **404, nunca 403**. El 403 es «tu rol no alcanza».
 
-- **Tema oscuro profundo** (#06070b) con tarjetas glaseadas, bordes sutiles y
-  acentos violeta / cian / magenta / ámbar / menta.
-- **Tipografía**: Space Grotesk (display y números), Inter (texto),
-  JetBrains Mono (tiempos — tabular).
-- **Cero emojis**: iconografía SVG profesional (lucide) en toda la app.
-- **Three.js**: fondo WebGL con shader GLSL propio — un campo de puntos
-  ondulante (la superficie de la piscina) con gradiente violeta→cian, máscara
-  radial y pausa automática cuando la pestaña no es visible.
-- **GSAP**: entrada de páginas con stagger fade-up, count-up en métricas,
-  gauge circular animado con glow, transiciones de hover con elevación.
-- **Gráficos custom** (Recharts tematizado): eje Y invertido para tiempos
-  (menor = más arriba), fechas reales DD/MM en X, gradientes, líneas punteadas
-  para proyección, puntos reales con glow, tooltips con estética del sistema.
-- **Interacciones de entrenador**: tiempo real editable inline (Enter guarda,
-  Esc cancela), factibilidad en vivo mientras se escribe la meta, navegación
-  de semanas, panel de zonas al hacer click en una fila.
+### 6.2 Roles
+- El rol vive en `team_members`, no en `users`: se es entrenador *en* un club.
+- **Entrenador en jefe** = entrenador que además es dueño del club. El dueño es
+  único y transferible.
+- El atleta es del equipo; `coach_athletes` dice quién lo lleva y `plan_coaches`
+  qué entrenadores llevan cada macrociclo. El dueño llega a todos.
+- Borrar un macrociclo y cambiar su meta son de dueño.
+- **Un atleta, un macrociclo vivo**: regla de dominio que bloquea a todos, dueño
+  incluido.
+
+### 6.3 Ficha y cuenta, la misma persona
+La ficha deportiva y la cuenta se ligan solo con un **código de vinculación**: lo
+emite el entrenador, lo canjea la persona, caduca a las 72 h, sirve una vez y
+emitir uno nuevo revoca el anterior. Ningún endpoint las liga por sí solo.
+
+**Revocado no es lo mismo que sin equipo**: un atleta revocado sigue siendo del
+club y no puede canjear el código de otro. Para que cambie de club, el operador
+lo **libera** con `tools/ops.py liberar`.
+
+### 6.4 Sesiones
+- Argon2id para las contraseñas; access JWT de 15 min y refresh de 30 días en
+  cookie httpOnly.
+- **Una sesión por login** (`sesiones_abiertas`), cada una con su rotación. El
+  refresh sirve una vez y se gasta con un `UPDATE` condicional: reusarlo, aunque
+  sea a la vez, cierra esa sesión y deja un `REFRESH_REUSADO` en la auditoría.
+  Los demás dispositivos siguen.
+- **Cortan todas las sesiones**: `POST /auth/logout-all`, cambiar la contraseña,
+  revocar, liberar y `ops.py cortar-sesiones`.
+
+### 6.5 Modo de desarrollo
+Con `PEAKSTROKE_AUTH_ENABLED=false` (el defecto) la app no pide login y toda
+petición se atribuye a `coach@peakstroke.dev`. `config.py` impide que ese modo
+llegue a producción. Dos cabeceras permiten probar cualquier rol:
+
+```
+X-PeakStroke-Dev-User: sofia@peakstroke.dev   quién eres: ves la interfaz de ese rol, con sus 403
+X-PeakStroke-Dev-Bypass: true                 te saltas los guards de rol sin dejar de ver lo que ve esa persona
+```
+
+En el frontend, el conmutador vive en **Ajustes → Desarrollo**.
 
 ---
 
-## 5. Cómo correr el proyecto
+## 7. Integridad y auditoría
+
+- **Las FKs se aplican de verdad** también en SQLite (`PRAGMA foreign_keys=ON`).
+- **Nada se borra: se da de baja** (fichas, miembros, cuentas, tests). Las dos
+  excepciones razonadas son las sesiones de entrenamiento —registros que su dueño
+  corrige— y las filas de `sesiones_abiertas`.
+- **El tiempo nadado es del atleta, no del plan**: vive en `resultados`, sin FK al
+  plan, así que sacar a alguien del macro o borrar el macro no lo toca.
+- **Los vocabularios cerrados tienen `CHECK`** (fase, rol, estilo, piscina,
+  estado…), generados desde los enums del dominio.
+- Un número no finito en el cuerpo de una petición da 422 (`api.entrada.Entrada`).
+- **Auditoría append-only**: los eventos de seguridad se escriben después de
+  responder; un trigger rechaza `UPDATE` y `DELETE` de lo que tenga menos de
+  24 meses. La IP nunca llega entera al disco: red truncada + HMAC con una clave
+  que rota cada 30 días y se borra al rotar.
+- Las vistas `v_admin_accesos`, `v_admin_actividad`, `v_admin_cuentas` y
+  `v_admin_equipos` son el único contrato de lectura del futuro panel PSAdmin.
+
+---
+
+## 8. API (REST, `/api/v1`)
+
+```
+auth          POST   /auth/login · /auth/refresh · /auth/logout · /auth/logout-all
+              GET    /auth/me · /auth/config · /auth/dev-identities
+              POST   /auth/me/password
+              GET/POST /auth/members        PATCH /auth/members/{user_id}
+teams         GET/PATCH /teams/mine         POST /teams/mine/transfer
+              GET/PUT   /teams/mine/coaches/{coach_id}/athletes
+swimmers      GET/POST  /swimmers/          GET/PUT/DELETE /swimmers/{id}
+              POST      /swimmers/{id}/reactivate
+link-codes    GET/POST  /link-codes/        POST /link-codes/invite · /link-codes/redeem
+              GET       /link-codes/mine    DELETE /link-codes/{id}
+plans         GET/POST  /plans/             GET/PATCH/DELETE /plans/{id}
+              GET       /plans/default-phases · /plans/{id}/assignable-athletes
+              POST      /plans/{id}/athletes
+              DELETE    /plans/{id}/athletes/{athlete_plan_id}   POST …/restore
+              GET       /plans/events/{event_id}/weeks
+              PATCH     /plans/weeks/{week_id}           tiempo real / parón → recalcula
+aerobic-tests GET/POST  /aerobic-tests/     POST /aerobic-tests/analyze (sin persistir)
+              GET/DELETE /aerobic-tests/{id}   POST …/reactivate
+              GET       /aerobic-tests/{id}/previous · /aerobic-tests/{id}/training-intervals
+sessions      GET/POST  /sessions/          GET/PATCH/DELETE /sessions/{id}
+training-load GET       /training-load/{swimmer_id}
+dashboard     GET       /dashboard/summary · /dashboard/team-week
+simulator     POST      /simulator/run · /simulator/season
+              GET       /health
+```
+
+Documentación interactiva: `http://localhost:8000/docs`.
+
+---
+
+## 9. Cómo correr el proyecto
 
 ### Requisitos
 - Python 3.12+ · Node.js 20+
 
-### Backend (terminal 1)
+### Primera vez
 ```powershell
 cd peakstroke\backend
-python -m venv .venv          # solo la primera vez
+python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
-.venv\Scripts\python seed.py  # datos demo (opcional, recomendado)
-.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
+.venv\Scripts\python seed.py        # BORRA la base y la reconstruye por migraciones, con datos demo
+
+cd ..\frontend
+npm install
 ```
 
-### Frontend (terminal 2)
+### Arrancar
+Doble clic en `start-peakstroke.bat`: levanta backend (`:8000`) y frontend
+(`:5173`), abre el navegador y, al cerrar la ventana, apaga los dos.
+
+A mano, en dos terminales:
+```powershell
+cd peakstroke\backend
+.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
+```
 ```powershell
 cd peakstroke\frontend
-npm install                   # solo la primera vez
 npm run dev
 ```
 
 Abrir **http://localhost:5173**. El proxy de Vite enruta `/api` → `:8000`.
 
+### Migraciones
+El esquema **no** se crea al arrancar: `init_db()` solo avisa si la base no está
+en el head.
+```powershell
+cd peakstroke\backend
+.venv\Scripts\python -m alembic upgrade head
+.venv\Scripts\python -m alembic revision --autogenerate -m "qué cambia"
+```
+Todo modelo nuevo se registra en `app/core/model_registry.py`.
+
 ### Tests
 ```powershell
 cd peakstroke\backend
-.venv\Scripts\python -m pytest tests/ -v
+.venv\Scripts\python -m pytest tests/ -q
+
+cd ..\frontend
+npx tsc -b
+npm run lint
+```
+Dos `pytest` a la vez en el mismo árbol se pisan: dale a cada uno su propio
+`TMP`/`TEMP`.
+
+### PostgreSQL
+```powershell
+docker compose up -d db
+.venv\Scripts\pip install asyncpg
+$env:PEAKSTROKE_DATABASE_URL = "postgresql+asyncpg://peakstroke:peakstroke@localhost:5432/peakstroke"
+.venv\Scripts\python -m alembic upgrade head
 ```
 
 ---
 
-## 6. Datos demo (seed)
+## 10. Herramientas de servidor (`backend/tools/`)
 
-`python seed.py` repuebla la base con un escenario realista:
-8 atletas (4 especialidades, 5 estilos), macrociclo activo de 12 semanas
-cursando la **semana 7** (fase Construcción), 11 pruebas objetivo, tiempos
-reales de las semanas 1–6 con sesgos por atleta (adelantados/atrasados),
-2 competencias (una principal en semana 12) y 12 tests aeróbicos:
-T-30 iniciales, T-15 de control, un 12×400 y un CSS.
+| Herramienta | Para qué |
+|---|---|
+| `ops.py` | **CLI de operaciones**: `crear-equipo`, `crear-cuenta`, `revocar`, `restaurar`, `liberar`, `cortar-sesiones`, `restablecer-password`, `transferir` y `salud`. Todo lo que escribe audita (`os:<usuario>@<host>`), tiene `--dry-run` y los destructivos piden escribir el nombre del recurso. Ninguna contraseña entra por argumento |
+| `purgar_auditoria.py` | Borra los eventos de más de 24 meses (cron mensual) |
+| `recalcular_carga.py` | Reconstruye `carga_diaria` desde cero |
+| `grafo_de_imports.py` | Imprime el grafo de capas y marca las flechas que suben |
+
+El primer club y su dueño se crean así:
+```powershell
+cd peakstroke\backend
+.venv\Scripts\python tools/ops.py crear-equipo --nombre-equipo "Club" --correo dueño@club.com --nombre "Ana"
+```
+Cada comando, con sus códigos de salida, en `backend/tools/README.md`.
 
 ---
 
-## 7. Fundamentos teóricos aplicados
+## 11. Datos demo (seed)
 
-Del documento `macrociclos_natacion_investigacion.pdf`:
+`python seed.py` crea **7 cuentas** de desarrollo (contraseña `peakstroke`),
+10 fichas de nadador, un macrociclo activo de 12 semanas cursando la semana 7,
+tests aeróbicos y tiempos reales de las semanas 1–6 con ruido plausible.
+
+Cuatro de las cuentas existen para que los casos incómodos se vean al
+desarrollar: un entrenador que no es dueño, un atleta sin ficha, un atleta con
+ficha pero sin macrociclo y un atleta con la ficha dada de baja.
+
+---
+
+## 12. Qué queda
+
+| Qué | Dónde |
+|---|---|
+| **Login en el frontend** y un solo `/auth/refresh` en vuelo por navegador (Web Locks), que bloquea encenderlo en producción | TODO-31 |
+| **D2 y D3**: el panel PSAdmin, con R10 y R12 por decidir | `docs/PLAN-DE-TRABAJO.md` |
+| Especificar la UI de administración · tests de la frontera entre equipos | TODO-1 · TODO-2 |
+| `useSelectedPlan` aislado por usuario · la invitación no debería crear la cuenta · límite de intentos en el canje | TODO-3 · 17 · 18 |
+| Billing (Stripe) y límites por plan (`core/tier_limits.py`, `require_feature()`) | camino al SaaS |
+| **Después del rediseño, ya desbloqueados**: test de lactato, interconexión de secciones por atleta, módulo de entrenamiento diario | notas del vault |
+| Aparcados a propósito: tablas en español, N1/N2 (qué entra en el promedio semanal) | `docs/REDISENO.md` |
+
+---
+
+## 13. Fundamentos teóricos aplicados
 
 | Concepto | Fuente | Dónde se aplica |
 |---|---|---|
-| CSS = 350/(T400−T50) | Wakayoshi et al. (1992) | `engine/aerobic.py`, modo CSS del módulo de tests |
-| Periodización y fases | Matveyev (1964), Bompa & Haff (2009) | Fases por defecto Base/Construcción/Pico/Descenso |
-| Supercompensación 3:1 | Bompa & Haff (2009) | Onda de microciclo en `km_distribution.py` |
-| Taper 40–60% de volumen | Mujika | Envolvente final del kilometraje |
-| Distribución por especialidad | Seiler (2010), Issurin (2008) | `MEZCLA_DE_ZONAS_POR_ESPECIALIDAD` en `dominio/servicios/tablas.py` |
-| Dominio aeróbico por prueba | Gastin (2001), Maglischo (2011) | `AEROBIC_RATIO` del análisis de factibilidad |
-| Factores de zona por distancia | Calculadora de entrenadores (Excel) | `dominio/valores/zona.py` (`factores_de_zona`) |
+| CSS = 350 / (T400 − T50) | Wakayoshi et al. (1992) | `engine/aerobic.py`, modo CSS del test |
+| Periodización y fases | Matveyev (1964), Bompa & Haff (2009) | `valores.Fase` (las cinco fases y su F_FASE) |
+| Supercompensación 3:1 / 4:1 | Bompa & Haff (2009) | `servicios/kilometraje.py` |
+| Taper de 40–60 % del volumen | Mujika | Envolvente del kilometraje |
+| Distribución por especialidad | Seiler (2010), Issurin (2008) | `MEZCLA_DE_ZONAS_POR_ESPECIALIDAD` en `servicios/tablas.py` |
+| Dominio aeróbico por prueba | Gastin (2001), Maglischo (2011) | Factibilidad (`servicios/envolvente.py`) |
+| Factores de zona por perfil y distancia | Calculadora de entrenadores, calibrada con el pool nacional | `valores/zona.py` (`factores_de_zona`) |
+| Carga CTL / ATL / TSB | Banister (1975), Hellard et al. (2005), Mitchell et al. (2020) | `servicios/banister.py` |
 
 ---
 
-## 8. Decisiones técnicas (bitácora)
+## 14. Decisiones técnicas
 
 | Decisión | Razón |
 |---|---|
-| **SQLite en lugar de PostgreSQL** (por ahora) | Local-first sin fricción de instalación. SQLAlchemy async hace que migrar a Postgres sea cambiar una URL de entorno. Alembic se incorporará en ese momento. |
-| **Sin auth/billing todavía** | El usuario es un solo entrenador local. La arquitectura vertical-slice deja los slots `auth/` y `billing/` listos según `oficial/PLAN_IMPLEMENTACION.md` (JWT + refresh rotation + Stripe + tier guards). |
-| **Motor como funciones puras** | El valor de negocio es la precisión de los cálculos: debe poder ajustarse y testearse sin tocar API ni UI. |
-| **`expected_time` inmutable + `recalc_time`** | El entrenador necesita ver el plan original y la proyección viva a la vez; sobrescribir destruiría la trazabilidad. |
-| **Factores de zona por distancia (no globales)** | El mockup usaba un factor único por zona; el Excel real de entrenadores demuestra que varían fuertemente con la distancia. Se modeló como bandas con rango min–max. |
-| **Recharts sobre canvas custom** | Declarativo, tematizable al nivel de las referencias, y mantiene los gráficos como componentes React testables. |
-| **Three.js solo decorativo** | Un shader de ondas sutil (puntos, no geometría pesada), con `pixelRatio` limitado y pausa en `visibilitychange`: estética sin costo de batería. |
-| **TanStack Query** | Caché e invalidación automática: registrar un tiempo real refresca semanas y dashboard sin estado manual. |
-| **Tailwind v4 con `@theme`** | Design tokens centralizados en CSS nativo; los componentes usan utilidades + clases semánticas (.card, .btn, .field). |
+| **Un solo motor, en el dominio** | Había dos que compartían tablas y no algoritmo, y divergieron tres veces. La forma la pone la ciencia; los límites, el entrenador |
+| **Rediseño POO con capas** (`dominio` / `persistencia` / `api`) | Las reglas vivían repartidas en servicios que se las tenían que acordar. Hoy las impone el constructor o el método de la entidad |
+| **La curva de un plan real es siempre la científica** | Las otras cambian el veredicto que ve el atleta a mitad de plan; se quedan en el simulador |
+| **`expected_time` inmutable + `recalc_time`** | El entrenador ve a la vez el plan original y la proyección viva |
+| **SQLite en local, PostgreSQL probado** | Local-first sin fricción; las migraciones valen en los dos motores (comprobado el 2026-09-25) |
+| **Alembic como única fuente del esquema** | Con datos reales, el esquema se versiona; el local recorre el mismo camino que producción |
+| **Argon2id + PyJWT** | Recomendación OWASP actual; `python-jose` lleva años sin mantenimiento |
+| **Una sesión por login, sin ventana de gracia** | Dos dispositivos no se echan; una ventana de gracia dejaría pasar una cookie copiada usada en el mismo instante |
+| **El CLI de operaciones en lugar de una web de admin** | Se corre por SSH: no hay puerto, endpoint ni sesión que robar |
+| **Auditoría fuera de la transacción de la petición** | No añade latencia a la respuesta; si falla, el log dice qué eventos se perdieron |
+| **TanStack Query** | Registrar un tiempo real refresca semanas y dashboard sin estado manual |
+| **PDF armado en el cliente** (jsPDF) | Sin dependencia en el servidor; solo Latin-1 llega bien al PDF |
+| **Tailwind v4 con `@theme`** | Tokens en CSS nativo; tres temas por `data-theme` |
+| **Three.js solo decorativo** | Un shader de ondas ligero que se pausa con la pestaña oculta |
 
 ---
 
-## 9. Simulador de ajuste de predicciones (consola)
+## 15. Historia
 
-Herramienta de calibración en `backend/tools/` para afinar a mano la calidad de
-las predicciones sin tocar la app. Las constantes clave del motor
-(`curves.py`, `feasibility.py`) están externalizadas a un `tuning.json` editable.
-
-```bash
-cd backend
-# modo interactivo: editás tuning.json y presionás 'r' para recalcular
-.venv\Scripts\python -m tools.sim_cli
-# corrida única
-.venv\Scripts\python -m tools.sim_cli --actual 1:05.0 --meta 1:01.0 --distancia 100 --estilo libre --semanas 16
-```
-
-Muestra el veredicto (FACTIBLE / EXIGENTE / AGRESIVO), la curva semana a semana
-y la **matriz de tiempos de zona por semana** (R1/R2/MVO2/RL/V, igual que la tabla
-de cada atleta); con `z` se ve el detalle min·mid·max y el factor de una semana.
-Los factores de zona (`zones._ZONE_BANDS`) también están en `tuning.json` y se
-afinan en caliente.
-El **manual completo de ajuste** está en `backend/tools/Manual_Ajuste_Predicciones.pdf`
-(regenerable con `python -m tools.generate_manual`; requiere `reportlab`, solo dev).
-Una vez calibrado un valor en `tuning.json`, se porta a la constante del motor
-(mapeo en el manual, sección 7) y se valida con `pytest tests/`.
-
-## 10. Roadmap sugerido
-
-| Fase | Feature |
+| Fecha | Hito |
 |---|---|
-| v0.2 | Carga interna **TRIMP Edwards** + ATL/CTL/TSB (detección de sobreentrenamiento) — la investigación ya lo recomienda |
-| v0.2 | Exportación PDF/Excel del plan semanal para imprimir en la piscina |
-| v0.2 | Registro de tiempos por zona entrenada (no solo prueba objetivo) |
-| v0.3 | Auth multi-entrenador (JWT) + PostgreSQL + Alembic |
-| v0.3 | Billing Stripe con tiers Free/Coach/Club (plan ya documentado) |
-| v0.3 | PWA instalable (vite-plugin-pwa) para uso en la piscina |
-| v0.4 | Sugerencias automáticas de ajuste de carga cuando el atleta se desvía |
-| v0.4 | ML sobre el histórico de tests para afinar las ventanas de mejora |
-| v1.0 | App móvil (React Native, reutiliza el cliente API tipado) |
+| 2026-06 | v0.1: planificador de macrociclos, motor de predicción, simulador. Temas azul marino / negro / blanco, selector de macrociclo de trabajo |
+| 2026-08-07 | Equipos, roles e identidad en el backend; navegación por rol y conmutador de desarrollo |
+| 2026-08-09/10 | Código de vinculación ficha ↔ cuenta, alta de atletas por correo, pool global. La salida, mitad de cada prescripción |
+| 2026-08-14/16 | Red de seguridad del motor (snapshot de 153 casos), plan de trabajo, objetos de valor. Plan semanal absorbe Comparación |
+| 2026-08-17 | Entidades, roles como objetos y **un solo motor** (C2–C4) |
+| 2026-08-25 | Repositorios por agregado: `app/modules/` desaparece (C5) |
+| 2026-09-22/24 | Cinco fases de la ciencia (P3), `Resultado` (C6), curva científica fija (R7), sesiones (C7), carga de Banister (C8), exportación a PDF, permisos de dueño (R4) |
+| 2026-09-24/25 | Auditoría append-only y vistas de PSAdmin (D0); cadena de migraciones probada en PostgreSQL |
+| 2026-10-01 | Sección Entrenamiento en el frontend; la forma de cada atleta en la tabla del equipo |
+| 2026-10-05/14 | Todo agregado se escribe por su entidad, identidad incluida; `CHECK` de vocabularios (C9) |
+| 2026-10-14/15 | CLI de operaciones (D1); revocar corta sesiones. Fusionado en `main` (PR #4) |
+| 2026-10-20 | Rotación del refresh con `UPDATE` condicional (TODO-25) y una sesión por login (TODO-30) |
 
-## 11. Bitácora
-
-**17/06/2026 — Selector de macrociclo de trabajo + temas de interfaz**
-
-- **Macrociclo de trabajo (selección de cliente):** el recuadro "Macrociclo de
-  trabajo" del sidebar y un botón "Cambiar macrociclo" en la cabecera del
-  dashboard abren un modal con el perfil completo del macrociclo y la lista de
-  todos los del entrenador —activo, completado, inactivo o suspendido— para
-  cambiar cuál se visualiza. La selección es puramente de cliente
-  (`hooks/useSelectedPlan.ts`, persistida en `localStorage`); dashboard y sidebar
-  comparten la query `['dashboard', selectedId]`. Los cambios de estado sí
-  persisten en el servidor.
-- **Estado del macrociclo:** se agregó `suspended` y un estado *efectivo*
-  derivado (`plans/service.effective_status`): auto-completado cuando la última
-  semana ya pasó, con override manual (activar / completar / suspender) desde el
-  modal o la página de Macrociclos. Expuesto en `PlanResponse.effective_status`
-  y `DashboardSummary.plan_status`.
-- **Estética azul marino + cian:** se eliminó todo el morado (acento
-  `--color-accent` = `#3b82f6`; superficies con tinte navy). Cian se mantiene como
-  acento secundario.
-- **Temas (azul marino / negro / blanco):** tres temas vía `data-theme` en
-  `<html>` + variables CSS (`hooks/useTheme.ts`, persistido en `localStorage`).
-  El tema blanco da una variante clara de alto contraste. El selector vive en el
-  **footer del sidebar** (`features/settings/ThemeSwitcher.tsx`), no en el
-  dashboard. El fondo del sidebar usa `--color-sidebar` para adaptarse al tema.
-
-**17/06/2026 (tarde) — Ajustes a partir de feedback**
-
-- **Tema blanco** agregado para contraste; tokens de texto y superficie se
-  invierten en `[data-theme='white']`. Tooltips de gráficos y el aro de
-  `RingGauge` ahora usan tokens (`var(--color-*)`) para verse bien en claro.
-- **Control de tema movido al sidebar** (antes estaba al pie del dashboard).
-- **Fix modal del switcher:** el `<aside>` tiene `backdrop-filter`, que capturaba
-  el `position:fixed` del modal y lo comprimía a su ancho. El `Modal`
-  (`components/ui/primitives.tsx`) ahora se renderiza con `createPortal` a
-  `document.body`, quedando centrado a pantalla completa.
-- **Simulador:** parámetros reubicados en una fila superior a todo el ancho
-  (grid hasta 5 columnas) y resultados (factibilidad, curvas, zonas, plan
-  semanal) en lista vertical aprovechando el ancho de la página.
-- **Gráficos y fondo sensibles al tema:** los colores de Recharts (trazos,
-  rellenos, ejes, rejilla) y el `CURVE_COLORS` pasaron de hex fijos a
-  `var(--color-*)` — Chromium resuelve `var()` en atributos SVG. En el tema
-  blanco la paleta de acento se intensifica (azul `#2563eb`, cian `#0891b2`,
-  etc.) y se agregó `--color-grid`, para que los gráficos no se vean pálidos. El
-  fondo de ondas (`WaveBackground`) lee el tema y usa tonos más oscuros + mayor
-  opacidad en blanco.
-
-**17/06/2026 (pulido de UI)**
-
-- **Glow del `RingGauge`:** el SVG ahora es `overflow: visible` para que el
-  difuminado del aro no se recorte contra el borde.
-- **Switcher de macrociclo:** seleccionar otro macrociclo ya **no cierra** el
-  popup; solo actualiza el perfil mostrado, para poder leer los datos o volver
-  al anterior. Se cierra con la X o clic fuera.
-- **`Card` con prop `flush`:** reemplaza el hack `!p-0`. El cuerpo va a ras de
-  los bordes (tablas full-bleed) pero el encabezado conserva su padding, así el
-  título deja de quedar pegado/cortado por el borde (p. ej. "Plan semanal
-  generado" en el simulador). Aplicado también en plan semanal y tabla del equipo.
-
-**09/08/2026 — Atleta y nadador son la misma persona**
-
-- **Código de vinculación** (`modules/link_codes/`): ficha deportiva y cuenta
-  eran dos listas de las mismas personas, y el entrenador las unía él solo
-  eligiendo un nombre de un desplegable. Ahora el vínculo lo crea un código de
-  8 caracteres que **caduca a las 72 h, sirve una vez y muere al reemitirse**:
-  lo genera el entrenador desde *Atletas* y lo canjea la persona desde su
-  perfil. Hasta que no actúan los dos, no hay relación. `MemberCreate` perdió
-  su `swimmer_id`; `POST /link-codes/redeem` es el único endpoint que no exige
-  pertenencia a un equipo, porque es el que la crea.
-- **La lista de atletas es el pool completo**: cada tarjeta dice en cuál de los
-  tres estados está esa persona (con cuenta · código pendiente · sin cuenta),
-  así que ya no hay que cruzarla a ojo con la de miembros del equipo.
-- **Un atleta, un macrociclo vivo** (`plans/enrollment.py`): dos macros a la vez
-  son dos planes contradictorios para las mismas fechas. La regla bloquea a
-  todos —dueño incluido— tanto al inscribir como al reactivar una inscripción
-  dada de baja, y de rebote resuelve lo que se pedía en la interfaz: un atleta
-  ya comprometido no le aparece a otro entrenador para un macro nuevo.
-- **Filtros que desaparecen solos**: los tres desplegables del `EventPicker` se
-  dibujan como etiqueta cuando no hay nada entre lo que elegir. Un atleta ve
-  su nombre, no un selector con una única opción — sin un `if (isAthlete)` que
-  mantener en paralelo al scoping del backend.
-- **La desviación semanal pasó de gráfico de barras a tabla**: un desvío es un
-  número con signo que se lee contra el tiempo planificado, y la barra obligaba
-  a estimar alturas y a pasar el ratón por encima. La forma de la deriva
-  sobrevive en una barra pequeña dentro de la celda, alineada al cero.
+La bitácora detallada de cada bloque está en `docs/PLAN-DE-TRABAJO.md`, y las
+decisiones de modelo, en `docs/REDISENO.md`.
 
 ---
 
-*Construido con Claude Code (Fable 5) · Junio 2026*
+## 16. Ramas
+
+Se trabaja en **`Preliminar`**. A **`main`** solo llega una fase completada, por PR
+con merge commit.
+
+---
+
+*Construido con Claude Code · junio–octubre de 2026*
