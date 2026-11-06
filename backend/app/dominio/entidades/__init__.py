@@ -37,6 +37,7 @@ from .resultado import (
 )
 from .semana import Semana
 from .sesion import RPE_MAXIMO, RPE_MINIMO, Sesion
+from .sesion_abierta import SesionAbierta
 from .test_aerobico import PENDIENTE_DE_TENDENCIA, Parcial, TestAerobico
 from .usuario import Usuario
 
@@ -61,7 +62,7 @@ __all__ = [
     # test aeróbico
     "TestAerobico", "Parcial", "PENDIENTE_DE_TENDENCIA",
     # usuario
-    "Usuario",
+    "Usuario", "SesionAbierta",
     # equipo
     "Equipo", "Pertenencia", "OperacionDeEquipoImposible", "rol_para",
     # código de vinculación

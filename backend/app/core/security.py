@@ -53,27 +53,33 @@ class TokenError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class TokenClaims:
-    """Lo que un token afirma: quién es, de qué generación, y de qué rotación.
+    """Lo que un token afirma: quién es, de qué generación, de qué sesión y de
+    qué rotación.
 
-    `token_version` lo llevan los dos tipos y sube al revocar (cerrar sesión,
-    cambiar la contraseña). `rotation` solo lo lleva el refresh y sube en cada
-    uso: es lo que permite detectar que alguien está reusando un token gastado.
+    `token_version` lo llevan los dos tipos y sube al cortar todas las sesiones
+    (salir de todas, cambiar la contraseña, revocar). `sid` también lo llevan
+    los dos: es la sesión abierta —el login de un dispositivo— de la que salen
+    (TODO-30), y lo que deja cerrar una sin tocar las demás. `rotation` solo lo
+    lleva el refresh y sube en cada uso **de esa sesión**: es lo que permite
+    detectar que alguien está reusando un token gastado.
     """
 
     user_id: int
     token_version: int
+    sid: str
     rotation: int = 0
 
 
 def _create_token(
     subject: str, token_type: TokenType, expires: timedelta,
-    token_version: int, rotation: int = 0,
+    token_version: int, sid: str, rotation: int = 0,
 ) -> str:
     now = datetime.now(UTC)
     payload: dict[str, Any] = {
         "sub": subject,          # id del usuario, siempre string (requisito del RFC)
         "type": token_type,      # impide usar un refresh como access
         "ver": token_version,    # generación de sesiones: subirla revoca lo anterior
+        "sid": sid,              # la sesión abierta de la que sale (TODO-30)
         "iat": now,
         "exp": now + expires,
     }
@@ -82,16 +88,17 @@ def _create_token(
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def create_access_token(user_id: int, token_version: int) -> str:
+def create_access_token(user_id: int, token_version: int, sid: str) -> str:
     return _create_token(
-        str(user_id), "access", timedelta(minutes=settings.access_token_minutes), token_version,
+        str(user_id), "access", timedelta(minutes=settings.access_token_minutes),
+        token_version, sid,
     )
 
 
-def create_refresh_token(user_id: int, token_version: int, rotation: int) -> str:
+def create_refresh_token(user_id: int, token_version: int, sid: str, rotation: int) -> str:
     return _create_token(
         str(user_id), "refresh", timedelta(days=settings.refresh_token_days),
-        token_version, rotation,
+        token_version, sid, rotation,
     )
 
 
@@ -101,10 +108,12 @@ def decode_token(token: str, expected_type: TokenType) -> TokenClaims:
     Verificar `type` es lo que impide que un refresh (de vida larga) se cuele
     como access en la cabecera Authorization.
 
-    **No comprueba `ver` aquí**: para eso hace falta el usuario, y este módulo no
-    toca la base de datos. Quien resuelve al usuario compara — `dependencies.py`
-    para el access, `auth/router.py` para el refresh. La firma devuelve el dato
-    para que olvidarse de compararlo sea una omisión visible y no un silencio.
+    **No comprueba `ver` ni `sid` aquí**: para eso hace falta la base, y este
+    módulo no la toca. Quien resuelve al usuario compara — `dependencies.py`
+    para el access, `auth/sessions.py` para el refresh. La firma devuelve el
+    dato para que olvidarse de compararlo sea una omisión visible y no un
+    silencio. Lo que sí exige es que **haya** `sid`: un token sin él es anterior
+    a TODO-30 y no es de ninguna sesión que se pueda cerrar.
     """
     try:
         payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
@@ -113,12 +122,16 @@ def decode_token(token: str, expected_type: TokenType) -> TokenClaims:
 
     if payload.get("type") != expected_type:
         raise TokenError(f"se esperaba un token de tipo '{expected_type}'")
+    sid = payload.get("sid")
+    if not isinstance(sid, str) or not sid:
+        raise TokenError("el token no es de ninguna sesión abierta")
     try:
         return TokenClaims(
             user_id=int(payload["sub"]),
             # Los tokens anteriores a la revocación no llevan `ver`. Se tratan
             # como generación 0, que es la que tienen las cuentas ya existentes.
             token_version=int(payload.get("ver", 0)),
+            sid=sid,
             rotation=int(payload.get("rot", 0)),
         )
     except (KeyError, TypeError, ValueError) as exc:

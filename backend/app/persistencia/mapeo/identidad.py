@@ -1,10 +1,10 @@
-"""Fila ↔ entidad para la identidad: la cuenta (§5.1), el club y la pertenencia
-(§5.2) y el código de vinculación (§5.13).
+"""Fila ↔ entidad para la identidad: la cuenta (§5.1) y sus sesiones abiertas
+(TODO-30), el club y la pertenencia (§5.2) y el código de vinculación (§5.13).
 
 Aparte de `desde_modelos.py`/`hacia_modelos.py` porque esos dos son del agregado
 de planificación y la identidad tiene sus propias reglas de escritura: **este es
-el único archivo de `app/` que asigna `token_version`, `refresh_rotation` o
-`password_hash`** sobre una fila ya creada (lo comprueba
+el único archivo de `app/` que asigna `token_version`, `refresh_rotation`,
+`expires_at` o `password_hash`** sobre una fila ya creada (lo comprueba
 `tests/test_usuario_entidad.py` por AST), **ni `owner_id` ni `role`**
 (`tests/test_equipo_entidad.py`), **ni `used_at`, `used_by` ni `revoked_at`**
 (`tests/test_codigo_entidad.py`). Quien quiera cambiarlos se lo pide a la
@@ -13,19 +13,24 @@ entidad y la guarda por su repositorio.
 from __future__ import annotations
 
 from sqlalchemy import Update, update
-from sqlalchemy.orm.attributes import set_committed_value
 
-from app.dominio.entidades import CodigoDeVinculacion, Equipo, Pertenencia, Usuario
+from app.dominio.entidades import (
+    CodigoDeVinculacion,
+    Equipo,
+    Pertenencia,
+    SesionAbierta,
+    Usuario,
+)
 from app.persistencia.tablas.codigos import LinkCode
 from app.persistencia.tablas.equipos import Team, TeamMember
-from app.persistencia.tablas.usuarios import User
+from app.persistencia.tablas.usuarios import OpenSession, User
 
 
 def usuario_desde_fila(fila: User) -> Usuario:
     return Usuario(
         id=fila.id, correo=fila.email, nombre=fila.name,
         hash_de_password=fila.password_hash, activo=fila.is_active,
-        version_de_token=fila.token_version, rotacion_de_refresh=fila.refresh_rotation,
+        version_de_token=fila.token_version,
         creado=fila.created_at, ultimo_login=fila.last_login_at,
     )
 
@@ -33,40 +38,86 @@ def usuario_desde_fila(fila: User) -> Usuario:
 def volcar_usuario(usuario: Usuario, fila: User) -> None:
     """Escribe en la fila **solo lo que la entidad gobierna**: la generación, el
     hash y el último acceso. El correo, el nombre y la baja de la cuenta tienen
-    otras puertas (el alta y la edición del miembro).
-
-    **La rotación no**: se gasta con `rotacion_condicional` (TODO-25)."""
+    otras puertas (el alta y la edición del miembro). La rotación del refresh
+    ya no es de la cuenta: es de cada `SesionAbierta` (TODO-30)."""
     fila.password_hash = usuario.hash_de_password
     fila.token_version = usuario.version_de_token
     fila.last_login_at = usuario.ultimo_login
 
 
-def rotacion_condicional(usuario: Usuario, fila: User) -> Update | None:
-    """El `UPDATE` que gasta la rotación **solo si nadie la gastó antes**, o
-    `None` si la entidad no rotó.
+def acceso_condicional(usuario: Usuario) -> Update:
+    """El `UPDATE` del login: sella el acceso (y el rehash, si lo hubo) **solo
+    si la contraseña sigue siendo la que se verificó** (`hash_leido`).
 
-    Asignarla en la fila era leer-comparar-escribir en Python: dos refresh a la
-    vez con la misma cookie leían la misma rotación, pasaban `refresh_gastado`
-    los dos y escribían los dos la siguiente (TODO-25). Con la condición en el
-    `WHERE`, la base decide quién llegó primero y la otra ve 0 filas. Se compara
-    contra `rotacion_leida` —de la que partió la entidad—, **no** contra la
-    fila: la sesión guarda las filas con referencia débil, y una releída ya trae
-    la rotación de quien ganó.
+    Sin la condición, un login con la contraseña vieja que se solapara con un
+    cambio de contraseña firmaba tokens de la generación nueva —quien probara la
+    vieja en bucle seguía dentro después del cambio— y, con rehash, escribía el
+    hash de la vieja encima del nuevo (revisor de TODO-30, anterior a él).
     """
-    if not usuario.roto_el_refresh():
-        return None
     return (
         update(User)
-        .where(User.id == fila.id, User.refresh_rotation == usuario.rotacion_leida)
-        .values(refresh_rotation=usuario.rotacion_de_refresh)
+        .where(User.id == usuario.id, User.password_hash == usuario.hash_leido)
+        .values(last_login_at=usuario.ultimo_login, password_hash=usuario.hash_de_password)
         .execution_options(synchronize_session=False)
     )
 
 
-def asentar_rotacion(usuario: Usuario, fila: User) -> None:
-    """Tras un `rotacion_condicional` que tocó su fila: la fila ya la tiene la
-    base, así que se apunta como confirmada, sin otro `UPDATE`."""
-    set_committed_value(fila, "refresh_rotation", usuario.rotacion_de_refresh)
+def cambio_condicional(usuario: Usuario) -> Update:
+    """El `UPDATE` del cambio de contraseña: el hash nuevo y la generación
+    `token_version + 1` **en SQL**, solo si la contraseña sigue siendo la que se
+    verificó (`hash_leido`).
+
+    Escribir «la generación leída + 1» dejaba que dos cambios a la vez la
+    subieran una sola vez, y la sesión del primero sobrevivía al cambio del
+    segundo: si la víctima cambiaba la contraseña para echar al atacante, podía
+    no echarlo (vuelta 2 del revisor de TODO-30, anterior a él).
+    """
+    return (
+        update(User)
+        .where(User.id == usuario.id, User.password_hash == usuario.hash_leido)
+        .values(password_hash=usuario.hash_de_password, token_version=User.token_version + 1)
+        .execution_options(synchronize_session=False)
+    )
+
+
+def sesion_desde_fila(fila: OpenSession) -> SesionAbierta:
+    return SesionAbierta(
+        id=fila.id, usuario_id=fila.user_id, caduca=fila.expires_at,
+        rotacion=fila.refresh_rotation, abierta=fila.created_at,
+    )
+
+
+def fila_de_sesion(sesion: SesionAbierta) -> OpenSession:
+    """La fila de una sesión recién abierta: rotación 0 y su caducidad."""
+    return OpenSession(
+        id=sesion.id, user_id=sesion.usuario_id, refresh_rotation=sesion.rotacion,
+        created_at=sesion.abierta, expires_at=sesion.caduca,
+    )
+
+
+def rotacion_condicional(sesion: SesionAbierta) -> Update:
+    """El `UPDATE` que gasta la rotación de esa sesión **solo si nadie la gastó
+    antes** (TODO-25, movido aquí con TODO-30).
+
+    Leer-comparar-escribir en Python dejaba pasar dos refresh a la vez con la
+    misma cookie. Con la condición en el `WHERE`, la base decide quién llegó
+    primero y la otra ve 0 filas. Se compara contra `rotacion_leida` —de la que
+    partió la entidad—, nunca contra una fila releída, que ya traería la de quien
+    ganó. El `user_id` va en el `WHERE` aunque el `id` baste: ninguna consulta de
+    sesiones se hace sin la cuenta.
+    """
+    if not sesion.roto():
+        raise ValueError("La sesión no rotó: no hay nada que gastar")
+    return (
+        update(OpenSession)
+        .where(
+            OpenSession.id == sesion.id,
+            OpenSession.user_id == sesion.usuario_id,
+            OpenSession.refresh_rotation == sesion.rotacion_leida,
+        )
+        .values(refresh_rotation=sesion.rotacion, expires_at=sesion.caduca)
+        .execution_options(synchronize_session=False)
+    )
 
 
 def equipo_desde_fila(fila: Team) -> Equipo:

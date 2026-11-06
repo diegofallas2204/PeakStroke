@@ -16,6 +16,7 @@ se **suplanta** en desarrollo (`dev_identity.py`). Aquí está solo la resoluci�
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -26,6 +27,7 @@ from app.core.database import get_db
 from app.core.dev_identity import bypass_pedido, dev_user
 from app.core.principal import Principal
 from app.core.security import TokenError, decode_token
+from app.persistencia.repositorios.sesiones_abiertas import RepositorioDeSesionesAbiertas
 from app.persistencia.tablas.atletas import Swimmer
 from app.persistencia.tablas.equipos import Team, TeamMember
 from app.persistencia.tablas.usuarios import User
@@ -129,6 +131,11 @@ async def get_current_user(
     # gratis: el usuario ya está cargado. Sin ella, `logout` tardaría hasta 15
     # minutos en surtir efecto sobre el access token que el atacante ya tiene.
     if user.token_version != claims.token_version:
+        raise _UNAUTHORIZED
+    # Ni uno cuya sesión se cerró (TODO-30): salir de **un** dispositivo no sube
+    # la generación, así que sin esta lectura su access viviría 15 minutos más.
+    # Es una consulta por clave primaria en cada petición autenticada.
+    if not await RepositorioDeSesionesAbiertas(db).viva(claims.sid, user.id, datetime.now(UTC)):
         raise _UNAUTHORIZED
     return user
 

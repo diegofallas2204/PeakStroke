@@ -53,6 +53,10 @@ Prioridad: P1 = bloquea trabajo en curso · P2 = debería caer pronto · P3 = de
 >
 > **Cerrado el 2026-10-15**: ~~TODO-25~~ (refresh concurrente, `UPDATE` condicional).
 > **Abierto el mismo día** por su /cso: TODO-30 (una cadena de refresh por cuenta).
+>
+> **Cerrado el 2026-11-06**: ~~TODO-30~~ (una sesión por login, `sesiones_abiertas`).
+> **Abierto el mismo día**: TODO-31 (un solo refresh en vuelo por navegador: la mitad
+> que solo el cliente puede resolver; bloquea encender el login).
 
 ---
 
@@ -612,7 +616,39 @@ salida 3). La purga no: si su `auditoria.purgada` se pierde, el cron no se enter
 Arreglo: mirar `ctx.perdidos` al salir del contexto y devolver un código distinto
 de 0. Diez líneas y un test.
 
-## TODO-30 — Una cadena de refresh por cuenta: dos pestañas o dos dispositivos se echan (P2)
+## ~~TODO-30 — Una cadena de refresh por cuenta: dos pestañas o dos dispositivos se echan~~ — CERRADO 2026-11-06
+
+**Decidido por la persona el 2026-10-20: (b) en el servidor y (a) apuntada** (TODO-31).
+Cada login abre una fila de `sesiones_abiertas` (`SesionAbierta`,
+`RepositorioDeSesionesAbiertas`, migración `e3b8f1a6c4d2`, que borra
+`users.refresh_rotation`) con **su** rotación; access y refresh llevan su `sid`.
+- **Reuso** (rotación vieja, dos a la vez por el CAS de TODO-25, o en un logout) →
+  se borra **esa** sesión y `REFRESH_REUSADO`; los demás dispositivos siguen.
+- **`logout`** cierra la de ese dispositivo y su access muere en la siguiente
+  petición (`get_current_user` mira que la sesión siga viva). **`POST /auth/logout-all`**
+  (nuevo) sube la generación, solo con la cookie vigente de la generación actual.
+- Subir la generación (contraseña, revocar, liberar, `logout-all`, `cortar-sesiones`)
+  **borra las filas** en la misma transacción, y cada login purga las caducadas de
+  todas las cuentas. Excepción documentada a «nada se borra».
+- Sin ventana de gracia (descartada dos veces). Dos pestañas siguen compartiendo
+  sesión: **TODO-31**.
+
+Lo que salió por el camino y se arregló en el mismo bloque (preexistente, visto por el
+revisor en frío): un **login con la contraseña vieja** solapado con un cambio de
+contraseña salía con tokens de la generación nueva —y con rehash deshacía el cambio—,
+y **dos cambios de contraseña a la vez** subían la generación una sola vez. Ahora los
+dos escriben con un `UPDATE ... WHERE password_hash = :verificado`
+(`registrar_acceso`, `cambiar_password`): el que pierde da 401 o 409, auditado como
+`credenciales_cambiadas`. Aceptado: con rehash pendiente, dos logins legítimos a la vez
+dan un 401 al segundo (una vez por cuenta; el reintento entra).
+
+Probado: `test_sesiones_por_dispositivo.py`, `test_sesiones_sin_sesion.py`,
+`test_login_concurrente.py`, `test_refresh_concurrente*.py` (SQLite y PostgreSQL, con y
+sin club), `test_migracion_sesiones_abiertas.py`; migración arriba y abajo en
+`peakstroke_c9`. El texto de abajo es el de antes.
+
+### Lo que decía
+
 
 Visto por el /cso de TODO-25 (2026-10-15). **No alcanzable hoy**: el frontend no tiene
 login ni llama a `/auth/refresh`. Hay que decidirlo **antes** de encender el login real.
@@ -634,3 +670,29 @@ el par); en el servidor, rotación **por sesión abierta** (una fila por disposi
 propia rotación) o una ventana de gracia corta que acepte la anterior. Lo de las
 pestañas lo resuelve el cliente; lo de los dispositivos, solo el servidor.
 
+
+---
+
+## TODO-31 — Un solo `/auth/refresh` en vuelo por navegador (P2, bloquea encender el login)
+
+Abierto por TODO-30 (2026-10-20), la mitad que el servidor no puede resolver. Desde
+TODO-30 cada login abre su sesión (`sesiones_abiertas`) con su rotación, así que dos
+**dispositivos** ya no se echan. Pero dos **pestañas** del mismo navegador comparten la
+cookie httpOnly y, por tanto, la sesión: si las dos refrescan a la vez (el access caducó
+mientras estaban en segundo plano), la segunda pierde el `UPDATE` condicional y es el
+reuso de **esa** sesión. Fuera las dos pestañas de ese dispositivo y un `REFRESH_REUSADO`
+falso. La ventana de gracia (aceptar la rotación anterior unos segundos) se descartó dos
+veces el 2026-10-20: dejaría pasar la cookie copiada que se usa en el mismo instante,
+el escenario de TODO-25.
+
+- **Qué:** en el cliente del API del frontend, todo `POST /auth/refresh` pasa por
+  `navigator.locks.request('peakstroke-refresh', …)`. Al entrar en el lock, mira si otra
+  pestaña ya renovó (p. ej. un `BroadcastChannel('peakstroke-auth')` que difunda el access
+  nuevo, o un sello en `localStorage` con la hora) y, si es así, no vuelve a refrescar.
+- **Hecho cuando:** test del cliente con dos «pestañas» simuladas que piden refresh a la
+  vez → una sola petición a `/auth/refresh`; y la prueba a mano con dos pestañas reales
+  contra el backend con `PEAKSTROKE_AUTH_ENABLED=true`, sin `REFRESH_REUSADO`.
+- **Depende de:** el bloque que encienda el login en el frontend (hoy no hay cliente de
+  login ni nada que llame a `/auth/refresh`). **Bloquea** encenderlo en producción.
+- **Ojo:** Safari < 15.4 no tiene Web Locks; si hace falta soportarlo, el
+  `BroadcastChannel` con elección de líder es el respaldo.

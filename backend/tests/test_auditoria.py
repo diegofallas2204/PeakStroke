@@ -109,7 +109,8 @@ async def test_refresh_reusado_queda_registrado(client, db, world: World, auth_o
 
     e = await _uno(db, TipoDeEvento.REFRESH_REUSADO)
     assert (e.outcome, e.actor_email) == ("fallo", world.sofia_email)
-    assert "se revocan todas las sesiones" in e.detail
+    # Desde TODO-30 el reuso cierra la sesión de ese dispositivo, no la cuenta.
+    assert "se cierra esa sesión" in e.detail
 
 
 async def test_logout(client, db, world: World, auth_on):

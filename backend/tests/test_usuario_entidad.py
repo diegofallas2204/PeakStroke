@@ -5,17 +5,19 @@ Hasta el 2026-10-14 los dos contadores se subían a mano en tres sitios —
 (`token_version += 1`) y el router de la contraseña, que la cambiaba y
 revocaba en dos pasos y dos `commit`—. Lo que fija este archivo:
 
-- cada contador sube por su método y solo por él;
+- cada contador sube por su método y solo por él (la rotación del refresh ya no
+  es de la cuenta sino de cada `SesionAbierta`, TODO-30: `test_sesion_abierta.py`);
 - cambiar la contraseña revoca, sin forma de hacer una cosa sin la otra;
 - renovar el hash al entrar **no** revoca (la contraseña es la misma);
 - fuera de la entidad y su mapeo, nadie asigna esos campos (test por AST).
 
 El comportamiento de cara al API —el replay del refresh, el logout, el cambio
-de contraseña— lo fija `test_session_revocation.py`, que no cambia.
+de contraseña— lo fijan `test_session_revocation.py` y, desde TODO-30,
+`test_sesiones_por_dispositivo.py`.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import API, PASSWORD, World
@@ -37,24 +39,24 @@ def _usuario(**cambios) -> Usuario:
 # ── El dominio ───────────────────────────────────────────────────────────────
 
 
-def test_revocar_sube_solo_la_generacion():
-    u = _usuario(version_de_token=3, rotacion_de_refresh=5)
+def test_revocar_sube_la_generacion():
+    u = _usuario(version_de_token=3)
     u.revocar_sesiones()
-    assert (u.version_de_token, u.rotacion_de_refresh) == (4, 5)
+    assert u.version_de_token == 4
     assert not u.acepta_generacion(3) and u.acepta_generacion(4)
 
 
-def test_rotar_sube_solo_la_rotacion_y_la_devuelve():
-    u = _usuario(version_de_token=3, rotacion_de_refresh=5)
-    assert u.rotar_refresh() == 6
-    assert (u.version_de_token, u.rotacion_de_refresh) == (3, 6)
-    assert u.refresh_gastado(5) and not u.refresh_gastado(6)
+def test_abrir_una_sesion_no_toca_la_generacion():
+    """Antes `rotar_refresh` (TODO-30): abrir o rotar una sesión no echa a las demás."""
+    u = _usuario(version_de_token=3)
+    sesion = u.abrir_sesion(datetime(2026, 10, 20, tzinfo=UTC), timedelta(days=30))
+    assert (sesion.usuario_id, sesion.rotacion, u.version_de_token) == (7, 0, 3)
 
 
 def test_cambiar_la_password_cambia_el_hash_y_revoca_a_la_vez():
-    u = _usuario(version_de_token=3, rotacion_de_refresh=5)
+    u = _usuario(version_de_token=3)
     u.cambiar_password("h1")
-    assert (u.hash_de_password, u.version_de_token, u.rotacion_de_refresh) == ("h1", 4, 5)
+    assert (u.hash_de_password, u.version_de_token) == ("h1", 4)
 
 
 def test_un_hash_vacio_no_entra_y_no_revoca_nada():
@@ -80,7 +82,7 @@ def test_dos_cuentas_con_los_mismos_datos_son_dos_si_tienen_otro_id():
 
 
 @pytest.mark.parametrize("campo", [
-    "hash_de_password", "version_de_token", "rotacion_de_refresh", "ultimo_login",
+    "hash_de_password", "version_de_token", "ultimo_login",
 ])
 def test_los_contadores_y_el_hash_no_se_asignan_a_mano(campo):
     u = _usuario()
@@ -94,11 +96,10 @@ def test_los_contadores_y_el_hash_no_se_asignan_a_mano(campo):
 async def test_guardar_escribe_los_contadores_el_hash_y_el_acceso(db, world: World):
     repo = RepositorioDeUsuarios(db)
     fila = await repo.por_correo(world.sofia_email)
-    antes = (fila.token_version, fila.refresh_rotation)
+    antes = fila.token_version
     fila_id, nombre = fila.id, fila.name
     u = repo.entidad(fila)
     u.cambiar_password("hash-nuevo")
-    u.rotar_refresh()
     u.registrar_login(datetime(2026, 10, 14, tzinfo=UTC))
     # Lo que la entidad no gobierna no se escribe aunque venga cambiado.
     u.correo, u.nombre, u.activo = "otro@x.dev", "Otro", False
@@ -106,12 +107,9 @@ async def test_guardar_escribe_los_contadores_el_hash_y_el_acceso(db, world: Wor
 
     db.expire_all()
     leida = (await db.execute(select(
-        User.token_version, User.refresh_rotation, User.password_hash,
-        User.email, User.name, User.is_active,
+        User.token_version, User.password_hash, User.email, User.name, User.is_active,
     ).where(User.id == fila_id))).one()
-    assert tuple(leida) == (
-        antes[0] + 1, antes[1] + 1, "hash-nuevo", world.sofia_email, nombre, True,
-    )
+    assert tuple(leida) == (antes + 1, "hash-nuevo", world.sofia_email, nombre, True)
 
 
 async def test_guardar_una_cuenta_que_no_existe_no_crea_nada(db):
@@ -128,16 +126,18 @@ def auth_on(monkeypatch):
     monkeypatch.setattr(settings, "jwt_secret", "secreto-de-prueba-" + "x" * 48, raising=False)
 
 
-async def test_cambiar_la_password_revoca_una_vez_y_rota_una_vez(
+async def test_cambiar_la_password_revoca_una_vez_y_abre_una_sesion(
     client, db, world: World, auth_on,
 ):
-    """Una generación nueva por el cambio y una rotación por la sesión que devuelve."""
+    """Una generación nueva por el cambio, y de las sesiones de la cuenta queda
+    solo la que devuelve (TODO-30: subir la generación borra las demás)."""
+    from app.core.security import decode_token
+    from app.persistencia.tablas.usuarios import OpenSession
+
     r = await client.post(f"{API}/auth/login", json={"email": world.sofia_email, "password": PASSWORD})
     token = r.json()["access_token"]
-    consulta = select(User.token_version, User.refresh_rotation, User.password_hash).where(
-        User.email == world.sofia_email,
-    )
-    version, rotacion, _ = (await db.execute(consulta)).one()
+    consulta = select(User.id, User.token_version).where(User.email == world.sofia_email)
+    user_id, version = (await db.execute(consulta)).one()
 
     r = await client.post(
         f"{API}/auth/me/password", headers={"Authorization": f"Bearer {token}"},
@@ -145,9 +145,13 @@ async def test_cambiar_la_password_revoca_una_vez_y_rota_una_vez(
     )
     assert r.status_code == 200, r.text
     db.expire_all()
-    v2, r2, hash_nuevo = (await db.execute(consulta)).one()
-    assert (v2, r2) == (version + 1, rotacion + 1)
+    v2, hash_nuevo = (await db.execute(
+        select(User.token_version, User.password_hash).where(User.id == user_id),
+    )).one()
+    assert v2 == version + 1
     assert verify_password("otra-clave-larga-1", hash_nuevo)
+    sids = (await db.execute(select(OpenSession.id).where(OpenSession.user_id == user_id))).scalars()
+    assert list(sids) == [decode_token(r.cookies[settings.refresh_cookie_name], "refresh").sid]
     # El access de antes murió; el que vino en la respuesta vale.
     assert (await client.get(f"{API}/auth/me", headers={"Authorization": f"Bearer {token}"})).status_code == 401
     nuevo = r.json()["access_token"]
@@ -165,7 +169,7 @@ def test_fuera_del_mapeo_nadie_asigna_los_contadores_ni_el_hash():
     asignación, y sigue siendo del repositorio (`crear`).
     """
     assert escrituras(
-        {"token_version", "refresh_rotation", "password_hash"},
+        {"token_version", "refresh_rotation", "expires_at", "password_hash"},
         {"app/persistencia/mapeo/identidad.py"},
     ) == []
 

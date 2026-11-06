@@ -10,11 +10,14 @@ Lo que recupera esta clase es el comportamiento de las sesiones, que hasta el
 contraseña, que la cambiaba y revocaba en dos pasos y dos `commit`:
 
 - `revocar_sesiones()` sube la **generación**: todo token emitido antes deja de
-  validar en la siguiente petición. Es lo que hace que cerrar sesión cierre algo.
-- `rotar_refresh()` sube la **rotación**: el refresh entregado es el único
-  válido, y uno gastado que reaparece es una cookie copiada. Son dos contadores
-  distintos a propósito —si la rotación subiera la generación, cada refresh
-  echaría a las demás pestañas—; el porqué largo está en la tabla.
+  validar en la siguiente petición. Es lo que hace que «salir de todas», cambiar
+  la contraseña o revocar cierren algo; salir de **un** dispositivo es cerrar su
+  `SesionAbierta`.
+- `abrir_sesion()` abre una `SesionAbierta`: un login en un dispositivo, con
+  **su** rotación del refresh (TODO-30). Hasta el 2026-10-20 la rotación vivía
+  aquí, una por cuenta, y entrar en el móvil gastaba la cookie del portátil.
+  Generación y rotación siguen siendo dos cosas distintas a propósito: si
+  rotar subiera la generación, cada refresh echaría a los demás dispositivos.
 - `cambiar_password()` cambia el hash **y** revoca: son las dos mitades del
   mismo gesto («creo que me han comprometido la cuenta»), y ahora no se puede
   hacer una sin la otra.
@@ -26,10 +29,11 @@ que la entidad garantiza es qué pasa con las sesiones cuando el hash cambia.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import ClassVar
 
 from .base import CamposGobernados, PorIdentidad
+from .sesion_abierta import SesionAbierta
 
 
 @dataclass(slots=True, eq=False)
@@ -40,8 +44,7 @@ class Usuario(PorIdentidad, CamposGobernados):
     """
 
     _GOBERNADOS: ClassVar[frozenset[str]] = frozenset({
-        "hash_de_password", "version_de_token", "rotacion_de_refresh", "ultimo_login",
-        "rotacion_leida",
+        "hash_de_password", "version_de_token", "ultimo_login", "hash_leido",
     })
 
     correo: str
@@ -50,17 +53,15 @@ class Usuario(PorIdentidad, CamposGobernados):
     id: int | None = None
     activo: bool = True
     version_de_token: int = 0
-    rotacion_de_refresh: int = 0
     creado: datetime | None = None
     ultimo_login: datetime | None = None
-    # La rotación con la que se construyó. Gastarla es «pasar de esta a la
-    # siguiente», y eso es lo que el repositorio le pide a la base (TODO-25):
-    # comparar contra lo que diga la fila en ese momento no vale, porque una
-    # fila releída ya trae la rotación de quien ganó.
-    rotacion_leida: int = field(init=False, repr=False)
+    # El hash con el que se construyó: el que verificó el login. Escribir el
+    # acceso es «si la contraseña sigue siendo esa» (revisor de TODO-30): un
+    # cambio de contraseña a la vez no puede dejar entrar a quien usó la vieja.
+    hash_leido: str = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "rotacion_leida", self.rotacion_de_refresh)
+        object.__setattr__(self, "hash_leido", self.hash_de_password)
 
     # ── Sesiones ─────────────────────────────────────────────────────────────
 
@@ -68,10 +69,11 @@ class Usuario(PorIdentidad, CamposGobernados):
         """Invalida de golpe todo token emitido antes: access y refresh."""
         object.__setattr__(self, "version_de_token", self.version_de_token + 1)
 
-    def rotar_refresh(self) -> int:
-        """Gasta una rotación y devuelve la nueva: la del único refresh válido."""
-        object.__setattr__(self, "rotacion_de_refresh", self.rotacion_de_refresh + 1)
-        return self.rotacion_de_refresh
+    def abrir_sesion(self, ahora: datetime, vigencia: timedelta) -> SesionAbierta:
+        """Un login nuevo: una sesión de este dispositivo, en rotación 0."""
+        if self.id is None:
+            raise ValueError("Solo una cuenta ya guardada abre sesiones")
+        return SesionAbierta.abrir(self.id, ahora, vigencia)
 
     def cambiar_password(self, nuevo_hash: str) -> None:
         """Cambia el hash y revoca todas las sesiones. Las dos cosas o ninguna."""
@@ -95,14 +97,6 @@ class Usuario(PorIdentidad, CamposGobernados):
     def acepta_generacion(self, version: int) -> bool:
         """Si un token de esa generación sigue vivo (no hubo revocación después)."""
         return version == self.version_de_token
-
-    def roto_el_refresh(self) -> bool:
-        """Si desde que se construyó se gastó alguna rotación."""
-        return self.rotacion_de_refresh != self.rotacion_leida
-
-    def refresh_gastado(self, rotacion: int) -> bool:
-        """Si un refresh con esa rotación ya se usó: reaparecer es robo."""
-        return rotacion != self.rotacion_de_refresh
 
     def __str__(self) -> str:
         return self.correo

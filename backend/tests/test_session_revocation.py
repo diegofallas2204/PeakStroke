@@ -93,7 +93,10 @@ async def test_cerrar_sesion_dos_veces_no_es_un_error(client, world: World, auth
 async def test_volver_a_entrar_funciona_despues_de_cerrar_sesion(
     client, db, world: World, auth_on,
 ):
-    """Revocar no es bloquear la cuenta: el siguiente login emite la generación nueva."""
+    """Cerrar sesión no es bloquear la cuenta: el siguiente login abre otra.
+
+    Desde TODO-30 el logout cierra la sesión de ese dispositivo (borra su fila)
+    y **no** sube la generación: eso es de `/logout-all`."""
     await _entrar(client, world.sofia_email)
     await client.post(f"{API}/auth/logout")
 
@@ -103,7 +106,7 @@ async def test_volver_a_entrar_funciona_despues_de_cerrar_sesion(
     sofia = (await db.execute(
         select(User).where(User.email == world.sofia_email)
     )).scalar_one()
-    assert sofia.token_version == 1
+    assert sofia.token_version == 0
 
 
 async def test_cerrar_sesion_no_afecta_a_otras_cuentas(client, world: World, auth_on):
@@ -137,7 +140,7 @@ async def test_un_refresh_gastado_no_vuelve_a_valer(client, world: World, auth_o
     assert (await client.post(f"{API}/auth/refresh")).status_code == 401
 
 
-async def test_reusar_un_refresh_gastado_corta_todas_las_sesiones(
+async def test_reusar_un_refresh_gastado_corta_esa_sesion(
     client, db, world: World, auth_on,
 ):
     """Lo que compra la rotación real: **detectar el robo**.
@@ -145,9 +148,11 @@ async def test_reusar_un_refresh_gastado_corta_todas_las_sesiones(
     Un refresh gastado que reaparece solo se explica de dos formas —alguien lo
     copió, o el legítimo volvió con el suyo después de que otro lo usara— y en
     las dos hay dos partes con el mismo token. Como no se puede saber cuál es la
-    buena, se cortan las dos.
+    buena, se cortan las dos. Hasta TODO-30 se cortaban **todas** las sesiones
+    de la cuenta (subía la generación); ahora solo la de ese dispositivo, que es
+    la única cadena que tiene quien copió la cookie. Lo de los demás
+    dispositivos lo fija `test_sesiones_por_dispositivo.py`.
     """
-
     await _entrar(client, world.sofia_email)
     robada = client.cookies.get(settings.refresh_cookie_name)
     await client.post(f"{API}/auth/refresh")           # el atacante la gasta
@@ -163,7 +168,7 @@ async def test_reusar_un_refresh_gastado_corta_todas_las_sesiones(
     sofia = (await db.execute(
         select(User).where(User.email == world.sofia_email)
     )).scalar_one()
-    assert sofia.token_version == version_antes + 1, "no se revocaron las sesiones"
+    assert sofia.token_version == version_antes, "el reuso cortó toda la cuenta"
 
     # Y la que era buena tampoco vale ya: el corte es para las dos partes.
     client.cookies.set(settings.refresh_cookie_name, legitima, path="/api/v1/auth")

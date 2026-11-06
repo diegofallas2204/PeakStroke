@@ -20,11 +20,12 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import Principal, get_current_principal, get_current_user
 from app.core.dev_identity import DEV_BYPASS_HEADER, DEV_USER_HEADER, bypass_pedido
+from app.persistencia.repositorios.usuarios import CredencialesCambiadas
 from app.persistencia.tablas.usuarios import User
 
 from . import credenciales, members, service, sessions
 from .schemas import AuthConfig, DevIdentity, MemberResponse, PasswordChange, SessionResponse
-from .sessions import _SIN_ROTACION, _issue_session
+from .sessions import _issue_session
 
 router = APIRouter()
 router.include_router(sessions.router)
@@ -114,22 +115,26 @@ async def change_password(
     en la misma respuesta recibe los nuevos. Las otras pestañas y dispositivos
     sí se quedan fuera, que es justo lo que se pretende.
     """
-    if not await credenciales.authenticate(db, principal.user.email, data.current_password):
+    user, motivo = await credenciales.comprobar_credenciales(
+        db, principal.user.email, data.current_password,
+    )
+    if user is None:
+        # `credenciales_cambiadas`: la tecleada era la buena, pero otra petición
+        # la cambió mientras se verificaba. Para quien llama es lo mismo —ya no
+        # es la actual—; para el registro, no.
         auditar(
             TipoDeEvento.PASSWORD_CAMBIADA, principal, fallo=True,
-            detalle="password_actual_incorrecta",
+            detalle=motivo if motivo == "credenciales_cambiadas" else "password_actual_incorrecta",
         )
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La contraseña actual no es correcta")
-    await credenciales.change_password(db, principal.user, data.new_password)
-    auditar(TipoDeEvento.PASSWORD_CAMBIADA, principal, detalle="se revocan las demás sesiones")
     try:
-        return await _issue_session(db, response, principal.user)
-    except HTTPException as exc:
-        if exc is not _SIN_ROTACION:
-            raise
-        # El 503 genérico («inténtalo de nuevo») engañaba aquí: la contraseña ya
-        # cambió y las sesiones ya se cortaron; lo que falló es abrir la nueva.
+        await credenciales.change_password(db, principal.user, data.new_password)
+    except CredencialesCambiadas:
+        auditar(TipoDeEvento.PASSWORD_CAMBIADA, principal, fallo=True, detalle="credenciales_cambiadas")
         raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-            "La contraseña ya cambió, pero no se pudo abrir la sesión nueva: entra con la nueva",
+            status.HTTP_409_CONFLICT, "La contraseña cambió mientras tanto: vuelve a entrar",
         ) from None
+    auditar(TipoDeEvento.PASSWORD_CAMBIADA, principal, detalle="se revocan las demás sesiones")
+    # Abrir la sesión nueva es un `INSERT` que no compite con nada (TODO-30):
+    # ya no puede perderse una rotación ni dar el 503 de TODO-25.
+    return await _issue_session(db, response, principal.user)

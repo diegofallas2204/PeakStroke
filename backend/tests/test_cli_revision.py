@@ -38,7 +38,8 @@ async def _foto(db) -> dict[str, list]:
     """Todo lo que un comando del CLI puede cambiar, leído de la base."""
     db.expire_all()
     consultas = {
-        "users": "SELECT id, email, password_hash, token_version, refresh_rotation FROM users ORDER BY id",
+        "users": "SELECT id, email, password_hash, token_version FROM users ORDER BY id",
+        "sesiones_abiertas": "SELECT id, user_id, refresh_rotation FROM sesiones_abiertas ORDER BY id",
         "team_members": "SELECT user_id, team_id, role, is_active FROM team_members ORDER BY user_id",
         "teams": "SELECT id, name, owner_id FROM teams ORDER BY id",
         "swimmers": "SELECT id, user_id FROM swimmers ORDER BY id",

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password, needs_rehash, verify_password
 from app.persistencia.repositorios import RepositorioDeUsuarios
+from app.persistencia.repositorios.usuarios import CredencialesCambiadas
 from app.persistencia.tablas.usuarios import User
 
 
@@ -21,8 +22,9 @@ async def revoke_sessions(db: AsyncSession, user: User) -> None:
     """Invalida todos los tokens ya emitidos para esa cuenta (`Usuario.revocar_sesiones`).
 
     Cualquier access o refresh de la generación anterior deja de validar en la
-    siguiente petición — no en 15 minutos ni en 30 días. Es lo que convierte
-    `logout` en algo más que borrar una cookie del navegador.
+    siguiente petición — no en 15 minutos ni en 30 días —, y `guardar` borra sus
+    sesiones abiertas en la misma transacción (TODO-30). Lo usa `/logout-all`;
+    `/logout` y el reuso ya no: cerrar **un** dispositivo es borrar su sesión.
     """
     usuarios = RepositorioDeUsuarios(db)
     usuario = usuarios.entidad(user)
@@ -41,27 +43,26 @@ async def change_password(db: AsyncSession, user: User, new_password: str) -> Us
     usuarios = RepositorioDeUsuarios(db)
     usuario = usuarios.entidad(user)
     usuario.cambiar_password(hash_password(new_password))
-    return await usuarios.guardar(usuario)
-
-
-async def authenticate(db: AsyncSession, email: str, password: str) -> User | None:
-    """Devuelve el usuario si las credenciales son válidas, None si no.
-
-    Un único None para "no existe", "contraseña incorrecta" y "cuenta
-    desactivada": distinguirlos en la respuesta permitiría enumerar qué emails
-    están registrados.
-    """
-    user, _ = await comprobar_credenciales(db, email, password)
-    return user
+    # Condicional (vuelta 2 del revisor de TODO-30): si otra petición cambió la
+    # contraseña desde que se verificó, `CredencialesCambiadas` sube al router.
+    return await usuarios.cambiar_password(usuario)
 
 
 async def comprobar_credenciales(
     db: AsyncSession, email: str, password: str,
 ) -> tuple[User | None, str]:
-    """Como `authenticate`, y además **por qué** no: para la auditoría, NUNCA
-    para la respuesta, que sigue siendo el mismo 401. Cincuenta
-    `cuenta_inexistente` son un barrido; cincuenta `password_incorrecta` sobre
-    una cuenta, un ataque a esa cuenta."""
+    """La cuenta si las credenciales son válidas, o `None`, y **por qué** no.
+
+    Un único `None` para "no existe", "contraseña incorrecta", "cuenta
+    desactivada" y "cambió mientras se verificaba": distinguirlos en la
+    respuesta permitiría enumerar qué emails están registrados. El motivo es
+    para la auditoría, NUNCA para la respuesta, que sigue siendo el mismo 401.
+    Cincuenta `cuenta_inexistente` son un barrido; cincuenta
+    `password_incorrecta` sobre una cuenta, un ataque a esa cuenta.
+
+    `authenticate`, que solo devolvía la cuenta, se retiró con TODO-30:
+    `/me/password` necesita el motivo para auditar la carrera.
+    """
     usuarios = RepositorioDeUsuarios(db)
     user = await usuarios.por_correo(email)
     if user is None:
@@ -79,4 +80,9 @@ async def comprobar_credenciales(
         datetime.now(UTC),
         nuevo_hash=hash_password(password) if needs_rehash(user.password_hash) else None,
     )
-    return await usuarios.guardar(usuario), ""
+    try:
+        return await usuarios.registrar_acceso(usuario), ""
+    except CredencialesCambiadas:
+        # La contraseña cambió mientras se verificaba (Argon2 tarda ~200 ms):
+        # la que se tecleó ya no es la de la cuenta.
+        return None, "credenciales_cambiadas"

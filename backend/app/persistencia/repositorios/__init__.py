@@ -20,6 +20,7 @@ from .macrociclos import RepositorioDeMacrociclos
 from .resultados import RepositorioDeResultados
 from .semanas import PlanDePrueba, RepositorioDeSemanas
 from .sesiones import RepositorioDeSesiones
+from .sesiones_abiertas import RepositorioDeSesionesAbiertas
 from .tests_aerobicos import RepositorioDeTests
 from .usuarios import RepositorioDeUsuarios
 
@@ -35,6 +36,7 @@ __all__ = [
     "RepositorioDeSemanas",
     "PlanDePrueba",
     "RepositorioDeSesiones",
+    "RepositorioDeSesionesAbiertas",
     "RepositorioDeTests",
     "RepositorioDeUsuarios",
 ]

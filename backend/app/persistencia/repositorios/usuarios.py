@@ -23,30 +23,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dominio.entidades import Usuario
 from app.persistencia.mapeo.identidad import (
-    asentar_rotacion,
-    rotacion_condicional,
+    acceso_condicional,
+    cambio_condicional,
     usuario_desde_fila,
     volcar_usuario,
 )
 from app.persistencia.tablas.usuarios import User
 
+from .sesiones_abiertas import RepositorioDeSesionesAbiertas
+
+
+class CredencialesCambiadas(Exception):
+    """La contraseña cambió entre verificarla y escribir el acceso: el login que
+    la verificó ya no vale (revisor de TODO-30)."""
+
 
 def normalizar_correo(correo: str) -> str:
     """Los correos se guardan y se buscan siempre en minúsculas y sin espacios."""
     return correo.strip().lower()
-
-
-class RotacionPerdida(Exception):
-    """Otra petición gastó la rotación del refresh entre leerla y escribirla.
-
-    Quién la pierde decide qué significa (TODO-25): para `refresh` es el reuso
-    —dos partes con la misma cookie—; para `login` y el cambio de contraseña, la
-    rotación de otra emisión legítima, y se vuelve a rotar sobre la nueva.
-    """
-
-    def __init__(self, user_id: int | None) -> None:
-        super().__init__(f"La rotación del refresh de la cuenta {user_id} ya se gastó")
-        self.user_id = user_id
 
 
 class RepositorioDeUsuarios:
@@ -106,52 +100,79 @@ class RepositorioDeUsuarios:
         Dos commits dejarían, si el segundo fallara, a alguien echado del club y
         con su token vivo — o con el token muerto y todavía dentro.
         """
-        fila = await self._fila(usuario)
-        if rotacion_condicional(usuario, fila) is not None:
-            # Perderla obligaría a deshacer la unidad de trabajo de quien llama.
-            raise ValueError("Rotar el refresh se confirma solo: usa `guardar`")
-        volcar_usuario(usuario, fila)
+        await self._volcar(usuario, await self._fila(usuario))
 
     async def guardar(self, usuario: Usuario) -> User:
-        """Escribe lo que la entidad gobierna —sesiones, hash, último acceso— y
+        """Escribe lo que la entidad gobierna —generación, hash, último acceso— y
         confirma. Devuelve la fila, que es la misma que ya tenga la sesión: quien
         la llevaba encima ve los contadores nuevos sin volver a leerla.
 
         Hasta el 2026-10-14 había un método por cambio (`revocar_sesiones`,
         `fijar_password_hash`, `marcar_login`) y `auth/sessions.py` subía la
         rotación a mano. Ahora el cambio lo decide la entidad y aquí solo se
-        persiste.
-
-        **La rotación se gasta con un `UPDATE` condicional** (TODO-25), antes de
-        volcar nada más: si otra petición la gastó desde que se leyó, no se
-        escribe nada de la entidad, se relee la fila —quien la lleve ve la
-        rotación que ganó— y levanta `RotacionPerdida`.
-
-        Al perderla se **confirma** la transacción vacía, no se deshace: un
-        `rollback` caduca todo lo cargado en la sesión, y quien reintenta —el
-        login, con la pertenencia ya leída— lo leería por carga perezosa, que en
-        async es un `MissingGreenlet` (500). Lo vio el revisor de TODO-25 con
-        una cuenta con club. Confirmar no caduca nada (`expire_on_commit=False`)
-        y del `UPDATE` de 0 filas no queda nada que guardar — **siempre que la
-        sesión no traiga nada pendiente**, y por eso se exige: si lo trajera, se
-        confirmaría aunque la rotación se perdiera.
+        persiste. La rotación del refresh ya no pasa por aquí: es de cada
+        sesión abierta (TODO-30, `RepositorioDeSesionesAbiertas.rotar`).
         """
         fila = await self._fila(usuario)
-        rotar = rotacion_condicional(usuario, fila)
-        if rotar is not None:
-            if self.db.new or self.db.dirty or self.db.deleted:
-                raise ValueError(
-                    "Rotar el refresh se guarda con la sesión limpia: confirma antes lo pendiente",
-                )
-            if (await self.db.execute(rotar)).rowcount != 1:
-                await self.db.commit()
-                await self.db.refresh(fila)
-                raise RotacionPerdida(usuario.id)
-            asentar_rotacion(usuario, fila)
-        volcar_usuario(usuario, fila)
+        await self._volcar(usuario, fila)
         await self.db.commit()
         await self.db.refresh(fila)
         return fila
+
+    async def registrar_acceso(self, usuario: Usuario) -> User:
+        """Escribe el acceso de un login (`Usuario.registrar_login`) y confirma,
+        **solo si la contraseña sigue siendo la verificada** (`acceso_condicional`).
+
+        Con 0 filas confirma la transacción vacía —no `rollback`, por lo mismo
+        que la rotación: caducaría lo cargado— y levanta `CredencialesCambiadas`.
+        Exige la sesión limpia: lo pendiente se confirmaría aunque se perdiera.
+        """
+        if self.db.new or self.db.dirty or self.db.deleted:
+            raise ValueError(
+                "El acceso se escribe con la sesión limpia: confirma antes lo pendiente",
+            )
+        fila = await self._fila(usuario)
+        if (await self.db.execute(acceso_condicional(usuario))).rowcount != 1:
+            await self.db.commit()
+            raise CredencialesCambiadas(usuario.id)
+        await self.db.commit()
+        await self.db.refresh(fila)
+        return fila
+
+    async def cambiar_password(self, usuario: Usuario) -> User:
+        """Escribe un cambio de contraseña (`Usuario.cambiar_password`) y
+        confirma, **solo si la contraseña sigue siendo la verificada**
+        (`cambio_condicional`); en la misma transacción borra las sesiones
+        abiertas de la cuenta. Con 0 filas, como `registrar_acceso`: confirma
+        vacío y `CredencialesCambiadas`.
+        """
+        if self.db.new or self.db.dirty or self.db.deleted:
+            raise ValueError(
+                "La contraseña se cambia con la sesión limpia: confirma antes lo pendiente",
+            )
+        fila = await self._fila(usuario)
+        if (await self.db.execute(cambio_condicional(usuario))).rowcount != 1:
+            await self.db.commit()
+            raise CredencialesCambiadas(usuario.id)
+        await RepositorioDeSesionesAbiertas(self.db).cerrar_todas_de(fila.id)
+        await self.db.commit()
+        await self.db.refresh(fila)
+        return fila
+
+    async def _volcar(self, usuario: Usuario, fila: User) -> None:
+        """Si la generación sube, **borra las sesiones abiertas de la cuenta** en
+        la misma transacción (decidido el 2026-10-20): cambiar la contraseña,
+        revocar, liberar, salir de todas y cortar sesiones desde el CLI pasan
+        todos por aquí. La generación sigue siendo la defensa —un login que
+        abriera sesión a la vez dejaría una fila con tokens de la generación
+        vieja, que no validan—; borrar es que la tabla diga la verdad.
+
+        Se compara contra la fila **antes** de volcar: es lo que hay en la base,
+        porque nadie más escribe `token_version` que este volcado.
+        """
+        if usuario.version_de_token != fila.token_version and fila.id is not None:
+            await RepositorioDeSesionesAbiertas(self.db).cerrar_todas_de(fila.id)
+        volcar_usuario(usuario, fila)
 
     async def _fila(self, usuario: Usuario) -> User:
         fila = await self.db.get(User, usuario.id) if usuario.id is not None else None

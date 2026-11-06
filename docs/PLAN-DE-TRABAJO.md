@@ -49,6 +49,15 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 
 ## Dónde estamos y qué sigue — medido el 2026-09-22
 
+> **Actualizado el 2026-11-06. TODO-30 cerrado** (fuera de los bloques): una sesión
+> por login. `sesiones_abiertas` guarda cada login con su rotación del refresh y los
+> tokens llevan su `sid`, así que dos dispositivos ya no se echan: el reuso cierra
+> esa sesión, `logout` la de ese dispositivo y `POST /auth/logout-all` todas.
+> Migración `e3b8f1a6c4d2` (borra `users.refresh_rotation`). De paso, el login y el
+> cambio de contraseña escriben solo si la contraseña sigue siendo la verificada.
+> Abre **TODO-31** (un solo refresh en vuelo por navegador), que bloquea encender el
+> login del frontend. **1456 tests.**
+>
 > **Actualizado el 2026-10-18. TODO-25 cerrado** (fuera de los bloques): dos
 > `/auth/refresh` a la vez con la misma cookie ya no pasan los dos. La rotación
 > se gasta con un `UPDATE` condicional (`mapeo/identidad.rotacion_condicional`,
