@@ -31,8 +31,8 @@ export function SimFeasibility({ feasibility, current, goal, simple }: Props) {
           style={{ color, background: `${color}16`, border: `1px solid ${color}33` }}>
           <Icon size={19} />
         </span>
-        <div className="flex-1">
-          <div className="flex items-center gap-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <p className="display text-[14px] font-bold" style={{ color }}>{meta.label}</p>
             <span className="flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-text-dim">
               {feasibility.tier === 1 ? <Waves size={10} /> : <Zap size={10} />}
@@ -43,7 +43,7 @@ export function SimFeasibility({ feasibility, current, goal, simple }: Props) {
         </div>
       </div>
       {!simple && (
-        <div className="mt-4 grid grid-cols-4 gap-3 border-t border-line pt-3.5">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 border-t border-line pt-3.5">
           <div>
             <p className="card-title !text-[9px]">Mejora total</p>
             <p className="mono mt-0.5 text-[15px] font-bold">

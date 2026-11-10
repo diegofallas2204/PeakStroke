@@ -5,12 +5,12 @@
 // casi nunca a alguien sin saber de qué grupo es.
 import { useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ClipboardList, Plus, Search, ShieldCheck, ShieldOff, UsersRound } from 'lucide-react'
+import { ClipboardList, Eye, EyeOff, Plus, Search, ShieldCheck, ShieldOff, UsersRound } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { Member } from '../../lib/types'
 import { ROLE_META, roleMeta } from '../../lib/constants'
 import { initials, toShortDate } from '../../lib/format'
-import { Card, Chip, EmptyState, Segmented } from '../../components/ui/primitives'
+import { Card, Chip, EmptyState, IconButton, Segmented } from '../../components/ui/primitives'
 import { CoachAthletesModal } from './CoachAthletesModal'
 
 type RoleFilter = 'all' | 'coach' | 'athlete'
@@ -25,6 +25,7 @@ export function MembersCard({
   const queryClient = useQueryClient()
 
   const accessMutation = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: ({ id, active }: { id: number; active: boolean }) =>
       api.auth.updateMember(id, { is_active: active }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['members'] }),
@@ -66,6 +67,7 @@ export function MembersCard({
           <input
             className="field !py-1.5 !pl-9 !text-[13px]"
             placeholder="Buscar por nombre, email o ficha…"
+            aria-label="Buscar miembro"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -86,11 +88,13 @@ export function MembersCard({
             type="button"
             role="switch"
             aria-checked={showRevoked}
+            aria-label={`Mostrar los ${revocados} accesos revocados`}
+            title={showRevoked ? 'Ocultar revocados' : 'Ver revocados'}
             onClick={() => setShowRevoked(!showRevoked)}
             className="btn btn-ghost !py-1.5 !text-[12px]"
             style={showRevoked ? { borderColor: 'rgba(251,113,133,.35)', color: 'var(--color-coral)' } : undefined}
           >
-            {showRevoked ? 'Ocultar' : 'Ver'} revocados ({revocados})
+            {showRevoked ? <EyeOff size={13} /> : <Eye size={13} />} Revocados · {revocados}
           </button>
         )}
       </div>
@@ -212,16 +216,18 @@ function MemberRow({
       <td className="text-right">
         {!m.is_active && <Chip color="#fb7185">Revocado</Chip>}
         {esEntrenador && m.is_active && (
-          <button className="btn btn-ghost ml-2 !py-1.5 !text-[12px]" onClick={onManageAthletes}>
-            <UsersRound size={12.5} /> Atletas
-          </button>
+          <IconButton label={`Atletas que lleva ${m.name}`} onClick={onManageAthletes} className="ml-2 !size-8">
+            <UsersRound size={13.5} />
+          </IconButton>
         )}
         {/* Ni uno mismo ni el dueño pueden quedarse sin acceso: el equipo se
             quedaría sin quien lo administre. Para relevar al dueño hay que
             transferir la propiedad primero, y el backend rechaza ambos casos. */}
         {!isSelf && !m.is_owner && (
-          <button
-            className={`btn ${m.is_active ? 'btn-danger' : 'btn-ghost'} ml-2 !py-1.5 !text-[12px]`}
+          <IconButton
+            label={m.is_active ? `Revocar el acceso de ${m.name}` : `Restaurar el acceso de ${m.name}`}
+            tone={m.is_active ? 'danger' : 'ghost'}
+            className="ml-2 !size-8"
             disabled={busy}
             onClick={() => {
               if (m.is_active && !confirm(`¿Revocar el acceso de ${m.name}? Sus datos no se borran.`))
@@ -229,9 +235,8 @@ function MemberRow({
               onToggleAccess(!m.is_active)
             }}
           >
-            {m.is_active ? <ShieldOff size={12.5} /> : <ShieldCheck size={12.5} />}
-            {m.is_active ? 'Revocar' : 'Restaurar'}
-          </button>
+            {m.is_active ? <ShieldOff size={13.5} /> : <ShieldCheck size={13.5} className="text-mint" />}
+          </IconButton>
         )}
       </td>
     </tr>

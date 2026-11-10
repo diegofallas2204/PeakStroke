@@ -16,12 +16,13 @@ export function SimExtensionNotice({ feasibility, weeks }: { feasibility: Feasib
           style={{ color: '#fbbf24', background: '#fbbf2416', border: '1px solid #fbbf2433' }}>
           <CalendarClock size={17} />
         </span>
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <p className="text-[12px] leading-relaxed text-text-dim">
             La meta supera el techo realista en {weeks} semanas. El motor estima
             cuántas necesitarías y detalla cada una en la <span className="font-semibold text-text">tabla de extensión</span> de abajo
             — <span className="font-semibold text-text">no modifica tu plan ni ningún cálculo</span>.
           </p>
+          <div className="overflow-x-auto">
           <table className="tbl mt-3">
             <tbody>
               <tr>
@@ -40,6 +41,7 @@ export function SimExtensionNotice({ feasibility, weeks }: { feasibility: Feasib
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </Card>

@@ -71,6 +71,7 @@ export function SessionForm({
   }
 
   const mutation = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: (data: TrainingSessionInput) =>
       session ? api.sessions.update(session.id, data) : api.sessions.create(swimmerId!, data),
     onSuccess: () => { invalidate(); onClose() },

@@ -52,6 +52,7 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
   }
 
   const mutation = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: () => api.plans.create({
       ...form,
       main_event: form.main_event || null,

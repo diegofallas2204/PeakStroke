@@ -22,6 +22,7 @@ export function SessionsCard({
   const queryClient = useQueryClient()
   const [error, setError] = useState('')
   const remove = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: (id: number) => api.sessions.remove(id),
     onMutate: () => setError(''),
     // Un borrado que falla (otra pestaña ya la borró, o la red) se dice: la fila

@@ -70,7 +70,7 @@ export function VistaZonas({
       </div>
 
       <p className="text-[10.5px] leading-relaxed text-text-faint" data-animate>
-        Pace objetivo por 100m calculado sobre el tiempo esperado de la semana.
+        Ritmo objetivo por 100m calculado sobre el tiempo esperado de la semana.
         La salida es el intervalo para repeticiones de esa distancia, cuadrado al
         reloj de pared. Distribución de km sugerida para especialidad{' '}
         <span className="font-semibold text-text-dim">{SPECIALTY_LABEL[specialty] ?? specialty}</span>.

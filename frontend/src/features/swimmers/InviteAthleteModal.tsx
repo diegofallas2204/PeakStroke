@@ -38,6 +38,7 @@ export function InviteAthleteModal({
   }
 
   const invitar = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: () => api.linkCodes.invite({
       email: form.email.trim(),
       name: form.name.trim(),

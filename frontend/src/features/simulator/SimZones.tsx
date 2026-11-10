@@ -29,7 +29,7 @@ export function SimZones({ weeks }: { weeks: SimWeek[] }) {
         </div>
       }
     >
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {ZONE_ORDER.map((zone) => {
           const range = week.zones[zone]
           const meta = ZONE_META[zone]

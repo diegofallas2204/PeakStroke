@@ -61,7 +61,7 @@ export function MacroSwitcherModal({ open, onClose }: { open: boolean; onClose: 
           Aún no hay macrociclos. Crea uno en la sección Macrociclos.
         </p>
       ) : (
-        <div className="grid grid-cols-[minmax(0,1fr)_300px] gap-6">
+        <div className="grid gap-6 [&>*]:min-w-0 md:grid-cols-[minmax(0,1fr)_300px]">
           {/* Perfil del macrociclo seleccionado */}
           <section>
             {current && (

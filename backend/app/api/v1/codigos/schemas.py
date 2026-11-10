@@ -5,6 +5,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.api.entrada import Nombre
 from app.api.vocabulario import Gender, MainStroke, Specialty
 
 
@@ -23,7 +24,7 @@ class InviteRequest(BaseModel):
     """
 
     email: EmailStr
-    name: str = Field(min_length=2, max_length=120)
+    name: Nombre
     birth_date: date | None = None
     gender: Gender | None = None
     specialty: Specialty = "medio_fondo"

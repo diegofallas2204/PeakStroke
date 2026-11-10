@@ -4,6 +4,7 @@ import { Sidebar } from './components/layout/Sidebar'
 import { RutaPorRol } from './components/layout/RutaPorRol'
 import { SECTION_ACCENT } from './lib/constants'
 import { Spinner } from './components/ui/primitives'
+import { Avisos } from './components/ui/Avisos'
 import { useSimpleMode } from './hooks/useSimpleMode'
 
 // Code-splitting: el fondo WebGL (Three.js) y cada página viven en su propio chunk
@@ -78,6 +79,7 @@ export default function App() {
           </Suspense>
         </div>
       </main>
+      <Avisos />
     </div>
   )
 }

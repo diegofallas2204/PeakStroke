@@ -59,7 +59,7 @@ export function descargarSimPdf(
 
 /** Semana a semana, con todas las zonas. Espejo de `SimPlanTable`. */
 function tablaDeSemanas(weeks: SimWeek[], simple: boolean): Omit<TablaPdf, 'caption' | 'note'> {
-  const head = ['Semana', 'Fecha', 'Fase', 'Km', 'Esperado', 'Pace /100']
+  const head = ['Semana', 'Fecha', 'Fase', 'Km', 'Esperado', 'Ritmo /100']
   if (!simple) head.push(...ZONE_ORDER, 'Mejora', 'Acumulada')
 
   const body = weeks.map((w) => {

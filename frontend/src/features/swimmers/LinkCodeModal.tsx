@@ -33,10 +33,12 @@ export function LinkCodeModal({
     queryClient.invalidateQueries({ queryKey: ['swimmers'] })
   }
   const emitir = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: () => api.linkCodes.issue(swimmer!.id),
     onSuccess: refrescar,
   })
   const revocar = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: () => api.linkCodes.revoke(code!.id),
     onSuccess: () => { refrescar(); onClose() },
   })

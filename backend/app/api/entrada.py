@@ -19,18 +19,26 @@ dos:
 from __future__ import annotations
 
 import math
+from typing import Annotated
 
 from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StringConstraints
 
 
 class Entrada(BaseModel):
     """Cuerpo de petición cuyos `float` tienen que ser finitos."""
 
     model_config = ConfigDict(allow_inf_nan=False)
+
+
+# El nombre de una persona o de un club: se recorta y, ya recortado, tiene que
+# quedar algo (TODO-28). `Field(min_length=2)` a secas contaba los espacios:
+# «  » valía, y el club se quedaba sin nombre visible. El CLI de operaciones
+# valida con estos mismos schemas, así que lo hereda.
+Nombre = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=120)]
 
 
 def _pintable(valor: object) -> object:

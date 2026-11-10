@@ -15,7 +15,7 @@ export function descargarEquipoPdf(
   data: TeamWeek, planName: string | undefined, totalWeeks: number, simple: boolean,
 ): void {
   const head = ['Atleta', 'Prueba', 'Esperado']
-  if (!simple) head.push('Pace /100', ...ZONE_ORDER)
+  if (!simple) head.push('Ritmo /100', ...ZONE_ORDER)
   head.push('Km', 'Real', 'Estado')
 
   const body = data.rows.map((row) => {

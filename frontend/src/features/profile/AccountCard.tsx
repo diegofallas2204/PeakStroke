@@ -74,8 +74,8 @@ export function DevSessionNotice() {
         <div className="min-w-0">
           <p className="text-[12.5px] font-semibold">Sesión de desarrollo</p>
           <p className="mt-1 text-[11.5px] leading-relaxed text-text-dim">
-            La app no pide login todavía: todas las peticiones se atribuyen a esta cuenta y los
-            permisos de rol no se aplican. Para probar el flujo real, arranca el backend con{' '}
+            La app no pide login: entras como esta cuenta sin contraseña. Los permisos de su
+            rol sí se aplican. Para el flujo real, arranca el backend con{' '}
             <code className="mono rounded bg-surface-2 px-1.5 py-0.5 text-[10.5px]">
               PEAKSTROKE_AUTH_ENABLED=true
             </code>

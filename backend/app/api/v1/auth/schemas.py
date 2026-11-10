@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from app.api.entrada import Nombre
+
 Role = Literal["coach", "athlete"]
 
 # Mínimo deliberadamente laxo en longitud pero explícito: la fortaleza real la da
@@ -16,13 +18,13 @@ PASSWORD_MIN = 8
 class UserCreate(BaseModel):
     """Alta de cuenta. Solo la ejecuta un entrenador — no hay registro público."""
     email: EmailStr
-    name: str = Field(min_length=2, max_length=120)
+    name: Nombre
     password: str = Field(min_length=PASSWORD_MIN, max_length=128)
     role: Role = "athlete"
 
 
 class UserUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=2, max_length=120)
+    name: Nombre | None = None
     role: Role | None = None
     is_active: bool | None = None
 
@@ -99,7 +101,7 @@ class MemberCreate(BaseModel):
     hasta que no ocurren las dos cosas no hay relación.
     """
     email: EmailStr
-    name: str = Field(min_length=2, max_length=120)
+    name: Nombre
     role: Role = "athlete"
     password: str | None = Field(default=None, min_length=PASSWORD_MIN, max_length=128)
 

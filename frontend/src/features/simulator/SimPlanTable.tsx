@@ -18,7 +18,7 @@ export function SimPlanTable({ weeks, extension = false, simple = false }: Props
       <table className="tbl">
         <thead>
           <tr>
-            <th>Semana</th><th>Fase</th><th>Km</th><th>Esperado</th><th>Pace /100</th>
+            <th>Semana</th><th>Fase</th><th>Km</th><th>Esperado</th><th>Ritmo /100</th>
             {!simple && ZONE_ORDER.map((z) => (
               <th key={z} style={{ color: ZONE_META[z].color }}>{z}</th>
             ))}

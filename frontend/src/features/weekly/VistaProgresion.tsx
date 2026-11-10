@@ -32,7 +32,7 @@ export function VistaProgresion({
 
   return (
     <>
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         <Card className="card-hover">
           <p className="card-title">Último registro</p>
           <p className="display mt-1.5 text-[24px] font-bold text-mint">

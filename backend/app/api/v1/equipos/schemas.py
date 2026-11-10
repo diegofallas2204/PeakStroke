@@ -1,7 +1,9 @@
 """Schemas Pydantic del módulo teams."""
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
+from app.api.entrada import Nombre
 
 
 class TeamResponse(BaseModel):
@@ -18,7 +20,7 @@ class TeamResponse(BaseModel):
 
 
 class TeamUpdate(BaseModel):
-    name: str = Field(min_length=2, max_length=120)
+    name: Nombre
 
 
 class OwnerTransfer(BaseModel):

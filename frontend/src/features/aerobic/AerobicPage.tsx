@@ -51,6 +51,10 @@ export function AerobicPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['aerobic'] }),
   })
 
+  const borrar = (id: number) => {
+    if (confirm('¿Eliminar este test?')) removeTest.mutate(id)
+  }
+
   const ref = usePageEnter([activeSwimmer, isLoading])
 
   return (
@@ -100,19 +104,27 @@ export function AerobicPage() {
           )}
         />
       ) : (
-        <div className="grid grid-cols-[300px_1fr] items-start gap-4">
+        <div className="grid items-start gap-4 [&>*]:min-w-0 lg:grid-cols-[300px_1fr]">
           <Card title="Historial de tests" className="card-hover self-start !p-2.5">
             <div className="flex flex-col gap-1.5">
               {tests.map((t) => {
                 const trend = t.trend ? TREND_META[t.trend] : null
                 const active = t.id === test?.id
                 return (
-                  <button
+                  // Dos botones hermanos, no uno dentro de otro: un control
+                  // anidado en un <button> no recibe foco ni se anuncia (y en
+                  // Firefox el clic se lo queda el de fuera). La fila es el
+                  // contenedor; elegir el test y borrarlo son vecinos.
+                  <div
                     key={t.id}
-                    onClick={() => setSelectedTest(t.id)}
-                    className={`group flex items-center justify-between rounded-xl border px-3 py-2.5 text-left transition-all duration-200 ${
+                    className={`group flex items-center gap-1 rounded-xl border pr-1.5 transition-all duration-200 ${
                       active ? 'border-[rgba(59,130,246,.45)] bg-[rgba(59,130,246,.1)]' : 'border-transparent hover:bg-surface-2'
                     }`}
+                  >
+                  <button
+                    onClick={() => setSelectedTest(t.id)}
+                    aria-pressed={active}
+                    className="flex min-w-0 flex-1 items-center justify-between rounded-xl py-2.5 pl-3 pr-1 text-left"
                   >
                     <div>
                       <div className="flex items-center gap-2">
@@ -123,27 +135,25 @@ export function AerobicPage() {
                       </div>
                       <p className="mt-0.5 text-[10px] text-text-faint">{t.test_date}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <p className="mono text-[12.5px] font-bold text-accent-soft">{toClock(t.avg_per100)}</p>
-                        {trend && (
-                          <p className="flex items-center justify-end gap-1 text-[9px]" style={{ color: trend.color }}>
-                            <trend.icon size={9} /> {trend.label}
-                          </p>
-                        )}
-                      </div>
-                      <span
-                        className="rounded-md p-1 text-text-faint opacity-0 transition-all hover:text-coral group-hover:opacity-100"
-                        role="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (confirm('¿Eliminar este test?')) removeTest.mutate(t.id)
-                        }}
-                      >
-                        <Trash2 size={11.5} />
-                      </span>
+                    <div className="text-right">
+                      <p className="mono text-[12.5px] font-bold text-accent-soft">{toClock(t.avg_per100)}</p>
+                      {trend && (
+                        <p className="flex items-center justify-end gap-1 text-[9px]" style={{ color: trend.color }}>
+                          <trend.icon size={9} /> {trend.label}
+                        </p>
+                      )}
                     </div>
                   </button>
+                  <button
+                    type="button"
+                    className="reveal shrink-0 rounded-md p-1.5 text-text-faint transition-colors hover:text-coral"
+                    aria-label={`Eliminar el test del ${t.test_date}`}
+                    title="Eliminar test"
+                    onClick={() => borrar(t.id)}
+                  >
+                    <Trash2 size={12.5} />
+                  </button>
+                  </div>
                 )
               })}
             </div>
@@ -166,7 +176,7 @@ function TestDetail({ test, previous }: { test: AerobicTest; previous: AerobicTe
   const trend = test.trend ? TREND_META[test.trend] : null
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid gap-3 sm:grid-cols-3 sm:gap-4">
         <Card className="card-hover">
           <p className="card-title">Base aeróbica</p>
           <p className="display mt-1.5 text-[26px] font-bold text-accent-soft">{toClock(test.avg_per100)}</p>

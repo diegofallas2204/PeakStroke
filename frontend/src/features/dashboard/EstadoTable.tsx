@@ -12,6 +12,7 @@ export function EstadoTable({
   filas, muestraColumnaAtleta, simple,
 }: { filas: AthleteStatusRow[]; muestraColumnaAtleta: boolean; simple: boolean }) {
   return (
+    <div className="overflow-x-auto">
     <table className="tbl">
       <thead>
         <tr>
@@ -68,5 +69,6 @@ export function EstadoTable({
         ))}
       </tbody>
     </table>
+    </div>
   )
 }

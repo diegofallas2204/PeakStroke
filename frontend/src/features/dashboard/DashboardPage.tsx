@@ -65,7 +65,7 @@ export function DashboardPage() {
         title="Dashboard"
         subtitle={
           <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
-            <span>{data.plan_name} · Semana {data.current_week ?? '—'} de {data.total_weeks}</span>
+            <span>Semana {data.current_week ?? '—'} de {data.total_weeks}</span>
             {data.current_phase && <span> · Fase <span className="font-semibold text-accent-soft">{data.current_phase}</span></span>}
             <Chip color={(PLAN_STATUS_META[data.plan_status] ?? PLAN_STATUS_META.draft).color}>
               {(PLAN_STATUS_META[data.plan_status] ?? PLAN_STATUS_META.draft).label}
@@ -74,8 +74,16 @@ export function DashboardPage() {
         }
         actions={
           <>
-            <button className="btn btn-ghost" onClick={() => setSwitcherOpen(true)}>
-              <ChevronsUpDown size={14} /> Cambiar macrociclo
+            {/* El nombre del macrociclo ES el selector: dice cuál se mira y se
+                abre como un desplegable, sin gastar dos palabras en decirlo. */}
+            <button
+              className="btn btn-ghost min-w-0"
+              onClick={() => setSwitcherOpen(true)}
+              aria-label={`Cambiar macrociclo (ahora: ${data.plan_name})`}
+              title="Cambiar macrociclo"
+            >
+              <span className="truncate">{data.plan_name}</span>
+              <ChevronsUpDown size={14} className="shrink-0 text-text-dim" />
             </button>
             {vista.accionRapida && (
               <Link to={vista.accionRapida.a} className="btn btn-primary">
@@ -97,7 +105,7 @@ export function DashboardPage() {
       <DashboardStats data={data} vista={vista} simple={simple} />
 
       {!simple && (
-        <div className="grid grid-cols-[1fr_300px] gap-4">
+        <div className="grid gap-4 [&>*]:min-w-0 lg:grid-cols-[1fr_300px]">
           <Card title={vista.tituloProgresion} className="card-hover flex flex-col">
             <div className="min-h-[252px] flex-1">
               <ResponsiveContainer width="100%" height="100%">

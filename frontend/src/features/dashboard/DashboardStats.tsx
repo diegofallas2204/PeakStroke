@@ -17,7 +17,7 @@ export function DashboardStats({
   const primerValor = vista.muestraColumnaAtleta ? data.athletes_total : data.events_total
 
   return (
-    <div className="grid grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
       <StatCard
         label={vista.primeraTarjeta.etiqueta} value={primerValor} accent="#3b82f6"
         icon={<Users size={15} />}
@@ -31,13 +31,13 @@ export function DashboardStats({
         to={vista.semana.a}
       />
       <StatCard
-        label={vista.estado.etiqueta} value={data.ahead} suffix="adelantados"
+        label={vista.estado.etiqueta} value={data.ahead} suffix={data.ahead === 1 ? 'adelantado' : 'adelantados'}
         accent="#34d399" icon={<TrendingUp size={15} />}
         sub={simple ? undefined : (
           <span>
             <span className="text-cyan">{data.on_track} en plan</span>
             {' · '}
-            <span className="text-coral">{data.behind} atrasados</span>
+            <span className="text-coral">{data.behind} {data.behind === 1 ? 'atrasado' : 'atrasados'}</span>
           </span>
         )}
         to={vista.estado.a}

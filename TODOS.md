@@ -57,6 +57,13 @@ Prioridad: P1 = bloquea trabajo en curso · P2 = debería caer pronto · P3 = de
 > **Cerrado el 2026-11-06**: ~~TODO-30~~ (una sesión por login, `sesiones_abiertas`).
 > **Abierto el mismo día**: TODO-31 (un solo refresh en vuelo por navegador: la mitad
 > que solo el cliente puede resolver; bloquea encender el login).
+>
+> **Auditoría previa al release, 2026-11-09** (sin commitear al escribir esto):
+> cerrados ~~TODO-21~~ (cinco pantallas desbordaban en móvil, no dos), ~~TODO-28~~
+> (tipo `api.entrada.Nombre`: se recorta y, recortado, tiene que quedar algo —
+> también en la ficha y en la invitación) y ~~TODO-29~~ (la purga sale con 3).
+> **Abiertos el mismo día**: TODO-32 a TODO-35, abajo del todo. El orden hacia el
+> primer release está en TODO-32.
 
 ---
 
@@ -393,7 +400,7 @@ sección Entrenamiento es la primera que pone el botón en manos del usuario.
 Decidir si corregir una sesión propia es un evento de seguridad (probablemente
 sí cuando borra el entrenador lo de un atleta, no cuando el atleta corrige lo suyo).
 
-## TODO-21 — Base aeróbica y Dashboard desbordan en móvil (P3)
+## ~~TODO-21 — Base aeróbica y Dashboard desbordan en móvil~~ — CERRADO 2026-11-09
 
 Medido el 2026-10-01 a 375 px: `/pruebas` mide 889 px de ancho y `/` 940
 (grids fijos como `grid-cols-[300px_1fr]` y `grid-cols-3`). `PageHeader` ya hace
@@ -595,7 +602,7 @@ Arreglo propuesto: una columna `users.password_temporal_hasta` (o un booleano)
 que el login mire —con la temporal, solo `/auth/me/password`— y la pantalla de
 cambio obligado en el frontend. Toca login, el `Usuario` y una migración.
 
-## TODO-28 — Un nombre de solo espacios se acepta en el club y en la persona (P3)
+## ~~TODO-28 — Un nombre de solo espacios se acepta en el club y en la persona~~ — CERRADO 2026-11-09
 
 Visto en el escenario de límites de D1 (2026-10-14). `TeamUpdate.name` y
 `UserCreate.name`/`UserUpdate.name` son `Field(min_length=2)` sin quitar
@@ -607,7 +614,7 @@ Arreglo propuesto: el mismo que el macrociclo en TODO-24 (`Macrociclo.renombrar`
 rechaza el nombre en blanco): en el schema, con `str_strip_whitespace` o un
 validador, para que sea un **422** y no un 500 — y el CLI lo hereda solo.
 
-## TODO-29 — `purgar_auditoria.py` sale con 0 aunque su evento no se guarde (P3)
+## ~~TODO-29 — `purgar_auditoria.py` sale con 0 aunque su evento no se guarde~~ — CERRADO 2026-11-09
 
 Variante del hallazgo 2 del /cso de D1 (2026-10-14), preexistente.
 `contexto_de_auditoria` traga el fallo al escribir (lo correcto en una petición
@@ -696,3 +703,79 @@ el escenario de TODO-25.
   login ni nada que llame a `/auth/refresh`). **Bloquea** encenderlo en producción.
 - **Ojo:** Safari < 15.4 no tiene Web Locks; si hace falta soportarlo, el
   `BroadcastChannel` con elección de líder es el respaldo.
+
+---
+
+## TODO-32 — El frontend no puede iniciar sesión (P1, es lo que separa del primer release)
+
+Visto en la auditoría del 2026-11-09. El backend de identidad está entero desde
+agosto y probado; **el cliente no existe**: ni pantalla de login, ni dónde guardar
+el access token, ni quién llame a `/auth/refresh` o a `/auth/logout`. Con
+`PEAKSTROKE_AUTH_ENABLED=true` la interfaz no entra.
+
+- **Qué:** pantalla de login; access token en memoria y en la cabecera
+  `Authorization` de `lib/api.ts`; ante un 401, un refresh y reintento —**uno solo
+  en vuelo por navegador**, que es TODO-31—; salir y «salir de todas»; y al salir
+  o cambiar de cuenta, `limpiarCacheDeIdentidad()` (hoy `peakstroke-query-cache`
+  guarda 24 h de datos deportivos en `localStorage` sin atarlos a la cuenta) más
+  TODO-3 (`ps-selected-plan`).
+- **Va con él, porque sin ello no se puede exponer:** TODO-33 (límite de
+  intentos), TODO-27 (la temporal no caduca) y TODO-18.
+- **Hecho cuando:** con el login encendido, las siete cuentas del seed entran y
+  ven lo suyo; dos pestañas no producen `REFRESH_REUSADO`; y otra cuenta en el
+  mismo navegador no ve ni un dato de la anterior.
+- **Zona de `/cso` comprehensive.** Un bloque propio, no un arreglo.
+
+## TODO-33 — Sin límite de intentos en `/auth/login` (P1, bloquea exponer la app)
+
+`/cso` del 2026-11-09, hermano de TODO-18. Ningún límite por IP ni por cuenta, y
+la contraseña mínima son 8 caracteres: lo único que frena un relleno de
+credenciales son los ~200 ms de Argon2. La auditoría ya guarda cada fallo con su
+correo y su red (`login` con `fallo`), así que se puede contar sobre ella sin
+tabla nueva. Decidir: ¿bloqueo temporal de la cuenta, retraso creciente, o solo
+por IP? (bloquear la cuenta deja que cualquiera eche a un entrenador escribiendo
+mal su contraseña).
+
+## TODO-34 — Lo que el despliegue tiene que traer (P2)
+
+`/cso` del 2026-11-09. Nada de esto es un fallo del código de hoy; es lo que
+falta el día que haya un dominio:
+
+- **El modo por defecto es el API abierto.** Sin variables de entorno, toda
+  petición entra como el dueño y `X-PeakStroke-Dev-User` suplanta a cualquiera;
+  lo único que lo contiene es que uvicorn escucha en `127.0.0.1`. Hace falta la
+  guía con las tres variables obligatorias (`ENVIRONMENT=production`,
+  `JWT_SECRET`, `REFRESH_COOKIE_SECURE`) y valorar negarse a arrancar sin login
+  cuando la base no es el SQLite local.
+- Cabeceras de seguridad (CSP, `X-Content-Type-Options`, `frame-ancestors`) en
+  quien sirva el `dist/`.
+- **No hay CI**: ni tests, ni ruff, ni `npm audit` corren solos.
+- `requirements.txt` va con `>=` y sin lockfile; `pip-audit` no está instalado.
+- Quedan 10 avisos moderados de `npm audit` en devDependencies (cadena de
+  eslint), que piden un cambio mayor de versión.
+- La base de desarrollo va una migración por detrás (`d1a7c3e9f5b2`; el repo,
+  `e3b8f1a6c4d2`): `alembic upgrade head`, con copia antes.
+
+## TODO-35 — Lo que la revisión de interfaz dejó sin tocar (P3)
+
+Auditoría de heurísticas del 2026-11-09; lo que sí se arregló está en la bitácora
+de ese día. Pide decisión o es más grande que un retoque:
+
+- **Idioma mezclado**: la primera sección se llama «Dashboard» y la marca dice
+  «Performance Planner» en una interfaz en español. Renombrar una sección es
+  decisión de producto (¿«Inicio»?).
+- **`confirm()` y `prompt()` del navegador** en siete sitios (borrar, dar de baja,
+  revocar, motivo del parón): funcionan, pero no llevan el estilo de la app, no
+  se pueden deshacer y `prompt` en móvil es incómodo. Un diálogo propio con
+  «Deshacer» cubriría las bajas, que ya son reversibles en el backend.
+- **Fechas en ISO** (`2026-08-10`) en Macrociclos y en el historial de tests,
+  frente a «23 sept 2026» en Perfil. Ojo al unificar: `toShortDate` hace
+  `new Date('2026-08-10')`, que es medianoche **UTC** — en Costa Rica pinta el
+  día anterior. Hay que parsear la fecha sin zona.
+- **El asistente de macrociclos y «Agregar atleta»** usan filas de columnas
+  fijas (`grid-cols-[18px_1fr_150px_80px_80px_34px]`) que no caben en un móvil.
+  Son pantallas de entrenador en escritorio; decidir si se adaptan.
+- **Una consulta que falla se pinta como «vacío»**: con el backend caído,
+  Macrociclos dice «Sin macrociclos» y ofrece crear uno. Las escrituras ya
+  avisan (`lib/avisos.ts`); las lecturas no.
+- En móvil, el título de la sección sale dos veces (barra superior y `h1`).

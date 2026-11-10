@@ -28,6 +28,7 @@ export function TransferOwnerModal({
   )
 
   const mutation = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: () => api.teams.transfer(selected as number),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['team'] })

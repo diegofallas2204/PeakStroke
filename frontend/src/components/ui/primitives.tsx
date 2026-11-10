@@ -1,5 +1,5 @@
 // Primitivas de UI compartidas: Card, Badge, botones, campos, modal, vacíos.
-import type { ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
@@ -58,6 +58,31 @@ export function Chip({
     >
       {children}
     </span>
+  )
+}
+
+/**
+ * Botón de solo icono, para acciones que el icono ya dice (editar, borrar,
+ * pausar, descargar). `label` es obligatorio y va a `aria-label` y a `title`:
+ * sin texto visible, es lo único que lee un lector de pantalla y lo que sale al
+ * dejar el ratón encima.
+ */
+export function IconButton({
+  label, tone = 'ghost', className = '', children, ...rest
+}: {
+  label: string
+  tone?: 'ghost' | 'danger' | 'primary'
+} & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label' | 'title'>) {
+  return (
+    <button
+      type="button"
+      {...rest}
+      aria-label={label}
+      title={label}
+      className={`btn btn-${tone} btn-icon ${className}`}
+    >
+      {children}
+    </button>
   )
 }
 
@@ -130,12 +155,12 @@ export function Modal({
   // capture el position:fixed y comprima el modal a su ancho.
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
       style={{ background: 'rgba(4,5,10,.72)', backdropFilter: 'blur(6px)' }}
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className={`card max-h-[88vh] w-full overflow-y-auto p-6 shadow-2xl ${wide ? 'max-w-4xl' : 'max-w-xl'}`}
+        className={`card max-h-[88vh] w-full overflow-y-auto p-4 shadow-2xl sm:p-6 ${wide ? 'max-w-4xl' : 'max-w-xl'}`}
         style={{ animation: 'modal-in .28s cubic-bezier(.2,.9,.3,1.2) both' }}
       >
         <style>{`@keyframes modal-in { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: none; } }`}</style>

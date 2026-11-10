@@ -22,6 +22,7 @@ export function PasswordForm({ open, onClose }: { open: boolean; onClose: () => 
   }
 
   const mutation = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: () => api.auth.changePassword(form.current, form.next),
     onSuccess: () => setDone(true),
   })

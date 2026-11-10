@@ -26,9 +26,12 @@ from app.core.database import AsyncSessionLocal, engine
 from app.persistencia.repositorios.auditoria import RepositorioDeAuditoria
 from app.persistencia.tablas.auditoria import PERIODO_DE_CLAVE_DIAS, RETENCION_MESES
 
+# El evento de la propia purga no se guardó. El mismo 3 que `tools/ops.py`.
+SALIDA_EVENTO_PERDIDO = 3
 
-async def main() -> None:
-    async with contexto_de_auditoria(user_agent="tools/purgar_auditoria.py"):
+
+async def main() -> int:
+    async with contexto_de_auditoria(user_agent="tools/purgar_auditoria.py") as ctx:
         async with AsyncSessionLocal() as db:
             repo = RepositorioDeAuditoria(db)
             borrados = await repo.purgar_caducados()
@@ -42,7 +45,17 @@ async def main() -> None:
         )
     print(f"auditoria: {borrados} evento(s) de más de {RETENCION_MESES} meses borrados")
     await engine.dispose()
+    # El contexto traga el fallo al escribir (lo correcto en una petición web);
+    # en un cron eso era salir con 0 sin rastro de la purga (TODO-29).
+    if ctx.perdidos:
+        print(
+            f"auditoria: el evento de esta purga no se guardó ({ctx.perdidos} perdido(s)); "
+            "mira el log",
+            file=sys.stderr,
+        )
+        return SALIDA_EVENTO_PERDIDO
+    return 0
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    sys.exit(asyncio.run(main()))

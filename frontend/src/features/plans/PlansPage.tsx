@@ -2,7 +2,7 @@
 // + asignación de atletas con sus pruebas objetivo.
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarRange, Plus, Trash2, UserPlus, Flag, CheckCircle2, PauseCircle, X } from 'lucide-react'
+import { CalendarRange, Plus, Trash2, UserPlus, Flag, PlayCircle, PauseCircle, X } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { Plan } from '../../lib/types'
 import { SPECIALTY_LABEL, PLAN_STATUS_META } from '../../lib/constants'
@@ -10,7 +10,7 @@ import { toClock } from '../../lib/format'
 import { usePageEnter } from '../../hooks/usePageEnter'
 import { useIsOwner } from '../../hooks/useSession'
 import { PageHeader } from '../../components/layout/PageHeader'
-import { Card, Chip, EmptyState, Spinner } from '../../components/ui/primitives'
+import { Card, Chip, EmptyState, IconButton, Spinner } from '../../components/ui/primitives'
 import { PlanWizard } from './PlanWizard'
 import { AssignAthleteModal } from './AssignAthleteModal'
 
@@ -68,11 +68,13 @@ export function PlansPage() {
       ) : (
         plans.map((plan) => {
           const status = PLAN_STATUS_META[plan.effective_status] ?? PLAN_STATUS_META.draft
+          // La mutación es una para todas las tarjetas: se bloquea solo la suya.
+          const cambiando = setStatus.isPending && setStatus.variables?.id === plan.id
           return (
             <Card key={plan.id} className="card-hover">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2.5">
+              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                     <h2 className="display text-[16px] font-bold">{plan.name}</h2>
                     <Chip color={status.color}>{status.label}</Chip>
                     {plan.current_week && (
@@ -88,27 +90,35 @@ export function PlansPage() {
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-2">
+                  {/* Reproducir / pausar / añadir persona / papelera: cuatro
+                      iconos que se leen solos. El nombre completo sale al dejar
+                      el ratón encima y es lo que anuncia un lector de pantalla. */}
                   {plan.status !== 'active' && (
-                    <button className="btn btn-ghost" onClick={() => setStatus.mutate({ id: plan.id, status: 'active' })}>
-                      <CheckCircle2 size={13} /> Activar
-                    </button>
+                    <IconButton
+                      label={`Activar ${plan.name}`} disabled={cambiando}
+                      onClick={() => setStatus.mutate({ id: plan.id, status: 'active' })}
+                    >
+                      <PlayCircle size={15} className="text-mint" />
+                    </IconButton>
                   )}
                   {plan.status !== 'suspended' && (
-                    <button className="btn btn-ghost" onClick={() => setStatus.mutate({ id: plan.id, status: 'suspended' })}>
-                      <PauseCircle size={13} /> Suspender
-                    </button>
-                  )}
-                  <button className="btn btn-ghost" onClick={() => setAssignTo(plan)}>
-                    <UserPlus size={13} /> Agregar atleta
-                  </button>
-                  {isOwner && (
-                    <button
-                      className="btn btn-danger !px-3"
-                      onClick={() => confirm(`¿Eliminar "${plan.name}" y todos sus planes semanales?`) && removePlan.mutate(plan.id)}
-                      aria-label="Eliminar macrociclo"
+                    <IconButton
+                      label={`Suspender ${plan.name}`} disabled={cambiando}
+                      onClick={() => setStatus.mutate({ id: plan.id, status: 'suspended' })}
                     >
-                      <Trash2 size={13} />
-                    </button>
+                      <PauseCircle size={15} />
+                    </IconButton>
+                  )}
+                  <IconButton label={`Agregar un atleta a ${plan.name}`} onClick={() => setAssignTo(plan)}>
+                    <UserPlus size={15} />
+                  </IconButton>
+                  {isOwner && (
+                    <IconButton
+                      label={`Eliminar ${plan.name}`} tone="danger"
+                      onClick={() => confirm(`¿Eliminar "${plan.name}" y todos sus planes semanales?`) && removePlan.mutate(plan.id)}
+                    >
+                      <Trash2 size={14} />
+                    </IconButton>
                   )}
                 </div>
               </div>
@@ -118,7 +128,7 @@ export function PlansPage() {
                 {plan.phases.map((phase) => (
                   <div
                     key={phase.id}
-                    className="flex items-center justify-center rounded-md text-[9px] font-bold uppercase tracking-wider"
+                    className="flex min-w-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-md px-1 text-[9px] font-bold uppercase tracking-wider"
                     style={{
                       flex: phase.week_end - phase.week_start + 1,
                       color: phase.color, background: `${phase.color}16`,
@@ -160,7 +170,8 @@ export function PlansPage() {
                           </p>
                         </div>
                         <button
-                          className="rounded-md p-1 text-text-faint opacity-0 transition-all hover:bg-surface-3 hover:text-coral group-hover:opacity-100"
+                          className="reveal rounded-md p-1.5 text-text-faint transition-colors hover:bg-surface-3 hover:text-coral"
+                          title={`Quitar a ${ap.swimmer_name}`}
                           onClick={() =>
                             confirm(`¿Quitar a ${ap.swimmer_name} del macrociclo?`) &&
                             removeAthlete.mutate({ planId: plan.id, athletePlanId: ap.id })

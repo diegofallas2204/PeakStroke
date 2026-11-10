@@ -7,6 +7,7 @@ import { Flag, PauseCircle, PlayCircle, Waves } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { Week } from '../../lib/types'
 import { toClock, tryToSeconds, signed } from '../../lib/format'
+import { avisarError } from '../../lib/avisos'
 import { useSimpleMode } from '../../hooks/useSimpleMode'
 import { Card, StatusBadge } from '../../components/ui/primitives'
 
@@ -33,7 +34,11 @@ function RealTimeCell({
   }
   const commit = () => {
     const seconds = value.trim() === '' ? null : tryToSeconds(value)
-    if (value.trim() !== '' && seconds == null) return
+    if (value.trim() !== '' && seconds == null) {
+      // Antes no pasaba nada: el campo se quedaba abierto sin decir por qué.
+      avisarError(`«${value.trim()}» no es un tiempo. Usa m:ss.cc (1:05.20) o ss.cc (29.80).`)
+      return
+    }
     onSave(week.id, seconds)
     setEditing(false)
   }
@@ -112,7 +117,7 @@ export function VistaPlan({
           <thead>
             <tr>
               <th>Semana</th><th>Fase</th><th>Km</th><th>Esperado</th>
-              {!simple && <th>Pace /100</th>}
+              {!simple && <th>Ritmo /100</th>}
               {!simple && <th>Proyección</th>}
               <th>Real</th>
               {!simple && <th>Diferencia</th>}

@@ -138,7 +138,7 @@ export function TeamPage() {
             <thead>
               <tr>
                 <th>Atleta</th><th>Prueba</th><th>Esperado</th>
-                {!simple && <th>Pace /100</th>}
+                {!simple && <th>Ritmo /100</th>}
                 {!simple && ZONE_ORDER.map((z) => (
                   <th key={z} style={{ color: ZONE_META[z].color }}>{z}</th>
                 ))}

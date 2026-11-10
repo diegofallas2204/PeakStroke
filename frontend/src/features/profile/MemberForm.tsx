@@ -34,6 +34,7 @@ export function MemberForm({ open, onClose }: { open: boolean; onClose: () => vo
   }
 
   const mutation = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: () => api.auth.createMember({
       email: form.email.trim(),
       name: form.name.trim(),

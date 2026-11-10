@@ -17,6 +17,7 @@ export function TeamCard({ team, members }: { team: Team; members: Member[] }) {
   const accent = SECTION_ACCENT['/perfil']
 
   const renameMutation = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: () => api.teams.rename(name.trim()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['team'] })

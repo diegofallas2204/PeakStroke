@@ -1,12 +1,16 @@
 """Configuración de la aplicación (pydantic-settings, variables PEAKSTROKE_*)."""
 from __future__ import annotations
 
+import logging
+import secrets
 from pathlib import Path
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+logger = logging.getLogger(__name__)
 
 # Valor centinela: si sigue puesto en producción, la app se niega a arrancar.
 DEV_JWT_SECRET = "dev-only-insecure-secret-change-me"
@@ -71,6 +75,22 @@ class Settings(BaseSettings):
     def _check_production(self) -> Settings:
         """Impide desplegar con la configuración de desarrollo puesta."""
         if not self.is_production:
+            # El secreto de desarrollo está en el repositorio: quien lo lea firma
+            # el token de cualquier cuenta. Hasta el 2026-11-09 eso solo se
+            # miraba en producción, así que un despliegue con el login puesto y
+            # sin `PEAKSTROKE_ENVIRONMENT` firmaba con él. Ahora, con el login
+            # encendido, se sustituye por uno aleatorio del proceso: probar el
+            # login en local no pide configurar nada, las sesiones mueren al
+            # reiniciar, y con varios workers cada uno tiene el suyo — que es
+            # como se nota que falta `PEAKSTROKE_JWT_SECRET`.
+            if self.auth_enabled and self.jwt_secret == DEV_JWT_SECRET:
+                self.jwt_secret = secrets.token_urlsafe(48)
+                logger.warning(
+                    "PEAKSTROKE_JWT_SECRET no está puesto: se firma con un secreto "
+                    "aleatorio de este proceso y las sesiones no sobreviven a un "
+                    "reinicio. Para un despliegue, ponlo y usa "
+                    "PEAKSTROKE_ENVIRONMENT=production."
+                )
             return self
         if self.jwt_secret == DEV_JWT_SECRET:
             raise ValueError(

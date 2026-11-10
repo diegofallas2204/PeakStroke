@@ -55,6 +55,7 @@ export function SwimmersPage() {
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
               <input
                 className="field !w-52 !pl-9"
+                aria-label="Buscar atleta"
                 placeholder="Buscar atleta…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -89,7 +90,7 @@ export function SwimmersPage() {
           )}
         />
       ) : (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {swimmers.map((swimmer) => (
             <SwimmerCard
               key={swimmer.id}

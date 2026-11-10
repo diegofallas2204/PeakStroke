@@ -39,6 +39,7 @@ export function SwimmerForm({
   }
 
   const mutation = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: (payload: Partial<Swimmer>) =>
       swimmer ? api.swimmers.update(swimmer.id, payload) : api.swimmers.create(payload),
     onSuccess: () => {

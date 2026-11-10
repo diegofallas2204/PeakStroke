@@ -3,8 +3,9 @@
 // Vive aquí y no en `main.tsx` porque el conmutador de identidad necesita
 // vaciarlo antes de recargar, e importarlo desde el punto de entrada crearía un
 // ciclo (main → App → … → conmutador → main).
-import { QueryClient } from '@tanstack/react-query'
+import { MutationCache, QueryClient } from '@tanstack/react-query'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
+import { avisarError } from './avisos'
 
 // Queries efímeras y dependientes de parámetros (simulador, proyección anual,
 // análisis de parciales): se computan en el motor y tienen muchas combinaciones.
@@ -23,6 +24,16 @@ export const IDENTITY_KEYS = new Set([
 // cliente, que invalidan su clave. Entre mutaciones se reusa el cache y se evitan
 // llamadas redundantes al API (clave para muchos clientes simultáneos).
 export const queryClient = new QueryClient({
+  // Ninguna escritura falla en silencio: la que no pinta su propio error
+  // (`meta.errorEnLinea`, los formularios) lo enseña como aviso. Es el valor por
+  // defecto a propósito — una mutación nueva que se olvide de su error sigue
+  // avisando, que es justo lo que no pasaba con siete de ellas.
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      if (mutation.meta?.errorEnLinea) return
+      avisarError(error instanceof Error ? error.message : 'No se pudo completar la acción')
+    },
+  }),
   defaultOptions: {
     queries: {
       staleTime: 5 * 60_000,        // 5 min: navegar entre vistas no re-llama al API

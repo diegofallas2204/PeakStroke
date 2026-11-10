@@ -75,6 +75,7 @@ export function TestForm({
   })
 
   const mutation = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: () => api.aerobic.create({
       swimmer_id: swimmerId,
       test_type: mode,

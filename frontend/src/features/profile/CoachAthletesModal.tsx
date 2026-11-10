@@ -36,6 +36,7 @@ export function CoachAthletesModal({
   }
 
   const mutation = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: () => api.teams.setCoachAthletes(coach!.id, [...(selected ?? [])]),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['coach-athletes'] })

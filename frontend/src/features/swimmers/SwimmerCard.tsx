@@ -8,7 +8,7 @@ import { Pencil, UserMinus, KeyRound, MailCheck, Ruler, Weight } from 'lucide-re
 import type { LinkCode, Swimmer } from '../../lib/types'
 import { SPECIALTY_LABEL, STROKE_LABEL } from '../../lib/constants'
 import { initials } from '../../lib/format'
-import { Card, Chip } from '../../components/ui/primitives'
+import { Card, Chip, IconButton } from '../../components/ui/primitives'
 
 const SPECIALTY_COLOR: Record<string, string> = {
   velocidad: '#fb7185', medio_fondo: '#3b82f6', fondo: '#22d3ee', aguas_abiertas: '#34d399',
@@ -42,15 +42,13 @@ export function SwimmerCard({
             {swimmer.gender ? ` · ${swimmer.gender}` : ''}
           </p>
         </div>
-        <div className="flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-          <button className="btn btn-ghost !p-1.5" onClick={onEdit}
-            aria-label={`Editar ${swimmer.name}`}>
-            <Pencil size={12.5} />
-          </button>
-          <button className="btn btn-danger !p-1.5" onClick={onDeactivate}
-            aria-label={`Dar de baja a ${swimmer.name}`}>
-            <UserMinus size={12.5} />
-          </button>
+        <div className="reveal flex gap-1">
+          <IconButton label={`Editar ${swimmer.name}`} onClick={onEdit} className="!size-8">
+            <Pencil size={13} />
+          </IconButton>
+          <IconButton label={`Dar de baja a ${swimmer.name}`} tone="danger" onClick={onDeactivate} className="!size-8">
+            <UserMinus size={13} />
+          </IconButton>
         </div>
       </div>
 
@@ -99,9 +97,15 @@ function Acceso({
       ) : (
         <span className="text-[11px] text-text-faint">Sin cuenta</span>
       )}
-      <button className="btn btn-ghost !py-1.5 !text-[11.5px]" onClick={onManageAccess}>
-        <KeyRound size={12} /> {code ? 'Ver código' : 'Dar acceso'}
-      </button>
+      {/* «Sin cuenta» (o el código) ya está escrito al lado: la llave no
+          necesita repetirlo. */}
+      <IconButton
+        label={code ? `Ver el código de ${swimmer.name}` : `Dar acceso a ${swimmer.name}`}
+        onClick={onManageAccess}
+        className="!size-8"
+      >
+        <KeyRound size={13} />
+      </IconButton>
     </div>
   )
 }

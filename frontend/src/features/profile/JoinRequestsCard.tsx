@@ -27,6 +27,7 @@ export function JoinRequestsCard() {
   })
 
   const canjear = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: () => api.linkCodes.redeem(code),
     onSuccess: () => {
       // La sesión cambia de forma: gana equipo, rol y `swimmer_id`, y de ahí

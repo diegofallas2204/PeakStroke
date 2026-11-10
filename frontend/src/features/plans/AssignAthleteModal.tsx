@@ -104,6 +104,7 @@ export function AssignAthleteModal({ plan, onClose }: { plan: Plan | null; onClo
   }, [events, plan, available, swimmerId])
 
   const mutation = useMutation({
+    meta: { errorEnLinea: true },
     mutationFn: () => api.plans.addAthlete(plan!.id, {
       swimmer_id: swimmerId,
       aerobic_base: aerobicBase ? Number(aerobicBase) : null,

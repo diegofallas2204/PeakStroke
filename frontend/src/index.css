@@ -218,6 +218,29 @@ input[type='date'].field::-webkit-calendar-picker-indicator { filter: invert(.7)
 .btn-ghost:hover:not(:disabled) { border-color: var(--color-line-strong); background: var(--color-surface-3); }
 .btn-danger { background: rgba(251, 113, 133, .12); color: var(--color-coral); border-color: rgba(251,113,133,.25); }
 .btn-danger:hover:not(:disabled) { background: rgba(251, 113, 133, .2); }
+/* Botón de solo icono: cuadrado y con un mínimo de 32 px para el dedo. Su
+   nombre va en `aria-label` y `title` (ver `IconButton`). */
+.btn-icon { padding: 0; width: 34px; height: 34px; justify-content: center; flex-shrink: 0; }
+.btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* Acciones que aparecen al pasar el ratón por su `.group`. Solo se esconden
+   donde HAY ratón: en una pantalla táctil no existe el hover y un control
+   escondido es un control que no está. Con teclado aparecen al recibir foco. */
+@media (hover: hover) {
+  .reveal { opacity: 0; transition: opacity .2s ease; }
+  /* `:focus` y no `:focus-visible`: el foco puesto por código (o tras un clic)
+     no siempre cuenta como «visible», y un control con foco que no se ve es
+     peor que uno que se enseña de más. */
+  .group:hover .reveal, .reveal:focus, .reveal:focus-within { opacity: 1; }
+}
+
+/* ── Avisos (errores de una acción) ─────────────────── */
+/* Solo se mueve: la opacidad no entra en la animación. Un aviso de error que
+   empieza transparente no se ve nunca si la animación no llega a correr (una
+   pestaña en segundo plano), y es justo lo que no puede fallar en silencio. */
+@keyframes aviso-in { from { transform: translateY(8px); } to { transform: none; } }
+.aviso { animation: aviso-in .2s ease both; }
+@media (prefers-reduced-motion: reduce) { .aviso { animation-duration: 0.01ms; } }
 
 /* ── Tablas ─────────────────────────────────────────── */
 .tbl { width: 100%; border-collapse: collapse; }

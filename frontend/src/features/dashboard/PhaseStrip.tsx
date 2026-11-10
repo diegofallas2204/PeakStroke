@@ -19,7 +19,8 @@ export function PhaseStrip({
           return (
             <div
               key={phase.name + phase.week_start}
-              className="group relative flex items-center justify-center rounded-lg transition-all duration-300"
+              title={phase.name}
+              className="group relative flex min-w-0 items-center justify-center overflow-hidden rounded-lg transition-all duration-300"
               style={{
                 flex: span,
                 background: phase.is_current ? `${phase.color}33` : `${phase.color}14`,
@@ -27,12 +28,12 @@ export function PhaseStrip({
                 boxShadow: phase.is_current ? `0 0 24px -6px ${phase.color}66` : undefined,
               }}
             >
-              <div className="text-center">
-                <p className="text-[10.5px] font-bold uppercase tracking-wider" style={{ color: phase.color }}>
+              <div className="min-w-0 px-1 text-center">
+                <p className="truncate text-[10.5px] font-bold uppercase tracking-wider" style={{ color: phase.color }}>
                   {phase.name}
                 </p>
                 <p className="text-[9px] text-text-faint">
-                  S{phase.week_start}–S{phase.week_end}
+                  S{phase.week_start}{span > 1 && `–S${phase.week_end}`}
                 </p>
               </div>
             </div>
