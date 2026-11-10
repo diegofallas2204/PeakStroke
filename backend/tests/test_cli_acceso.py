@@ -217,3 +217,23 @@ async def test_restablecer_emite_una_temporal_que_sirve_una_sola_vez(client, db,
     [evento] = await _eventos(db, "cuenta.password_restablecida")
     _es_del_operador(evento, uid, world.team_id)
     assert temporal not in evento.detail
+
+
+async def test_restablecer_que_pierde_contra_un_cambio_es_un_error_claro(
+    db, world: World, monkeypatch,
+):
+    """Vuelta 3 del revisor de TODO-30: el cambio de contraseña es condicional, y
+    si la persona cambia la suya mientras el operador confirma, el CLI salía con
+    una traza. Ahora es un error claro y no se audita nada."""
+    from app.api.v1.auth import credenciales
+    from app.persistencia.repositorios.usuarios import CredencialesCambiadas
+
+    async def perder(*_args, **_kwargs):
+        raise CredencialesCambiadas(None)
+
+    monkeypatch.setattr(credenciales, "change_password", perder)
+    codigo, consola = await _ops(db, "restablecer-password", "--correo", world.sofia_email,
+                                 entrada=world.sofia_email + "\n")
+    assert codigo == 1
+    assert "cambió mientras tanto" in consola.errores.getvalue()
+    assert await _eventos(db, "cuenta.password_restablecida") == []

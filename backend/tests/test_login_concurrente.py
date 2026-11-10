@@ -191,3 +191,28 @@ async def test_dos_cambios_de_contrasena_a_la_vez_no_se_pisan(
     no_entra = await nuevo_cliente().post(f"{API}/auth/login", json={"email": correo, "password": "la-de-la-victima"})
     assert (entra.status_code, no_entra.status_code) == (200, 401)
     assert any("credenciales_cambiadas" in d for d in await eventos(correo, TipoDeEvento.PASSWORD_CAMBIADA))
+
+
+@pytest.mark.parametrize("cambios", [1, 2])
+async def test_un_corte_leido_antes_de_un_cambio_no_baja_la_generacion(sesiones, cuenta, cambios):
+    """Vuelta 3 del revisor: el cambio de contraseña sube la generación en SQL y
+    los cortes (revocar, liberar, logout-all, `cortar-sesiones`) la escribían
+    como «la leída + 1». Un corte leído antes de uno o dos cambios y escrito
+    después pisaba su subida: con dos, la generación **bajaba** de 2 a 1. Ahora
+    toda subida es relativa (`token_version + n`) y se suman."""
+    from carreras import generacion
+
+    from app.api.v1.auth import credenciales
+
+    user_id, _ = cuenta
+    antes = await generacion(sesiones, user_id)
+    async with sesiones() as s1:
+        repo = RepositorioDeUsuarios(s1)
+        corte = repo.entidad(await repo.por_id(user_id))
+        corte.revocar_sesiones()
+        for i in range(cambios):
+            async with sesiones() as s2:
+                user = await RepositorioDeUsuarios(s2).por_id(user_id)
+                await credenciales.change_password(s2, user, f"nueva-larga-{i}-xx")
+        await repo.guardar(corte)
+    assert await generacion(sesiones, user_id) == antes + 1 + cambios

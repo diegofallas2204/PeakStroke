@@ -45,6 +45,7 @@ class Usuario(PorIdentidad, CamposGobernados):
 
     _GOBERNADOS: ClassVar[frozenset[str]] = frozenset({
         "hash_de_password", "version_de_token", "ultimo_login", "hash_leido",
+        "version_leida",
     })
 
     correo: str
@@ -59,9 +60,19 @@ class Usuario(PorIdentidad, CamposGobernados):
     # acceso es «si la contraseña sigue siendo esa» (revisor de TODO-30): un
     # cambio de contraseña a la vez no puede dejar entrar a quien usó la vieja.
     hash_leido: str = field(init=False, repr=False)
+    # La generación con la que se construyó: lo que la entidad sube se escribe
+    # como «+ n» en SQL (vuelta 3 del revisor de TODO-30), y `n` se cuenta desde
+    # aquí, **no** desde la fila, que la sesión guarda con referencia débil y
+    # puede releerse ya con la subida de otro (la trampa de TODO-25).
+    version_leida: int = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "hash_leido", self.hash_de_password)
+        object.__setattr__(self, "version_leida", self.version_de_token)
+
+    def subidas_de_generacion(self) -> int:
+        """Cuántas veces se revocó desde que se construyó."""
+        return self.version_de_token - self.version_leida
 
     # ── Sesiones ─────────────────────────────────────────────────────────────
 

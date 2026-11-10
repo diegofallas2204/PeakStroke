@@ -24,6 +24,7 @@ from app.api.v1.auth.schemas import UserUpdate
 from app.core.auditoria import TipoDeEvento, auditar
 from app.dominio.entidades import OperacionDeEquipoImposible
 from app.persistencia.repositorios import RepositorioDeEquipos, RepositorioDeUsuarios
+from app.persistencia.repositorios.usuarios import CredencialesCambiadas
 from app.persistencia.tablas.equipos import TeamMember
 from app.persistencia.tablas.usuarios import User
 
@@ -168,7 +169,14 @@ async def restablecer_password(
         return 0
     confirmar(consola, user.email, que)
     temporal = secrets.token_urlsafe(12)
-    await credenciales.change_password(db, user, temporal)   # hash + revocar, un commit
+    try:
+        await credenciales.change_password(db, user, temporal)   # hash + revocar, un commit
+    except CredencialesCambiadas:
+        # El cambio es condicional (TODO-30): la persona cambió la suya mientras
+        # se confirmaba. No se escribió nada; se vuelve a lanzar.
+        raise OperacionRechazada(
+            f"La contraseña de {user.email} cambió mientras tanto: vuelve a lanzar el comando",
+        ) from None
     _auditar(TipoDeEvento.PASSWORD_RESTABLECIDA, "restablecer-password", user,
              fila.team_id if fila else None, f"{user.email} · temporal emitida")
     ensenar_temporal(consola, temporal)

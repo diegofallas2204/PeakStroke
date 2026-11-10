@@ -24,7 +24,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dominio.entidades import Usuario
 from app.persistencia.mapeo.identidad import (
     acceso_condicional,
+    asentar_generacion,
     cambio_condicional,
+    subir_generacion,
     usuario_desde_fila,
     volcar_usuario,
 )
@@ -160,17 +162,22 @@ class RepositorioDeUsuarios:
         return fila
 
     async def _volcar(self, usuario: Usuario, fila: User) -> None:
-        """Si la generación sube, **borra las sesiones abiertas de la cuenta** en
-        la misma transacción (decidido el 2026-10-20): cambiar la contraseña,
-        revocar, liberar, salir de todas y cortar sesiones desde el CLI pasan
-        todos por aquí. La generación sigue siendo la defensa —un login que
-        abriera sesión a la vez dejaría una fila con tokens de la generación
-        vieja, que no validan—; borrar es que la tabla diga la verdad.
+        """Si la generación sube —revocar, liberar, salir de todas y cortar
+        sesiones desde el CLI pasan por aquí—, la sube **relativa en SQL**
+        (`subir_generacion`) y **borra las sesiones abiertas de la cuenta** en la
+        misma transacción (decidido el 2026-10-20). El cambio de contraseña no
+        pasa por aquí: tiene su `UPDATE` condicional (`cambiar_password`).
 
-        Se compara contra la fila **antes** de volcar: es lo que hay en la base,
-        porque nadie más escribe `token_version` que este volcado.
+        La generación es la defensa —un login que abriera sesión a la vez dejaría
+        una fila con tokens de la generación vieja, que no validan—; borrar es
+        que la tabla diga la verdad. Relativa porque escribirla como «la leída +
+        1» dejaba que un corte pisara la subida de un cambio de contraseña
+        hecho entre su lectura y su escritura (vuelta 3 del revisor de TODO-30).
         """
-        if usuario.version_de_token != fila.token_version and fila.id is not None:
+        subir = subir_generacion(usuario, fila)
+        if subir is not None and fila.id is not None:
+            await self.db.execute(subir)
+            asentar_generacion(usuario, fila)
             await RepositorioDeSesionesAbiertas(self.db).cerrar_todas_de(fila.id)
         volcar_usuario(usuario, fila)
 

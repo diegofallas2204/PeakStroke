@@ -13,6 +13,7 @@ entidad y la guarda por su repositorio.
 from __future__ import annotations
 
 from sqlalchemy import Update, update
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.dominio.entidades import (
     CodigoDeVinculacion,
@@ -36,13 +37,40 @@ def usuario_desde_fila(fila: User) -> Usuario:
 
 
 def volcar_usuario(usuario: Usuario, fila: User) -> None:
-    """Escribe en la fila **solo lo que la entidad gobierna**: la generación, el
-    hash y el último acceso. El correo, el nombre y la baja de la cuenta tienen
-    otras puertas (el alta y la edición del miembro). La rotación del refresh
-    ya no es de la cuenta: es de cada `SesionAbierta` (TODO-30)."""
+    """Escribe en la fila **solo lo que la entidad gobierna**: el hash y el último
+    acceso. El correo, el nombre y la baja de la cuenta tienen otras puertas (el
+    alta y la edición del miembro). La rotación del refresh ya no es de la
+    cuenta: es de cada `SesionAbierta` (TODO-30).
+
+    **La generación tampoco**: sube con `subir_generacion`, relativa en SQL.
+    Escribirla como «la leída + 1» dejaba que un corte leído antes de un cambio
+    de contraseña pisara su subida, y la generación podía bajar (vuelta 3 del
+    revisor de TODO-30)."""
     fila.password_hash = usuario.hash_de_password
-    fila.token_version = usuario.version_de_token
     fila.last_login_at = usuario.ultimo_login
+
+
+def subir_generacion(usuario: Usuario, fila: User) -> Update | None:
+    """El `UPDATE token_version = token_version + n` de lo que la entidad subió
+    desde que se construyó (`subidas_de_generacion`), o `None` si no subió.
+    Relativo, así que dos cortes —o un corte y un cambio de contraseña— a la
+    vez se suman."""
+    cuanto = usuario.subidas_de_generacion()
+    if cuanto <= 0:
+        return None
+    return (
+        update(User)
+        .where(User.id == fila.id)
+        .values(token_version=User.token_version + cuanto)
+        .execution_options(synchronize_session=False)
+    )
+
+
+def asentar_generacion(usuario: Usuario, fila: User) -> None:
+    """Tras `subir_generacion`: la base ya la tiene; se apunta en la fila sin
+    otro `UPDATE` (sumada a lo que la fila traiga: puede venir releída con la
+    subida de otro). Quien confirma con `guardar` la relee de todas formas."""
+    set_committed_value(fila, "token_version", fila.token_version + usuario.subidas_de_generacion())
 
 
 def acceso_condicional(usuario: Usuario) -> Update:
