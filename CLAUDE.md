@@ -246,6 +246,17 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
 - `navConfig.ts` es la **única** lista de secciones y permisos. La consumen el
   rail, el drawer móvil y la guarda de ruta (`RutaPorRol`): esconder una sección
   del menú no la hace inalcanzable, y dos listas separadas acaban divergiendo
+- **Una subruta es de la sección de su prefijo** (`navConfig.seccionDe`,
+  2026-11-10): `/atletas/5` tiene el color, el rótulo y **la guarda** de
+  Atletas. `RutaPorRol` deja pasar lo que no reconoce, así que comparar la ruta
+  exacta habría abierto a un atleta la página de otro. Quien pinte por ruta usa
+  `seccionDe(pathname)`, no `SECTION_ACCENT[pathname]`
+- **La página del atleta** (`/atletas/:id`, `features/swimmers/AtletaPage`): la
+  tarjeta del pool entera lleva a ella (enlace estirado sobre el nombre; los
+  botones van por encima, `relative z-10`). No tiene endpoint propio: resume
+  ficha, macrociclo, último test y forma, y cada bloque abre su sección con
+  `?atleta=<id>` — que leen Plan semanal (`EventPicker.atletaInicial`), Base
+  aeróbica y Entrenamiento. Es la primera pieza de la nota 27 del vault
 - `useRole()` devuelve `undefined` mientras la sesión carga. **`undefined` no es
   "sin permiso", es "todavía no se sabe"**: el rail sale vacío y las rutas
   esperan, en vez de decidir con un valor que aún no existe

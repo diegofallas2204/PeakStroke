@@ -2,6 +2,7 @@
 // (T-30, T-15, personalizado N×D, CSS 400/50 o ingreso directo).
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { Timer, Plus, Trash2, TrendingDown, TrendingUp, Minus } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { AerobicTest } from '../../lib/types'
@@ -21,13 +22,17 @@ const TREND_META = {
 } as const
 
 export function AerobicPage() {
-  const [swimmerId, setSwimmerId] = useState<number | null>(null)
+  // `?atleta=<id>` llega desde la página del atleta. Como en Entrenamiento,
+  // solo vale si está en la lista (que ya viene acotada).
+  const [params] = useSearchParams()
+  const [swimmerId, setSwimmerId] = useState<number | null>(Number(params.get('atleta')) || null)
   const [selectedTest, setSelectedTest] = useState<number | null>(null)
   const [showForm, setShowForm] = useState(false)
   const queryClient = useQueryClient()
 
   const { data: swimmers } = useQuery({ queryKey: ['swimmers', ''], queryFn: () => api.swimmers.list() })
-  const activeSwimmer = swimmerId ?? swimmers?.[0]?.id ?? null
+  const activeSwimmer = (swimmers?.some((s) => s.id === swimmerId) ? swimmerId : null)
+    ?? swimmers?.[0]?.id ?? null
 
   const { data: tests, isLoading } = useQuery({
     queryKey: ['aerobic', activeSwimmer],

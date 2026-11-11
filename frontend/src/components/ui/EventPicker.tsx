@@ -25,21 +25,37 @@ export interface EventSelection {
 }
 
 export function EventPicker({
-  onChange,
-}: { onChange: (selection: EventSelection | null) => void }) {
+  onChange, atletaInicial = null,
+}: {
+  onChange: (selection: EventSelection | null) => void
+  /**
+   * El atleta (id de su ficha) con el que abrir: elige el macrociclo donde
+   * está —el activo, si hay varios— y a él dentro. Llega por `?atleta=` desde
+   * su página. Si no está en ninguno, se ignora.
+   */
+  atletaInicial?: number | null
+}) {
   const { data: plans } = useQuery({ queryKey: ['plans'], queryFn: api.plans.list })
   const isAthlete = useIsAthlete()
   const [planId, setPlanId] = useState<number | null>(null)
   const [athleteId, setAthleteId] = useState<number | null>(null)
   const [eventId, setEventId] = useState<number | null>(null)
 
+  const tieneAlInicial = (p: Plan) => p.athletes.some((a) => a.swimmer_id === atletaInicial)
   const plan = useMemo(
-    () => plans?.find((p) => p.id === planId) ?? plans?.find((p) => p.status === 'active') ?? plans?.[0] ?? null,
-    [plans, planId],
+    () => plans?.find((p) => p.id === planId)
+      ?? (atletaInicial != null
+        ? plans?.find((p) => p.status === 'active' && tieneAlInicial(p)) ?? plans?.find(tieneAlInicial)
+        : undefined)
+      ?? plans?.find((p) => p.status === 'active') ?? plans?.[0] ?? null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [plans, planId, atletaInicial],
   )
   const athlete = useMemo(
-    () => plan?.athletes.find((a) => a.id === athleteId) ?? plan?.athletes[0] ?? null,
-    [plan, athleteId],
+    () => plan?.athletes.find((a) => a.id === athleteId)
+      ?? plan?.athletes.find((a) => a.swimmer_id === atletaInicial)
+      ?? plan?.athletes[0] ?? null,
+    [plan, athleteId, atletaInicial],
   )
   const event = useMemo(
     () => athlete?.events.find((e) => e.id === eventId) ?? athlete?.events[0] ?? null,

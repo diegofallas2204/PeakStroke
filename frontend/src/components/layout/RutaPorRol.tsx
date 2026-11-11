@@ -11,7 +11,7 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { Spinner } from '../ui/primitives'
 import { useRole } from '../../hooks/useSession'
-import { NAV_ITEMS, puedeVer } from './navConfig'
+import { puedeVer, seccionDe } from './navConfig'
 
 export function RutaPorRol({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
@@ -29,7 +29,7 @@ export function RutaPorRol({ children }: { children: React.ReactNode }) {
     return pathname === '/perfil' ? <>{children}</> : <Navigate to="/perfil" replace />
   }
 
-  const item = NAV_ITEMS.find((i) => i.to === pathname)
+  const item = seccionDe(pathname)
   if (item && !puedeVer(item, role)) return <Navigate to="/" replace />
 
   return <>{children}</>

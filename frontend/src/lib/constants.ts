@@ -167,6 +167,11 @@ export const STATUS_META: Record<string, { label: string; color: string; bg: str
   pending: { label: 'Sin datos', color: '#8b93b8', bg: 'rgba(139,147,184,.12)' },
 }
 
+// Color de cada especialidad: el avatar y el chip del atleta.
+export const SPECIALTY_COLOR: Record<string, string> = {
+  velocidad: '#fb7185', medio_fondo: '#3b82f6', fondo: '#22d3ee', aguas_abiertas: '#34d399',
+}
+
 // Estado de ciclo de vida del macrociclo (valor crudo en BD -> etiqueta + color).
 export const PLAN_STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   active: { label: 'Activo', color: '#34d399', bg: 'rgba(52,211,153,.12)' },

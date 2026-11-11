@@ -3,13 +3,13 @@
 // que el indicador del sidebar) para que cada página sea identificable de un vistazo.
 import type { ReactNode } from 'react'
 import { useLocation } from 'react-router-dom'
-import { SECTION_ACCENT } from '../../lib/constants'
+import { seccionDe } from './navConfig'
 
 export function PageHeader({
   title, subtitle, actions, accent,
 }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; accent?: string }) {
   const { pathname } = useLocation()
-  const color = accent ?? SECTION_ACCENT[pathname] ?? 'var(--color-accent)'
+  const color = accent ?? seccionDe(pathname)?.color ?? 'var(--color-accent)'
 
   return (
     <header className="flex flex-wrap items-end justify-between gap-3 pb-1" data-animate>

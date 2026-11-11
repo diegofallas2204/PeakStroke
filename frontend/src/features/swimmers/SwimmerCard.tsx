@@ -4,15 +4,12 @@
 // son la misma persona: tener dos listas —«atletas» y «miembros»— obligaba a
 // cruzarlas a ojo para responder «¿este ya puede entrar?». La lista de atletas
 // es ahora el pool completo y dice de cada uno en cuál de los tres estados está.
+import { Link } from 'react-router-dom'
 import { Pencil, UserMinus, KeyRound, MailCheck, Ruler, Weight } from 'lucide-react'
 import type { LinkCode, Swimmer } from '../../lib/types'
-import { SPECIALTY_LABEL, STROKE_LABEL } from '../../lib/constants'
+import { SPECIALTY_COLOR, SPECIALTY_LABEL, STROKE_LABEL } from '../../lib/constants'
 import { initials } from '../../lib/format'
 import { Card, Chip, IconButton } from '../../components/ui/primitives'
-
-const SPECIALTY_COLOR: Record<string, string> = {
-  velocidad: '#fb7185', medio_fondo: '#3b82f6', fondo: '#22d3ee', aguas_abiertas: '#34d399',
-}
 
 export function SwimmerCard({
   swimmer, code, onEdit, onDeactivate, onManageAccess,
@@ -27,7 +24,12 @@ export function SwimmerCard({
   const color = SPECIALTY_COLOR[swimmer.specialty] ?? '#3b82f6'
 
   return (
-    <Card className="card-hover group">
+    // La tarjeta entera lleva a la página del atleta (2026-11-10): el enlace es
+    // el nombre, «estirado» con `after:inset-0` para cubrir la tarjeta. Así
+    // sirve el teclado, el clic central y el lector de pantalla, cosa que un
+    // `onClick` en el `div` no da. Los botones van por encima (`relative z-10`)
+    // y hacen lo suyo sin navegar.
+    <Card className="card-hover group relative cursor-pointer">
       <div className="flex items-start gap-3.5">
         <div
           className="display flex size-11 shrink-0 items-center justify-center rounded-xl text-[13px] font-bold"
@@ -36,13 +38,18 @@ export function SwimmerCard({
           {initials(swimmer.name)}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[14px] font-semibold">{swimmer.name}</p>
+          <Link
+            to={`/atletas/${swimmer.id}`}
+            className="block truncate text-[14px] font-semibold after:absolute after:inset-0 after:rounded-[inherit] after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-[var(--color-accent)]"
+          >
+            {swimmer.name}
+          </Link>
           <p className="mt-0.5 text-[11px] text-text-dim">
             {swimmer.age != null ? `${swimmer.age} años` : 'Edad —'}
             {swimmer.gender ? ` · ${swimmer.gender}` : ''}
           </p>
         </div>
-        <div className="reveal flex gap-1">
+        <div className="reveal relative z-10 flex gap-1">
           <IconButton label={`Editar ${swimmer.name}`} onClick={onEdit} className="!size-8">
             <Pencil size={13} />
           </IconButton>
@@ -102,7 +109,7 @@ function Acceso({
       <IconButton
         label={code ? `Ver el código de ${swimmer.name}` : `Dar acceso a ${swimmer.name}`}
         onClick={onManageAccess}
-        className="!size-8"
+        className="relative z-10 !size-8"
       >
         <KeyRound size={13} />
       </IconButton>

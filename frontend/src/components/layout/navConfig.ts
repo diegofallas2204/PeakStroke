@@ -79,5 +79,18 @@ export function navItemsFor(role: string | null | undefined): NavItem[] {
  * veía un título que no correspondía a lo que tenía delante.
  */
 export function activeNavItem(pathname: string): NavItem | undefined {
-  return [...NAV_ITEMS, PROFILE_ITEM].find((i) => i.to === pathname)
+  return seccionDe(pathname)
+}
+
+/**
+ * La sección a la que pertenece una ruta: la suya exacta o la de su prefijo.
+ * `/atletas/5` es de Atletas (2026-11-10): su color, su rótulo y **su guarda**.
+ * Comparar la ruta exacta dejaba `/atletas/5` sin sección, y `RutaPorRol`
+ * deja pasar lo que no reconoce: un atleta habría llegado a una página de
+ * entrenador. `/` solo es Dashboard exacta, o sería el prefijo de todo.
+ */
+export function seccionDe(pathname: string): NavItem | undefined {
+  const todas = [...NAV_ITEMS, PROFILE_ITEM]
+  return todas.find((i) => i.to === pathname)
+    ?? todas.find((i) => i.to !== '/' && pathname.startsWith(`${i.to}/`))
 }

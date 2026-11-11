@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { Sidebar } from './components/layout/Sidebar'
 import { RutaPorRol } from './components/layout/RutaPorRol'
-import { SECTION_ACCENT } from './lib/constants'
+import { seccionDe } from './components/layout/navConfig'
 import { Spinner } from './components/ui/primitives'
 import { Avisos } from './components/ui/Avisos'
 import { PuertaDeSesion } from './features/auth/PuertaDeSesion'
@@ -19,6 +19,8 @@ const PlansPage = lazy(() =>
   import('./features/plans/PlansPage').then((m) => ({ default: m.PlansPage })))
 const SwimmersPage = lazy(() =>
   import('./features/swimmers/SwimmersPage').then((m) => ({ default: m.SwimmersPage })))
+const AtletaPage = lazy(() =>
+  import('./features/swimmers/AtletaPage').then((m) => ({ default: m.AtletaPage })))
 const AerobicPage = lazy(() =>
   import('./features/aerobic/AerobicPage').then((m) => ({ default: m.AerobicPage })))
 const TrainingPage = lazy(() =>
@@ -37,7 +39,7 @@ export default function App() {
   const [simple] = useSimpleMode()
   // Color de la sección activa → disponible a toda la página como var CSS para
   // que las tarjetas tiñan su glow de hover con el acento de la sección.
-  const accent = SECTION_ACCENT[pathname] ?? 'var(--color-accent)'
+  const accent = seccionDe(pathname)?.color ?? 'var(--color-accent)'
 
   return (
     // < lg la navegación es una barra superior → el layout apila en columna.
@@ -65,6 +67,7 @@ export default function App() {
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/macrociclos" element={<PlansPage />} />
                 <Route path="/atletas" element={<SwimmersPage />} />
+                <Route path="/atletas/:id" element={<AtletaPage />} />
                 <Route path="/pruebas" element={<AerobicPage />} />
                 <Route path="/entrenamiento" element={<TrainingPage />} />
                 <Route path="/plan-semanal" element={<WeeklyPage />} />

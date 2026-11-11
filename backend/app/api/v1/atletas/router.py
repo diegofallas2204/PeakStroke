@@ -68,8 +68,13 @@ async def create_swimmer(
 async def get_swimmer(
     swimmer_id: int,
     repo: RepositorioDeAtletas = Depends(repo_de_atletas),
+    usuarios: RepositorioDeUsuarios = Depends(repo_de_usuarios),
 ):
-    return service.to_response(await _fila_o_404(repo, swimmer_id))
+    # Con el correo de su cuenta, como la lista: hasta el 2026-11-10 salía
+    # siempre vacío aquí, y nadie lo notó porque ninguna pantalla leía una
+    # ficha suelta de otro. La página del atleta sí.
+    [respuesta] = await service.with_accounts(usuarios, [await _fila_o_404(repo, swimmer_id)])
+    return respuesta
 
 
 @router.put("/{swimmer_id}", response_model=SwimmerResponse)

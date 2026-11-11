@@ -41,7 +41,13 @@ export function WeeklyPage() {
   const vista = vistaDesdeParam(params.get('vista'))
   const def = VISTAS.find((v) => v.id === vista) ?? VISTAS[0]
   // La vista por defecto no ensucia la URL: `/plan-semanal` a secas es Plan.
-  const irA = (id: VistaId) => setParams(id === 'plan' ? {} : { vista: id })
+  // `?atleta=` (desde la página del atleta) se conserva al cambiar de vista.
+  const irA = (id: VistaId) => setParams((p) => {
+    const nuevos = new URLSearchParams(p)
+    if (id === 'plan') nuevos.delete('vista')
+    else nuevos.set('vista', id)
+    return nuevos
+  })
 
   const { data: weeks, isLoading } = useQuery({
     queryKey: ['weeks', selection?.event.id],
@@ -90,7 +96,7 @@ export function WeeklyPage() {
           />
         }
       />
-      <EventPicker onChange={setSelection} />
+      <EventPicker onChange={setSelection} atletaInicial={Number(params.get('atleta')) || null} />
 
       {!selection ? (
         <EmptyState icon={<ListChecks size={24} />} title={vacioTitulo} hint={vacioPista} />
