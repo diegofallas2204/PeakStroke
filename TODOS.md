@@ -3,6 +3,10 @@
 Trabajo aplazado con contexto suficiente para retomarlo sin la conversación que lo originó.
 Prioridad: P1 = bloquea trabajo en curso · P2 = debería caer pronto · P3 = deuda conocida.
 
+> **Desde el 2026-11-10 lo abierto se reparte por ramas de módulo**: qué TODO va
+> en qué rama (`modulo/<nombre>` o `transversal/<tema>`) está en `docs/MODULOS.md`,
+> «Qué trabajar en cada rama». El detalle de cada uno sigue aquí.
+
 > **Cerrados el 2026-08-07** (sesión de backend, **219 tests en verde**):
 > ~~TODO-8 a TODO-15~~ — las ocho fugas que destapó la revisión independiente
 > sobre el diff. Cada una con test de regresión; ver el historial de git.

@@ -49,6 +49,15 @@ la red de seguridad y sin ella la fusión de motores es a ciegas.
 
 ## Dónde estamos y qué sigue — medido el 2026-09-22
 
+> **Actualizado el 2026-11-10. Lo que queda se trabaja por ramas de módulo.**
+> El mapa de qué toca en cada una —los ocho módulos, el trabajo transversal
+> (infra, fronteras, sesión) y PSAdmin (D2/D3, con R10 y R12)— está en
+> **`docs/MODULOS.md`, «Qué trabajar en cada rama»**. Desde el 2026-11-06 se
+> cerraron la auditoría previa al release, el login del frontend (TODO-32, 31,
+> 33, 18, 27, 3), la página del atleta y el renombre a «Inicio». **1512 tests**;
+> head de Alembic `f4c2a9d7e1b3`. Este documento conserva los bloques A–D tal
+> como se planearon.
+>
 > **Actualizado el 2026-11-06. TODO-30 cerrado** (fuera de los bloques): una sesión
 > por login. `sesiones_abiertas` guarda cada login con su rotación del refresh y los
 > tokens llevan su `sid`, así que dos dispositivos ya no se echan: el reuso cierra
