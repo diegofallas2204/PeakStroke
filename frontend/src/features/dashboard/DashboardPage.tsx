@@ -62,7 +62,7 @@ export function DashboardPage() {
   return (
     <div ref={ref} className="flex flex-col gap-5">
       <PageHeader
-        title="Dashboard"
+        title="Inicio"
         subtitle={
           <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
             <span>Semana {data.current_week ?? '—'} de {data.total_weeks}</span>

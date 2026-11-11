@@ -116,7 +116,7 @@ export const CURVE_COLORS: Record<string, string> = {
 // intercambiados —el coral está lejos de Plan semanal en el riel, no pegado a
 // él—. Ese intercambio NO se puede deshacer mientras esta sección sea rosa.
 export const SECTION_ACCENT: Record<string, string> = {
-  '/': '#3b82f6',              // Dashboard — azul
+  '/': '#3b82f6',              // Inicio — azul
   '/macrociclos': '#22d3ee',   // Macrociclos — cian
   '/atletas': '#34d399',       // Atletas — esmeralda
   '/pruebas': '#fbbf24',       // Base aeróbica — ámbar

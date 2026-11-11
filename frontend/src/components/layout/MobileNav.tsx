@@ -41,7 +41,7 @@ export function MobileNav({
   }, [open])
 
   // `undefined` en una ruta que no es sección conocida. Antes caía al primer
-  // elemento del menú, así que una ruta oculta se rotulaba "Dashboard".
+  // elemento del menú, así que una ruta oculta se rotulaba "Inicio".
   const active = activeNavItem(pathname)
   const ActiveIcon = active?.icon
 

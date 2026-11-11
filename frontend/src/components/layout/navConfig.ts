@@ -7,7 +7,7 @@
 // que si el filtro del menú y el de las rutas fueran dos listas, tarde o
 // temprano dirían cosas distintas.
 import {
-  LayoutDashboard, CalendarRange, Users, Timer, Table2,
+  House, CalendarRange, Users, Timer, Table2,
   ListChecks, FlaskConical, UserRound, Activity, type LucideIcon,
 } from 'lucide-react'
 import { SECTION_ACCENT } from '../../lib/constants'
@@ -27,7 +27,9 @@ const nav = (to: string, label: string, icon: LucideIcon, roles?: Role[]): NavIt
   ({ to, label, icon, color: SECTION_ACCENT[to], roles })
 
 export const NAV_ITEMS: NavItem[] = [
-  nav('/', 'Dashboard', LayoutDashboard),
+  // «Inicio» y la casa (2026-11-10): antes «Dashboard», en inglés en una
+  // interfaz en español. La ruta, los archivos y el API no cambian de nombre.
+  nav('/', 'Inicio', House),
   nav('/macrociclos', 'Macrociclos', CalendarRange, ['coach']),
   nav('/atletas', 'Atletas', Users, ['coach']),
   nav('/pruebas', 'Base aeróbica', Timer),
@@ -75,7 +77,7 @@ export function navItemsFor(role: string | null | undefined): NavItem[] {
  * La sección a la que corresponde una ruta, para rotular la barra superior.
  *
  * Devuelve `undefined` si la ruta no es ninguna sección conocida. Antes caía a
- * `NAV_ITEMS[0]`, así que una ruta oculta se rotulaba "Dashboard" y el usuario
+ * `NAV_ITEMS[0]`, así que una ruta oculta se rotulaba "Inicio" y el usuario
  * veía un título que no correspondía a lo que tenía delante.
  */
 export function activeNavItem(pathname: string): NavItem | undefined {
@@ -87,7 +89,7 @@ export function activeNavItem(pathname: string): NavItem | undefined {
  * `/atletas/5` es de Atletas (2026-11-10): su color, su rótulo y **su guarda**.
  * Comparar la ruta exacta dejaba `/atletas/5` sin sección, y `RutaPorRol`
  * deja pasar lo que no reconoce: un atleta habría llegado a una página de
- * entrenador. `/` solo es Dashboard exacta, o sería el prefijo de todo.
+ * entrenador. `/` solo es Inicio exacta, o sería el prefijo de todo.
  */
 export function seccionDe(pathname: string): NavItem | undefined {
   const todas = [...NAV_ITEMS, PROFILE_ITEM]

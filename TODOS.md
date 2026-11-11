@@ -770,9 +770,8 @@ falta el día que haya un dominio:
 Auditoría de heurísticas del 2026-11-09; lo que sí se arregló está en la bitácora
 de ese día. Pide decisión o es más grande que un retoque:
 
-- **Idioma mezclado**: la primera sección se llama «Dashboard» y la marca dice
-  «Performance Planner» en una interfaz en español. Renombrar una sección es
-  decisión de producto (¿«Inicio»?).
+- ~~**Idioma mezclado**~~: la primera sección ya se llama «Inicio», con la casa
+  (2026-11-10). Queda la marca, «Performance Planner».
 - **`confirm()` y `prompt()` del navegador** en siete sitios (borrar, dar de baja,
   revocar, motivo del parón): funcionan, pero no llevan el estilo de la app, no
   se pueden deshacer y `prompt` en móvil es incómodo. Un diálogo propio con
