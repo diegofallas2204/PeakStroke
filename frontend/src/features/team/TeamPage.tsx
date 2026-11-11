@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Table2 } from 'lucide-react'
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api } from '../../lib/api'
+import { moduloActivo } from '../../lib/modulos'
 import { SPECIALTY_LABEL, ZONE_META, ZONE_ORDER } from '../../lib/constants'
 import { toClock } from '../../lib/format'
 import { usePageEnter } from '../../hooks/usePageEnter'
@@ -154,7 +155,7 @@ export function TeamPage() {
                   <td>
                     {/* El nombre lleva a la curva del atleta: la columna de forma
                         resume un día, la curva enseña por qué. */}
-                    {row.swimmer_id != null ? (
+                    {row.swimmer_id != null && moduloActivo('/entrenamiento') ? (
                       <Link
                         to={`/entrenamiento?atleta=${row.swimmer_id}`}
                         className="font-semibold underline-offset-2 hover:underline"

@@ -8,6 +8,7 @@ import { api } from '../../lib/api'
 import { LOAD_ALERT_META, PLAN_STATUS_META, STROKE_LABEL, TEST_TYPE_LABEL } from '../../lib/constants'
 import { toClock, toShortDate } from '../../lib/format'
 import { NAV_ITEMS } from '../../components/layout/navConfig'
+import { enlace } from '../../lib/modulos'
 import { Chip, Spinner } from '../../components/ui/primitives'
 
 /** Un bloque: el color y el icono de su sección, y toda la tarjeta es el enlace. */
@@ -17,13 +18,11 @@ function Bloque({
   const item = NAV_ITEMS.find((i) => i.to === seccion)
   const color = item?.color ?? 'var(--color-accent)'
   const Icono: LucideIcon | undefined = item?.icon
-  return (
-    <Link
-      to={a}
-      className="card card-hover group flex flex-col p-5"
-      style={{ '--page-accent': color } as React.CSSProperties}
-      data-animate
-    >
+  // Si esta build no trae esa sección (`lib/modulos.ts`), el resumen se queda
+  // y deja de ser un enlace.
+  const destino = enlace(a)
+  const cuerpo = (
+    <>
       <div className="mb-3 flex items-center gap-2">
         {Icono && (
           <span
@@ -34,15 +33,25 @@ function Bloque({
           </span>
         )}
         <span className="card-title flex-1">{titulo}</span>
-        <ArrowUpRight
-          size={14}
-          className="text-text-faint transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
-          style={{ color }}
-          aria-hidden
-        />
+        {destino && (
+          <ArrowUpRight
+            size={14}
+            className="text-text-faint transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+            style={{ color }}
+            aria-hidden
+          />
+        )}
       </div>
       {cargando ? <Spinner /> : children}
+    </>
+  )
+  const estilo = { '--page-accent': color } as React.CSSProperties
+  return destino ? (
+    <Link to={destino} className="card card-hover group flex flex-col p-5" style={estilo} data-animate>
+      {cuerpo}
     </Link>
+  ) : (
+    <div className="card flex flex-col p-5" style={estilo} data-animate>{cuerpo}</div>
   )
 }
 

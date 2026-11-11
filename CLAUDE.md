@@ -251,6 +251,12 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   Atletas. `RutaPorRol` deja pasar lo que no reconoce, así que comparar la ruta
   exacta habría abierto a un atleta la página de otro. Quien pinte por ruta usa
   `seccionDe(pathname)`, no `SECTION_ACCENT[pathname]`
+- **Una build puede traer solo algunos módulos** (2026-11-10, `docs/MODULOS.md`):
+  cada sección es un módulo nombrado por su ruta, y `VITE_MODULOS` o la rama
+  `modulo/<nombre>` eligen cuáles. `navConfig.puedeVer` los filtra (menú y
+  guarda a la vez) y **un enlace a otra sección pasa por `lib/modulos.enlace`**:
+  sin destino, se pinta texto. Perfil y la sesión no son módulos. Solo es
+  alcance de la interfaz: el backend es uno y no se recorta
 - **La página del atleta** (`/atletas/:id`, `features/swimmers/AtletaPage`): la
   tarjeta del pool entera lleva a ella (enlace estirado sobre el nombre; los
   botones van por encima, `relative z-10`). No tiene endpoint propio: resume

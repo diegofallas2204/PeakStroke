@@ -11,6 +11,7 @@ import {
   ListChecks, FlaskConical, UserRound, Activity, type LucideIcon,
 } from 'lucide-react'
 import { SECTION_ACCENT } from '../../lib/constants'
+import { moduloActivo } from '../../lib/modulos'
 
 export type Role = 'coach' | 'athlete'
 
@@ -63,6 +64,8 @@ export const PROFILE_ITEM: NavItem = nav('/perfil', 'Perfil', UserRound)
  */
 export function puedeVer(item: NavItem, role: string | null | undefined): boolean {
   if (role == null) return false
+  // Un módulo que esta build no trae no se ve ni se alcanza (`lib/modulos.ts`).
+  if (!moduloActivo(item.to)) return false
   if (!item.roles) return true
   return item.roles.includes(role as Role)
 }

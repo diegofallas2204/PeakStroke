@@ -5,6 +5,7 @@ import { DevIdentitySwitcher } from '../../features/settings/DevIdentitySwitcher
 import { ThemeSwitcher } from '../../features/settings/ThemeSwitcher'
 import { Modal, Toggle } from '../ui/primitives'
 import { useSimpleMode } from '../../hooks/useSimpleMode'
+import { modulosActivos } from '../../lib/modulos'
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [simple, setSimple] = useSimpleMode()
@@ -25,7 +26,10 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
           />
         </div>
         <DevIdentitySwitcher />
-        <p className="text-[9px] text-text-faint">PeakStroke v0.1 · local-first</p>
+        <p className="text-[9px] text-text-faint">
+          PeakStroke v0.1 · local-first
+          {modulosActivos() && <> · módulos: {[...modulosActivos()!].join(', ')}</>}
+        </p>
       </div>
     </Modal>
   )

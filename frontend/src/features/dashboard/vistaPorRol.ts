@@ -10,6 +10,8 @@
 // Los DATOS ya vienen acotados por el backend (el atleta solo recibe sus filas).
 // Esto es únicamente el lenguaje y a dónde llevan las cosas.
 
+import { enlace } from '../../lib/modulos'
+
 // Comparación dejó de ser una sección: es la vista Progresión dentro de Plan
 // semanal. El enlace apunta a la vista final y no a `/comparacion`, que solo
 // existe ya como redirect para marcadores viejos.
@@ -82,6 +84,26 @@ const ATLETA: Vista = {
   },
 }
 
+/**
+ * Quita los enlaces a módulos que esta build no trae (`lib/modulos.ts`): en la
+ * rama `modulo/inicio`, «Tabla del equipo» llevaría a una sección que no
+ * existe. Las tarjetas se quedan, sin enlace; las acciones, fuera.
+ */
+function soloLoQueHay(v: Vista): Vista {
+  const a = (destino: string) => enlace(destino) ?? ''
+  const accion = (x: { texto: string; a: string } | null) => (x && enlace(x.a) ? x : null)
+  return {
+    ...v,
+    primeraTarjeta: { ...v.primeraTarjeta, a: a(v.primeraTarjeta.a) },
+    estado: { ...v.estado, a: a(v.estado.a) },
+    desviacion: { a: a(v.desviacion.a) },
+    semana: { a: a(v.semana.a) },
+    accion: accion(v.accion),
+    accionRapida: accion(v.accionRapida),
+    vacio: { ...v.vacio, accion: accion(v.vacio.accion) },
+  }
+}
+
 export function vistaPara(role: string | null | undefined): Vista {
-  return role === 'athlete' ? ATLETA : ENTRENADOR
+  return soloLoQueHay(role === 'athlete' ? ATLETA : ENTRENADOR)
 }

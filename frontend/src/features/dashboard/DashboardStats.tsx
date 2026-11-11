@@ -22,13 +22,13 @@ export function DashboardStats({
         label={vista.primeraTarjeta.etiqueta} value={primerValor} accent="#3b82f6"
         icon={<Users size={15} />}
         sub={simple ? undefined : vista.primeraTarjeta.sub(data.events_total, data.athletes_total)}
-        to={vista.primeraTarjeta.a}
+        to={vista.primeraTarjeta.a || undefined}
       />
       <StatCard
         label="Semana actual" value={data.current_week ?? 0} suffix={`/ ${data.total_weeks}`}
         accent="#22d3ee" icon={<CalendarRange size={15} />}
         sub={simple ? undefined : (data.current_phase ? `Fase ${data.current_phase}` : 'Fuera de calendario')}
-        to={vista.semana.a}
+        to={vista.semana.a || undefined}
       />
       <StatCard
         label={vista.estado.etiqueta} value={data.ahead} suffix={data.ahead === 1 ? 'adelantado' : 'adelantados'}
@@ -40,14 +40,14 @@ export function DashboardStats({
             <span className="text-coral">{data.behind} {data.behind === 1 ? 'atrasado' : 'atrasados'}</span>
           </span>
         )}
-        to={vista.estado.a}
+        to={vista.estado.a || undefined}
       />
       <StatCard
         label="Desviación media" value={data.avg_deviation_percent ?? 0} suffix="%" decimals={2}
         accent={data.avg_deviation_percent != null && data.avg_deviation_percent > 0 ? '#fb7185' : '#34d399'}
         icon={<Trophy size={15} />}
         sub={simple ? undefined : 'Real vs. plan (negativo = más rápido)'}
-        to={vista.desviacion.a}
+        to={vista.desviacion.a || undefined}
       />
     </div>
   )

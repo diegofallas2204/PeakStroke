@@ -5,6 +5,7 @@ import { AlertTriangle, Timer } from 'lucide-react'
 import type { LoadDay, TrainingLoad } from '../../lib/types'
 import { LOAD_ALERT_META, LOAD_REASON_LABEL } from '../../lib/constants'
 import { signed, toDayMonth } from '../../lib/format'
+import { moduloActivo } from '../../lib/modulos'
 import { Card } from '../../components/ui/primitives'
 import { LoadChart } from './LoadChart'
 import { SERIES } from './series'
@@ -67,7 +68,9 @@ export function LoadCard({ load }: { load: TrainingLoad }) {
           <span>
             {load.sessions_without_css === 1 ? 'Hay 1 sesión' : `Hay ${load.sessions_without_css} sesiones`} anterior
             {load.sessions_without_css === 1 ? '' : 'es'} al primer test aeróbico: sin CSS no tienen carga y no entran en la curva.{' '}
-            <Link to="/pruebas" className="underline underline-offset-2">Registrar un test</Link>
+            {moduloActivo('/pruebas') && (
+              <Link to="/pruebas" className="underline underline-offset-2">Registrar un test</Link>
+            )}
           </span>
         </p>
       )}

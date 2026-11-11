@@ -11,7 +11,7 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { Spinner } from '../ui/primitives'
 import { useRole } from '../../hooks/useSession'
-import { puedeVer, seccionDe } from './navConfig'
+import { navItemsFor, puedeVer, seccionDe } from './navConfig'
 
 export function RutaPorRol({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
@@ -30,7 +30,11 @@ export function RutaPorRol({ children }: { children: React.ReactNode }) {
   }
 
   const item = seccionDe(pathname)
-  if (item && !puedeVer(item, role)) return <Navigate to="/" replace />
+  // A la primera sección que sí ve, no a `/` a secas: en una build sin
+  // Inicio (`lib/modulos.ts`), `/` tampoco se ve y se rebotaría para siempre.
+  if (item && !puedeVer(item, role)) {
+    return <Navigate to={navItemsFor(role)[0]?.to ?? '/perfil'} replace />
+  }
 
   return <>{children}</>
 }
