@@ -28,6 +28,15 @@ export function setSelectedPlan(id: number | null) {
   listeners.forEach((l) => l())
 }
 
+/**
+ * Olvida la selección. La llama la sesión al salir o al cambiar de cuenta: la
+ * clave es del navegador, no de la persona, y sin esto el macrociclo que miraba
+ * una cuenta seguía elegido para la siguiente (TODO-3).
+ */
+export function olvidarSeleccion() {
+  setSelectedPlan(null)
+}
+
 export function useSelectedPlanId(): number | null {
   return useSyncExternalStore(subscribe, () => current, () => current)
 }

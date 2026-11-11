@@ -32,7 +32,9 @@ async def revoke_sessions(db: AsyncSession, user: User) -> None:
     await usuarios.guardar(usuario)
 
 
-async def change_password(db: AsyncSession, user: User, new_password: str) -> User:
+async def change_password(
+    db: AsyncSession, user: User, new_password: str, *, temporal: bool = False,
+) -> User:
     """Cambia la contraseña y revoca todas las sesiones, en un solo `commit`.
 
     Hasta el 2026-10-14 eran dos llamadas desde el router —fijar el hash y luego
@@ -42,7 +44,9 @@ async def change_password(db: AsyncSession, user: User, new_password: str) -> Us
     """
     usuarios = RepositorioDeUsuarios(db)
     usuario = usuarios.entidad(user)
-    usuario.cambiar_password(hash_password(new_password))
+    # `temporal`: la puso un operador para entregarla (TODO-27); por defecto,
+    # la eligió la propia persona y la cuenta queda libre.
+    usuario.cambiar_password(hash_password(new_password), temporal=temporal)
     # Condicional (vuelta 2 del revisor de TODO-30): si otra petición cambió la
     # contraseña desde que se verificó, `CredencialesCambiadas` sube al router.
     return await usuarios.cambiar_password(usuario)

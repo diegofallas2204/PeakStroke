@@ -24,6 +24,20 @@ export interface Member {
   is_owner: boolean
   swimmer_id: number | null
   swimmer_name: string | null
+  /**
+   * La contraseña es una temporal que vio quien dio el alta. Hasta cambiarla,
+   * el backend responde 403 a todo lo demás y la app solo enseña ese formulario.
+   */
+  must_change_password: boolean
+}
+
+/** Lo que devuelven `/auth/login`, `/auth/refresh` y `/auth/me/password`. */
+export interface SessionResponse {
+  access_token: string
+  token_type: string
+  /** Segundos de vida del access token. */
+  expires_in: number
+  user: Member
 }
 
 export interface Team {

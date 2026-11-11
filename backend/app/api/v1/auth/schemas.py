@@ -53,6 +53,9 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: datetime
     last_login_at: datetime | None
+    # La contraseña es una temporal que otro vio: hasta que la cambie, el resto
+    # del API le responde 403 (TODO-27). La interfaz lo lleva a cambiarla.
+    must_change_password: bool = False
 
 
 class AuthConfig(BaseModel):

@@ -1,15 +1,23 @@
 // Tarjeta "Mi cuenta": la identidad de quien está usando la app.
-import { KeyRound, Mail, UserRound } from 'lucide-react'
+import { KeyRound, Mail, MonitorX, UserRound } from 'lucide-react'
 import type { Member } from '../../lib/types'
 import { SECTION_ACCENT, roleMeta } from '../../lib/constants'
 import { initials, toShortDate } from '../../lib/format'
 import { Card, Chip } from '../../components/ui/primitives'
+import { useAuthConfig } from '../../hooks/useSession'
+import { cerrarSesion } from '../../lib/sesion'
 
 export function AccountCard({
   session, onChangePassword,
 }: { session: Member; onChangePassword: () => void }) {
   const role = roleMeta(session.role, session.is_owner)
   const accent = SECTION_ACCENT['/perfil']
+  const conLogin = useAuthConfig().data?.auth_enabled === true
+
+  const salirDeTodos = () => {
+    if (confirm('¿Cerrar la sesión en todos tus dispositivos? Tendrás que volver a entrar también en este.'))
+      void cerrarSesion(true)
+  }
 
   return (
     <Card className="card-hover">
@@ -47,6 +55,13 @@ export function AccountCard({
       <button className="btn btn-ghost mt-4 w-full justify-center" onClick={onChangePassword}>
         <KeyRound size={13.5} /> Cambiar contraseña
       </button>
+      {/* Para quien pierde un dispositivo o entró en uno ajeno. «Cerrar sesión»
+          a secas (la de este) está en el pie de la navegación. */}
+      {conLogin && (
+        <button className="btn btn-ghost mt-2 w-full justify-center" onClick={salirDeTodos}>
+          <MonitorX size={13.5} /> Cerrar en todos los dispositivos
+        </button>
+      )}
     </Card>
   )
 }

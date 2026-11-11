@@ -37,6 +37,7 @@ __all__ = [
     "bypass_pedido",
     "get_current_principal",
     "get_current_user",
+    "principal_con_temporal",
 ]
 
 _UNAUTHORIZED = HTTPException(
@@ -140,13 +141,35 @@ async def get_current_user(
     return user
 
 
-async def get_current_principal(
+async def principal_con_temporal(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> Principal:
+    """El `Principal`, **aunque su contraseña sea una temporal**.
+
+    Solo para `POST /auth/me/password`: es la única puerta que una cuenta con
+    temporal tiene que poder cruzar, justo para dejar de tenerla. Cualquier
+    otro endpoint pide `get_current_principal`.
+    """
     principal = await _principal_for(db, await get_current_user(request, db))
     # `bypass_pedido` ya exige `dev_identity_enabled`, que a su vez exige el
     # login apagado: con autenticación real la cabecera no la lee nadie.
     if bypass_pedido(request):
         principal = replace(principal, is_developer=True)
+    return principal
+
+
+async def get_current_principal(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> Principal:
+    principal = await principal_con_temporal(request, db)
+    # Una temporal la vio quien dio el alta o la restableció: hasta que su
+    # dueño la cambie, no abre nada más (TODO-27). Solo con login real: el
+    # conmutador de desarrollo suplanta cuentas sin conocer su contraseña.
+    if settings.auth_enabled and principal.user.password_temporal:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cambia tu contraseña temporal para continuar",
+        )
     return principal

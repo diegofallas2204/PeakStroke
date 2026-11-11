@@ -170,7 +170,8 @@ async def restablecer_password(
     confirmar(consola, user.email, que)
     temporal = secrets.token_urlsafe(12)
     try:
-        await credenciales.change_password(db, user, temporal)   # hash + revocar, un commit
+        # hash + revocar, un commit; y marcada: obliga a cambiarla al entrar (TODO-27)
+        await credenciales.change_password(db, user, temporal, temporal=True)
     except CredencialesCambiadas:
         # El cambio es condicional (TODO-30): la persona cambió la suya mientras
         # se confirmaba. No se escribió nada; se vuelve a lanzar.

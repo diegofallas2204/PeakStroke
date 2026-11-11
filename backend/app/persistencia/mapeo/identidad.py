@@ -33,6 +33,7 @@ def usuario_desde_fila(fila: User) -> Usuario:
         hash_de_password=fila.password_hash, activo=fila.is_active,
         version_de_token=fila.token_version,
         creado=fila.created_at, ultimo_login=fila.last_login_at,
+        password_temporal=fila.password_temporal,
     )
 
 
@@ -103,7 +104,11 @@ def cambio_condicional(usuario: Usuario) -> Update:
     return (
         update(User)
         .where(User.id == usuario.id, User.password_hash == usuario.hash_leido)
-        .values(password_hash=usuario.hash_de_password, token_version=User.token_version + 1)
+        .values(
+            password_hash=usuario.hash_de_password, token_version=User.token_version + 1,
+            # Viaja con el hash: es de ESA contraseña (TODO-27).
+            password_temporal=usuario.password_temporal,
+        )
         .execution_options(synchronize_session=False)
     )
 

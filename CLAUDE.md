@@ -171,6 +171,31 @@ cd backend && .venv\Scripts\python tools/ops.py salud
   revocar, liberar y `ops.py cortar-sesiones`. Dos pestañas del mismo navegador
   comparten sesión: lo resuelve el cliente (TODO-31), sin ventana de gracia
 
+- **El freno de intentos** (TODO-33 y TODO-18, decidido el 2026-11-10): por
+  correo + origen y por origen, **sin bloquear cuentas** — quien falla solo se
+  frena a sí mismo, y el mismo correo desde otra red entra. `core/freno.py`
+  (en `core/` porque lo usan `auth` y `codigos`, que no se importan): 5 fallos
+  en 15 min → 429 con `Retry-After`, 30 s que se doblan; 20 desde un origen
+  contra correos distintos frenan ese origen; el canje, 5 por cuenta. **Se
+  cuenta sobre la auditoría** (`RepositorioDeAuditoria.fallos_recientes`, su
+  única lectura), y va antes de mirar la contraseña y por el correo tecleado,
+  exista o no. Un intento frenado se audita como `frenado` y **no cuenta**: si
+  contara, insistir alargaría la espera para siempre. «Origen» es la IPv4 o la `/64` de una IPv6 (en IPv6 cada abonado estrena
+  dirección cuando quiere). Sin origen (sin IP, o antes del primer evento del
+  periodo de clave) no frena. Detrás de un proxy
+  todos comparten origen: es de TODO-34
+- **Una contraseña temporal obliga a cambiarse** (TODO-27, 2026-11-10):
+  `users.password_temporal` (migración `f4c2a9d7e1b3`), que pone y quita
+  `Usuario.cambiar_password(hash, temporal=…)`. La marcan las cuatro puertas
+  que generan una —`POST /auth/members` sin contraseña, la invitación, y
+  `ops.py` al crear y al restablecer—. Con la marca, `get_current_principal`
+  responde 403 a todo; **`POST /auth/me/password` es la única ruta con
+  `principal_con_temporal`**, y cualquier otro uso de esa dependencia es un
+  error. `/auth/me` lo dice (`must_change_password`). Solo con login real: el
+  conmutador suplanta sin contraseña. La cuenta sin club sigue pudiendo canjear
+  con la temporal (esas rutas no piden `Principal`) y se le exige al entrar en
+  el club
+
 ### Conmutador de desarrollo — dos cabeceras, dos ejes
 Solo con `auth_enabled=false` **y** fuera de producción (`dev_identity_enabled`).
 `GET /auth/config` dice en qué modo estás; `GET /auth/dev-identities` lista las
@@ -196,6 +221,26 @@ sin macrociclo y atleta con la ficha dada de baja.
 
 En el frontend, la barra vive en **Ajustes → Desarrollo**. Quién eres se muestra
 siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
+
+## Sesión en el frontend (TODO-32, 2026-11-10)
+- **Con el login apagado nada de esto corre.** `features/auth/PuertaDeSesion`
+  envuelve la navegación y las rutas: pregunta `/auth/config` y, si el login
+  está encendido, enseña el login, el cambio obligado de la temporal o la app
+- **El access token vive solo en memoria** (`lib/sesion.ts`), nunca en
+  `localStorage`; el refresh va en su cookie httpOnly. Recargar lo pierde a
+  propósito y `arrancarSesion` lo recupera con un refresh. «Cargando» no es
+  «fuera»: no se enseña el login mientras no se sepa
+- **Nunca dos `/auth/refresh` a la vez** (TODO-31, `lib/unSoloVuelo.ts`): una
+  promesa compartida dentro de la pestaña y `navigator.locks` entre pestañas.
+  `api.ts` renueva ante un 401 con sesión y repite la petición **una** vez.
+  Las tres llamadas de sesión van con `fetch` a secas: `sesion.ts` no importa
+  `api.ts`
+- **Al salir, o al entrar otra persona, se borra lo guardado en el navegador**:
+  el cache persistido y el macrociclo elegido (TODO-3). Las demás pestañas
+  recargan (`BroadcastChannel`)
+- Lo que devuelve `POST /auth/me/password` es una sesión nueva y **hay que
+  adoptarla** (`api.auth.changePassword` lo hace): la anterior acaba de morir
+- Tests del frontend: `npm test` (vitest). Hoy cubren `unSoloVuelo`
 
 ## Roles en el frontend
 - `navConfig.ts` es la **única** lista de secciones y permisos. La consumen el
@@ -332,7 +377,8 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   `tools/purgar_auditoria.py` (cron mensual). Sin FKs: el rastro sobrevive a lo
   que describe, y el correo del actor va denormalizado
 - **Una IP nunca llega entera al disco** (R11, opción C): red truncada (/24, /48)
-  + HMAC con una clave que rota cada 30 días y se BORRA al rotar
+  + HMAC del origen —la IPv4 entera o la `/64` de una IPv6, desde el
+  2026-11-10— con una clave que rota cada 30 días y se BORRA al rotar
   (`claves_de_auditoria`). El user-agent, solo como familia («Chrome · Windows»).
   `X-Forwarded-For` se ignora hasta que haya un proxy de confianza
 - **`v_admin_accesos` · `v_admin_actividad` · `v_admin_cuentas` · `v_admin_equipos`

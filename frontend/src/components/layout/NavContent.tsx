@@ -3,11 +3,12 @@
 //   · 'rail'  → riel de 56px que se despliega al hacer hover (escritorio)
 //   · 'panel' → siempre desplegado, dentro del drawer (móvil/tablet)
 import { NavLink } from 'react-router-dom'
-import { ChevronsUpDown, Settings } from 'lucide-react'
+import { ChevronsUpDown, LogOut, Settings } from 'lucide-react'
 import { Manta } from '../ui/Manta'
 import { navItemsFor } from './navConfig'
 import { SECTION_ACCENT, roleMeta } from '../../lib/constants'
-import { useRole, useSession } from '../../hooks/useSession'
+import { useAuthConfig, useRole, useSession } from '../../hooks/useSession'
+import { cerrarSesion } from '../../lib/sesion'
 import { initials } from '../../lib/format'
 
 type Variant = 'rail' | 'panel'
@@ -159,6 +160,8 @@ export function NavFooter({
   variant, onOpenSettings, onNavigate,
 }: { variant: Variant; onOpenSettings: () => void; onNavigate?: () => void }) {
   const { data: session } = useSession()
+  // Salir solo existe con login real: con la sesión de desarrollo no hay de qué.
+  const conLogin = useAuthConfig().data?.auth_enabled === true
   const color = SECTION_ACCENT['/perfil']
   const role = session ? roleMeta(session.role, session.is_owner) : undefined
 
@@ -224,6 +227,24 @@ export function NavFooter({
           Ajustes
         </span>
       </button>
+
+      {conLogin && (
+        <button
+          type="button"
+          onClick={() => void cerrarSesion()}
+          aria-label="Cerrar sesión"
+          title="Cerrar sesión en este dispositivo"
+          className={`nav-item mt-0.5 flex w-full items-center gap-2.5 rounded-[10px] py-[9px] text-[12.5px] font-medium text-text-dim transition-[background-color,color,padding] duration-300 ease-in-out ${padded(variant)}`}
+          style={{ '--nav-item-color': 'var(--color-coral)' } as React.CSSProperties}
+        >
+          <span className="flex size-[28px] shrink-0 items-center justify-center rounded-lg">
+            <LogOut size={14.5} strokeWidth={2.1} />
+          </span>
+          <span className={`overflow-hidden whitespace-nowrap leading-none ${revealed(variant, 'delay-[80ms]')}`}>
+            Cerrar sesión
+          </span>
+        </button>
+      )}
     </div>
   )
 }

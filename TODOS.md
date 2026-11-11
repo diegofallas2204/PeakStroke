@@ -64,6 +64,15 @@ Prioridad: P1 = bloquea trabajo en curso · P2 = debería caer pronto · P3 = de
 > también en la ficha y en la invitación) y ~~TODO-29~~ (la purga sale con 3).
 > **Abiertos el mismo día**: TODO-32 a TODO-35, abajo del todo. El orden hacia el
 > primer release está en TODO-32.
+>
+> **Bloque del login, 2026-11-10** (sin commitear al escribir esto): cerrados
+> ~~TODO-32~~ (el frontend inicia sesión: `features/auth/`, `lib/sesion.ts`),
+> ~~TODO-31~~ (un solo refresh en vuelo: `lib/unSoloVuelo.ts`), ~~TODO-3~~ (lo
+> guardado en el navegador se borra al salir o al cambiar de cuenta),
+> ~~TODO-33~~ y ~~TODO-18~~ (freno de intentos, `core/freno.py`) y ~~TODO-27~~
+> (la temporal obliga a cambiarse, migración `f4c2a9d7e1b3`). Las reglas, en
+> `CLAUDE.md`. **Lo que queda para exponer la app es TODO-34** (despliegue), y
+> TODO-17 sigue esperando al registro público. **Abierto**: TODO-36.
 
 ---
 
@@ -298,7 +307,7 @@ el registro.
 
 ---
 
-## TODO-18 — Sin límite de intentos en el canje de códigos (P3)
+## ~~TODO-18 — Sin límite de intentos en el canje de códigos~~ — CERRADO 2026-11-10
 
 **Qué:** `POST /link-codes/redeem` acepta intentos ilimitados.
 
@@ -318,7 +327,7 @@ Antes de encender `PEAKSTROKE_AUTH_ENABLED=true` en algo que mire a internet.
 
 ---
 
-## TODO-3 — `useSelectedPlan` aislado por usuario (P2)
+## ~~TODO-3 — `useSelectedPlan` aislado por usuario~~ — CERRADO 2026-11-10
 
 **Qué:** el macrociclo seleccionado vive hoy en un `localStorage` global
 (`frontend/src/hooks/useSelectedPlan.ts`, clave `ps-selected-plan`). Debe aislarse por
@@ -590,7 +599,7 @@ decidir si revocar una pertenencia debe cortar las sesiones (subir
 `token_version`): hoy el token viejo vale 15 minutos más, aunque solo alcanza
 `/auth/me` (403), `/link-codes/mine` y `/link-codes/redeem`.
 
-## TODO-27 — La contraseña temporal no caduca ni obliga a cambiarse (P3)
+## ~~TODO-27 — La contraseña temporal no caduca ni obliga a cambiarse~~ — CERRADO 2026-11-10
 
 Visto por el /cso de D1 (2026-10-14, tentativo). `ops.py restablecer-password` y
 el alta (`crear-equipo`, `crear-cuenta`, `POST /auth/members`, la invitación)
@@ -680,7 +689,7 @@ pestañas lo resuelve el cliente; lo de los dispositivos, solo el servidor.
 
 ---
 
-## TODO-31 — Un solo `/auth/refresh` en vuelo por navegador (P2, bloquea encender el login)
+## ~~TODO-31 — Un solo `/auth/refresh` en vuelo por navegador~~ — CERRADO 2026-11-10
 
 Abierto por TODO-30 (2026-10-20), la mitad que el servidor no puede resolver. Desde
 TODO-30 cada login abre su sesión (`sesiones_abiertas`) con su rotación, así que dos
@@ -706,7 +715,7 @@ el escenario de TODO-25.
 
 ---
 
-## TODO-32 — El frontend no puede iniciar sesión (P1, es lo que separa del primer release)
+## ~~TODO-32 — El frontend no puede iniciar sesión~~ — CERRADO 2026-11-10
 
 Visto en la auditoría del 2026-11-09. El backend de identidad está entero desde
 agosto y probado; **el cliente no existe**: ni pantalla de login, ni dónde guardar
@@ -726,7 +735,7 @@ el access token, ni quién llame a `/auth/refresh` o a `/auth/logout`. Con
   mismo navegador no ve ni un dato de la anterior.
 - **Zona de `/cso` comprehensive.** Un bloque propio, no un arreglo.
 
-## TODO-33 — Sin límite de intentos en `/auth/login` (P1, bloquea exponer la app)
+## ~~TODO-33 — Sin límite de intentos en `/auth/login`~~ — CERRADO 2026-11-10
 
 `/cso` del 2026-11-09, hermano de TODO-18. Ningún límite por IP ni por cuenta, y
 la contraseña mínima son 8 caracteres: lo único que frena un relleno de
@@ -779,3 +788,27 @@ de ese día. Pide decisión o es más grande que un retoque:
   Macrociclos dice «Sin macrociclos» y ofrece crear uno. Las escrituras ya
   avisan (`lib/avisos.ts`); las lecturas no.
 - En móvil, el título de la sección sale dos veces (barra superior y `h1`).
+
+## TODO-36 — Lo que el bloque del login dejó a la vista (P2)
+
+Del repaso de seguridad del 2026-11-10. Ninguno bloquea probar el login; los
+dos primeros conviene cerrarlos antes de usuarios reales.
+
+- **La cuenta sin club no puede cambiar su contraseña.** `POST /auth/me/password`
+  pide `Principal`, y quien todavía no canjeó su código no lo tiene: entra con
+  la temporal, canjea y solo entonces se le exige cambiarla. Si no canjea nunca,
+  la temporal sigue valiendo (no abre ningún dato de equipo). Arreglarlo es dar
+  a esa ruta `get_current_user`, que hoy solo usan tres endpoints **por regla
+  escrita** (`CLAUDE.md`): decisión de la persona.
+- **No hay «olvidé mi contraseña».** La restablece el operador con
+  `ops.py restablecer-password`; un entrenador no puede restablecer la de su
+  atleta desde la app. La pantalla de login lo dice mal («pídeselo a tu
+  entrenador»): o se construye ese botón para el entrenador, o se cambia el texto.
+- **El freno por origen y las redes compartidas.** 20 fallos en 15 min desde la
+  misma IP frenan esa IP: el primer día de un club entero en la wifi de la
+  piscina puede llegar. La espera empieza en 30 s y solo crece con fallos nuevos.
+- **La migración `f4c2a9d7e1b3` no se probó en PostgreSQL** (sí arriba y abajo
+  en SQLite, con `alembic check` limpio). Es un `ADD COLUMN` con `DEFAULT false`.
+- El cliente sigue mandando las cabeceras del conmutador de desarrollo si
+  quedaron en `localStorage` de antes; con el login puesto nadie las lee.
+- Sin `navigator.locks` (Safari < 15.4) dos pestañas pueden volver a chocar.

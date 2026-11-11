@@ -36,6 +36,7 @@ from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import freno
 from app.core.auditoria import TipoDeEvento, auditar
 from app.core.config import settings
 from app.core.database import get_db
@@ -160,6 +161,12 @@ async def _de_la_cookie(
 
 @router.post("/login", response_model=SessionResponse)
 async def login(data: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
+    # El freno va ANTES de mirar la contraseña y por el correo tecleado, exista
+    # o no: el 429 no dice nada de la cuenta ni gasta un Argon2 (TODO-33).
+    correo = normalizar_correo(data.email)
+    if espera := await freno.espera_de_login(db, correo):
+        auditar(TipoDeEvento.LOGIN, correo=correo, fallo=True, detalle=freno.FRENADO)
+        raise freno.demasiados_intentos(espera)
     user, motivo = await credenciales.comprobar_credenciales(db, data.email, data.password)
     if user is None:
         # El correo TECLEADO, exista o no: es lo que deja ver un barrido.

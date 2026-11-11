@@ -165,7 +165,7 @@ async def invite(
         temporal = secrets.token_urlsafe(9)
         await usuarios.crear(
             correo=normalizado, nombre=data.name,
-            password_hash=hash_password(temporal),
+            password_hash=hash_password(temporal), temporal=True,
         )
 
     code = await issue(codigos, swimmer, coach_id, invited_email=normalizado)

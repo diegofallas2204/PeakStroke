@@ -35,7 +35,7 @@ export function PasswordForm({ open, onClose }: { open: boolean; onClose: () => 
       {done ? (
         <div className="flex flex-col gap-4">
           <p className="text-[12.5px] text-text-dim">
-            Contraseña actualizada. La próxima vez que entres, usa la nueva.
+            Contraseña actualizada. Tus otros dispositivos tendrán que volver a entrar con la nueva.
           </p>
           <div className="flex justify-end border-t border-line pt-4">
             <button className="btn btn-primary" onClick={onClose}>Listo</button>

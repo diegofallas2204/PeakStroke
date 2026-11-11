@@ -71,14 +71,20 @@ class RepositorioDeUsuarios:
 
     # ── Escrituras ───────────────────────────────────────────────────────────
 
-    async def crear(self, *, correo: str, nombre: str, password_hash: str) -> User:
+    async def crear(
+        self, *, correo: str, nombre: str, password_hash: str, temporal: bool = False,
+    ) -> User:
         """Crea la cuenta **sin pertenencia**: eso es del agregado Equipo.
+
+        `temporal=True` si la contraseña la generó el sistema para que otro la
+        entregue: la cuenta nace obligada a cambiarla (TODO-27).
 
         Quien necesite las dos juntas —el alta de un entrenador— las pide a los
         dos repositorios; `api/v1/auth/service.create_user` es quien lo hace.
         """
         user = User(
             email=normalizar_correo(correo), name=nombre, password_hash=password_hash,
+            password_temporal=temporal,
         )
         self.db.add(user)
         await self.db.flush()

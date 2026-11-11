@@ -20,6 +20,7 @@ from app.api.dependencias import repo_de_atletas, repo_de_codigos
 from app.core.auditoria import TipoDeEvento, auditar
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.freno import FRENADO, demasiados_intentos, espera_de_canje
 from app.core.guards import require_coach
 from app.core.principal import Principal
 from app.persistencia.repositorios import RepositorioDeAtletas, RepositorioDeCodigos
@@ -171,6 +172,11 @@ async def redeem(
 
     `get_current_user` y no `get_current_principal`: ver la cabecera del módulo.
     """
+    # Quien prueba códigos se frena a sí mismo (TODO-18): por cuenta, que aquí
+    # ya se sabe quién es. El intento frenado no cuenta como otro fallo.
+    if espera := await espera_de_canje(db, user.id):
+        auditar(TipoDeEvento.CODIGO_CANJEADO, user, fallo=True, detalle=FRENADO)
+        raise demasiados_intentos(espera)
     try:
         swimmer, team = await service.redeem(db, codigos, data.code, user)
     except LinkCodeError as e:

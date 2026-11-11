@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auditoria import TipoDeEvento, auditar
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.dependencies import Principal, get_current_principal, get_current_user
+from app.core.dependencies import Principal, get_current_user, principal_con_temporal
 from app.core.dev_identity import DEV_BYPASS_HEADER, DEV_USER_HEADER, bypass_pedido
 from app.persistencia.repositorios.usuarios import CredencialesCambiadas
 from app.persistencia.tablas.usuarios import User
@@ -100,7 +100,8 @@ async def me(
 async def change_password(
     data: PasswordChange,
     response: Response,
-    principal: Principal = Depends(get_current_principal),
+    # La única ruta que una cuenta con contraseña temporal puede cruzar (TODO-27).
+    principal: Principal = Depends(principal_con_temporal),
     db: AsyncSession = Depends(get_db),
 ):
     """Cambia la contraseña **y corta todas las demás sesiones**.
@@ -127,6 +128,13 @@ async def change_password(
             detalle=motivo if motivo == "credenciales_cambiadas" else "password_actual_incorrecta",
         )
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La contraseña actual no es correcta")
+    # Sin esto, «cambiar» la temporal por ella misma quitaba la marca y la cuenta
+    # quedaba libre con una contraseña que vio otro (revisor del login,
+    # 2026-11-10). La interfaz ya lo impedía; el endpoint no.
+    if data.new_password == data.current_password:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "La nueva contraseña tiene que ser distinta de la actual",
+        )
     try:
         await credenciales.change_password(db, principal.user, data.new_password)
     except CredencialesCambiadas:

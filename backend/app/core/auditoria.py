@@ -36,6 +36,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.anonimizacion import familia_de, huella_de, periodo_de, red_de
@@ -148,6 +149,22 @@ def auditar(
         actor_email=(user.email if user is not None else correo),
         team_id=equipo, objetivo=objetivo, detalle=detalle,
     ))
+
+
+async def huella_del_origen(db: AsyncSession) -> str | None:
+    """La huella con la que se guardarían los eventos de **esta** petición.
+
+    Para el freno de intentos, que cuenta fallos del mismo origen. `None` si no
+    hay IP o si en este periodo aún no existe clave (ningún evento guardado: no
+    hay nada con lo que coincidir). Lee la clave pero **no la crea**: crearla
+    es de `volcar`, en su propia sesión.
+    """
+    ctx = _contexto.get()
+    if ctx is None or not ctx.ip:
+        return None
+    periodo = periodo_de(datetime.now(UTC), PERIODO_DE_CLAVE_DIAS)
+    clave = _claves.get(periodo) or await RepositorioDeAuditoria(db).clave_si_existe(periodo)
+    return huella_de(ctx.ip, clave) if clave is not None else None
 
 
 def _fila(apunte: _Apunte, ctx: ContextoDeAuditoria, clave: bytes) -> EventoDeAuditoria:

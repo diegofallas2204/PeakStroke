@@ -7,9 +7,14 @@ Una **IP completa nunca llega al disco**. Se guardan dos derivados:
 
 - **la red** (`/24` en IPv4, `/48` en IPv6): suficiente para ver "todo esto viene
   de la red de un club" o "de otro país", insuficiente para señalar un hogar;
-- **la huella**: HMAC-SHA256 de la IP completa con la clave del periodo,
-  recortado a 128 bits. Dentro de un periodo, dos eventos desde la misma IP
-  tienen la misma huella; entre periodos, no se pueden relacionar.
+- **la huella**: HMAC-SHA256 del **origen** con la clave del periodo, recortado
+  a 128 bits. En IPv4 el origen es la IP completa; en IPv6, su `/64` (2026-11-10,
+  revisor del login). Una `/64` es lo que un proveedor da a **un** abonado, que
+  puede estrenar dirección en cada petición: con la IP entera, el freno de
+  intentos (`core/freno.py`) no frenaba a nadie en IPv6. En IPv4 no se agrupa:
+  una `/24` puede ser un operador entero con NAT, y frenarla frenaría a gente
+  ajena. Dentro de un periodo, dos eventos del mismo origen tienen la misma
+  huella; entre periodos, no se pueden relacionar.
 
 **Lo que la huella NO protege**, y hay que saberlo: las IPv4 son 2³², así que
 quien tenga la clave del periodo en curso puede recalcular la huella de todas
@@ -57,11 +62,17 @@ def red_de(texto: str | None) -> str | None:
     return str(ipaddress.ip_network(f"{ip}/{prefijo}", strict=False))
 
 
+_ORIGEN_V6 = 64
+
+
 def huella_de(texto: str | None, clave: bytes) -> str | None:
-    """HMAC de la IP completa con la clave del periodo. None si no es una IP."""
+    """HMAC del origen con la clave del periodo: la IPv4 completa, o la `/64`
+    de una IPv6. None si no es una IP."""
     ip = _ip(texto)
     if ip is None:
         return None
+    if ip.version == 6:
+        ip = ipaddress.ip_network(f"{ip}/{_ORIGEN_V6}", strict=False).network_address
     return hmac.new(clave, ip.packed, hashlib.sha256).hexdigest()[:32]
 
 

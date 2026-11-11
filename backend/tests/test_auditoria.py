@@ -305,6 +305,15 @@ def test_la_huella_depende_de_la_clave():
     assert huella_de("203.0.113.77", a) != huella_de("203.0.113.77", b)
 
 
+def test_en_ipv6_la_huella_es_de_la_64():
+    """Un abonado IPv6 tiene una /64 entera y puede estrenar dirección en cada
+    intento: el origen es la red, no la dirección. En IPv4, la dirección."""
+    a = b"a" * 32
+    assert huella_de("2001:db8:abcd:12::1", a) == huella_de("2001:db8:abcd:12:ffff::9", a)
+    assert huella_de("2001:db8:abcd:12::1", a) != huella_de("2001:db8:abcd:13::1", a)
+    assert huella_de("203.0.113.77", a) != huella_de("203.0.113.78", a)
+
+
 @pytest.mark.parametrize(("ua", "familia"), [
     ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
      "Chrome/128.0.0.0 Safari/537.36", "Chrome · Windows"),

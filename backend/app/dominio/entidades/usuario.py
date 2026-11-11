@@ -45,7 +45,7 @@ class Usuario(PorIdentidad, CamposGobernados):
 
     _GOBERNADOS: ClassVar[frozenset[str]] = frozenset({
         "hash_de_password", "version_de_token", "ultimo_login", "hash_leido",
-        "version_leida",
+        "version_leida", "password_temporal",
     })
 
     correo: str
@@ -56,6 +56,10 @@ class Usuario(PorIdentidad, CamposGobernados):
     version_de_token: int = 0
     creado: datetime | None = None
     ultimo_login: datetime | None = None
+    # La contraseña actual la generó el sistema y la conoce quien dio el alta o
+    # la restableció (TODO-27). Mientras siga puesta, la cuenta solo puede
+    # cambiarla. Solo se mueve con `cambiar_password`.
+    password_temporal: bool = False
     # El hash con el que se construyó: el que verificó el login. Escribir el
     # acceso es «si la contraseña sigue siendo esa» (revisor de TODO-30): un
     # cambio de contraseña a la vez no puede dejar entrar a quien usó la vieja.
@@ -86,11 +90,16 @@ class Usuario(PorIdentidad, CamposGobernados):
             raise ValueError("Solo una cuenta ya guardada abre sesiones")
         return SesionAbierta.abrir(self.id, ahora, vigencia)
 
-    def cambiar_password(self, nuevo_hash: str) -> None:
-        """Cambia el hash y revoca todas las sesiones. Las dos cosas o ninguna."""
+    def cambiar_password(self, nuevo_hash: str, *, temporal: bool = False) -> None:
+        """Cambia el hash y revoca todas las sesiones. Las dos cosas o ninguna.
+
+        `temporal` dice quién la eligió: `False` (por defecto) es la propia
+        persona, y la cuenta queda libre; `True` es una que generó el sistema
+        para que otro la entregue, y obliga a cambiarla al entrar."""
         if not nuevo_hash:
             raise ValueError("Una contraseña se guarda por su hash, y no puede ir vacío")
         object.__setattr__(self, "hash_de_password", nuevo_hash)
+        object.__setattr__(self, "password_temporal", temporal)
         self.revocar_sesiones()
 
     def registrar_login(self, cuando: datetime, *, nuevo_hash: str | None = None) -> None:

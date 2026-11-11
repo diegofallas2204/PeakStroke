@@ -169,7 +169,8 @@ def test_fuera_del_mapeo_nadie_asigna_los_contadores_ni_el_hash():
     asignación, y sigue siendo del repositorio (`crear`).
     """
     assert escrituras(
-        {"token_version", "refresh_rotation", "expires_at", "password_hash"},
+        {"token_version", "refresh_rotation", "expires_at", "password_hash",
+         "password_temporal"},
         {"app/persistencia/mapeo/identidad.py"},
     ) == []
 

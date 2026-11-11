@@ -92,7 +92,7 @@ async def crear_equipo(db: AsyncSession, args: argparse.Namespace, consola: Cons
     # queda un club vacío.
     club = await equipos.crear(nombre, confirmar=False)
     try:
-        user = await auth_service.create_user(db, datos, club.id)
+        user = await auth_service.create_user(db, datos, club.id, temporal=generada)
     except IntegrityError:
         await db.rollback()
         raise OperacionRechazada(
@@ -135,7 +135,7 @@ async def crear_cuenta(db: AsyncSession, args: argparse.Namespace, consola: Cons
     if args.dry_run:
         consola.decir(f"[dry-run] Crear {datos.email} como {datos.role} en «{club.name}».")
         return 0
-    user = await auth_service.create_user(db, datos, club.id)
+    user = await auth_service.create_user(db, datos, club.id, temporal=generada)
     auditar(TipoDeEvento.CUENTA_CREADA, correo=actor(), equipo=club.id,
             objetivo=("user", user.id),
             detalle=detalle("crear-cuenta", f"{user.email} como {datos.role}"))

@@ -1,9 +1,11 @@
 // Cliente HTTP tipado contra /api/v1 (proxy de Vite hacia FastAPI).
 import { getDevBypass, getDevIdentity } from '../hooks/useDevIdentity'
+import { adoptarSesion, getAccessToken, refrescar } from './sesion'
 import type {
   AerobicPreview, AerobicTest, AssignableAthlete, AuthConfig, DashboardSummary,
   DevIdentity, InputMode, InviteResult, JoinRequest, LinkCode, Member,
-  MemberCreated, PhaseInput, Plan, SeasonResult, SimulationResult, Swimmer, Team, TeamWeek,
+  MemberCreated, PhaseInput, Plan, SeasonResult, SessionResponse, SimulationResult, Swimmer,
+  Team, TeamWeek,
   TrainingIntervals, TrainingLoad, TrainingSession, TrainingSessionInput, Week,
 } from './types'
 
@@ -25,7 +27,14 @@ function devHeaders(): Record<string, string> {
   return headers
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
+/** El access token, si hay sesión real. Con el login apagado no hay ninguno. */
+function authHeader(): Record<string, string> {
+  const token = getAccessToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+async function request<T>(path: string, options?: RequestInit, reintento = true): Promise<T> {
+  const conSesion = getAccessToken() !== null
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     // Las cabeceras se MEZCLAN, no se reemplazan. Antes `...options` iba después
@@ -35,9 +44,18 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers: {
       'Content-Type': 'application/json',
       ...devHeaders(),
+      ...authHeader(),
       ...(options?.headers as Record<string, string> | undefined),
     },
   })
+  // El access token dura 15 minutos: un 401 con sesión es, casi siempre, que
+  // caducó. Se renueva (una sola vez por navegador, ver `unSoloVuelo`) y se
+  // repite la petición UNA vez. Si la renovación dice que no hay sesión, la
+  // puerta de `App` ya está enseñando el login.
+  if (res.status === 401 && conSesion && reintento) {
+    if (await refrescar()) return request<T>(path, options, false)
+    throw new Error('Tu sesión terminó. Vuelve a entrar.')
+  }
   if (!res.ok) {
     let detail = res.statusText
     try {
@@ -71,10 +89,15 @@ export const api = {
     members: () => get<Member[]>('/auth/members'),
     createMember: (data: unknown) => post<MemberCreated>('/auth/members', data),
     updateMember: (id: number, data: unknown) => patch<Member>(`/auth/members/${id}`, data),
-    changePassword: (currentPassword: string, newPassword: string) =>
-      post<void>('/auth/me/password', {
+    // Cambiar la contraseña corta TODAS las sesiones, la de esta pestaña
+    // incluida, y la respuesta trae la nueva: hay que adoptarla o la siguiente
+    // petición saldría con un token que el servidor acaba de matar.
+    changePassword: async (currentPassword: string, newPassword: string) => {
+      const sesion = await post<SessionResponse>('/auth/me/password', {
         current_password: currentPassword, new_password: newPassword,
-      }),
+      })
+      if (getAccessToken() !== null) adoptarSesion(sesion)
+    },
   },
   teams: {
     mine: () => get<Team>('/teams/mine'),

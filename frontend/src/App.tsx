@@ -5,6 +5,7 @@ import { RutaPorRol } from './components/layout/RutaPorRol'
 import { SECTION_ACCENT } from './lib/constants'
 import { Spinner } from './components/ui/primitives'
 import { Avisos } from './components/ui/Avisos'
+import { PuertaDeSesion } from './features/auth/PuertaDeSesion'
 import { useSimpleMode } from './hooks/useSimpleMode'
 
 // Code-splitting: el fondo WebGL (Three.js) y cada página viven en su propio chunk
@@ -46,6 +47,9 @@ export default function App() {
           <WaveBackground />
         </Suspense>
       )}
+      {/* La navegación también va detrás: sin sesión no hay secciones que
+          enseñar, y `Sidebar` pide datos del equipo al montarse. */}
+      <PuertaDeSesion>
       <Sidebar />
       <main
         className="relative z-10 min-h-0 flex-1 overflow-y-auto"
@@ -79,6 +83,7 @@ export default function App() {
           </Suspense>
         </div>
       </main>
+      </PuertaDeSesion>
       <Avisos />
     </div>
   )

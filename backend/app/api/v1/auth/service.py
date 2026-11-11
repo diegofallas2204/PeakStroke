@@ -40,7 +40,9 @@ async def get_by_email(db: AsyncSession, email: str) -> User | None:
     return await RepositorioDeUsuarios(db).por_correo(email)
 
 
-async def create_user(db: AsyncSession, data: UserCreate, team_id: int) -> User:
+async def create_user(
+    db: AsyncSession, data: UserCreate, team_id: int, *, temporal: bool = False,
+) -> User:
     """Crea la cuenta y su pertenencia al equipo, que es lo que le da el rol.
 
     Van juntas a propósito: un usuario sin pertenencia no puede hacer nada en la
@@ -50,7 +52,7 @@ async def create_user(db: AsyncSession, data: UserCreate, team_id: int) -> User:
     """
     user = await RepositorioDeUsuarios(db).crear(
         correo=data.email, nombre=data.name,
-        password_hash=hash_password(data.password),
+        password_hash=hash_password(data.password), temporal=temporal,
     )
     # `flush` ya dio el id; la pertenencia lo necesita para ligarse.
     db.add(TeamMember(team_id=team_id, user_id=user.id, role=data.role))
@@ -80,6 +82,7 @@ def to_member(
         # Sin pertenencia manda la cuenta: no hay acceso que revocar.
         is_active=user.is_active and (membership.is_active if membership else True),
         created_at=user.created_at, last_login_at=user.last_login_at,
+        must_change_password=user.password_temporal,
         team_id=membership.team_id if membership else None,
         team_name=team.name if team else None,
         is_owner=bool(team and team.owner_id == user.id),
@@ -267,5 +270,5 @@ async def create_member(
 
     user = await create_user(db, UserCreate(
         email=data.email, name=data.name, password=password, role=data.role,
-    ), team_id)
+    ), team_id, temporal=generated)
     return user, (password if generated else None)

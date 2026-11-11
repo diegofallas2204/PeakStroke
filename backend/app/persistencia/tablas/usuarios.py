@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, false, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -44,6 +44,12 @@ class User(Base):
     # `sesiones_abiertas`; la generación es la de «todas»: salir de todas,
     # cambiar la contraseña, revocar y liberar (que además borran sus filas).
     token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # La contraseña la generó el sistema y la vio otra persona (quien invitó o
+    # el operador que la restableció): hay que cambiarla antes de usar la app
+    # (TODO-27). La pone y la quita `Usuario.cambiar_password`.
+    password_temporal: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(),
+    )
     # timezone=True desde el principio: en SQLite es cosmético, en PostgreSQL es
     # la diferencia entre timestamptz y un timestamp naive imposible de arreglar.
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
