@@ -16,6 +16,7 @@ from app.api.v1.equipos.router import router as teams_router
 from app.api.v1.macrociclos.router import router as plans_router
 from app.api.v1.sesiones.router import router as sessions_router
 from app.api.v1.simulador.router import router as simulator_router
+from app.api.v1.tests.lactato_router import router as lactate_router
 from app.api.v1.tests.router import router as aerobic_router
 from app.api.v1.vistas.router import router as dashboard_router
 
@@ -67,6 +68,7 @@ app.include_router(swimmers_router, prefix="/api/v1/swimmers", tags=["swimmers"]
 app.include_router(link_codes_router, prefix="/api/v1/link-codes", tags=["link-codes"])
 app.include_router(plans_router, prefix="/api/v1/plans", tags=["plans"])
 app.include_router(aerobic_router, prefix="/api/v1/aerobic-tests", tags=["aerobic-tests"])
+app.include_router(lactate_router, prefix="/api/v1/lactate-tests", tags=["lactate-tests"])
 app.include_router(sessions_router, prefix="/api/v1/sessions", tags=["sessions"])
 app.include_router(
     training_load_router, prefix="/api/v1/training-load", tags=["training-load"],

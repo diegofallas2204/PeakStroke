@@ -96,6 +96,12 @@ async def test_cada_ruta_con_un_float_da_422_y_se_puede_leer(client, world: Worl
         ("POST", f"{API}/simulator/run", {"distance": 200, "stroke": "libre", "goal_time": 120.0,
                                            "total_weeks": 12, "total_km": 300}, "current_time"),
         ("POST", f"{API}/simulator/season", {"distance": 200, "stroke": "libre"}, "current_time"),
+        ("POST", f"{API}/lactate-tests/", {"swimmer_id": world.sofia_swimmer_id, "test_date": "2026-09-22",
+                                            "target_zone": "R1", "rep_distance": 400,
+                                            "reps": [{"swim_time": 291.0}]}, "reference_time"),
+        ("POST", f"{API}/lactate-tests/analyze", {"swimmer_id": world.sofia_swimmer_id, "test_date": "2026-09-22",
+                                                   "target_zone": "R1", "rep_distance": 400,
+                                                   "reps": [{"swim_time": 291.0}]}, "rest_s"),
     ]
     semana = (await client.get(f"{API}/plans/events/{world.sofia_event_id}/weeks", headers=jefe)).json()[3]
     casos.append(("PATCH", f"{API}/plans/weeks/{semana['id']}", {}, "real_time"))

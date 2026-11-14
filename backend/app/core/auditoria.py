@@ -80,6 +80,7 @@ class TipoDeEvento(StrEnum):
     NADADOR_RESTAURADO = "nadador.restaurado"
     TEST_BAJA = "test_aerobico.baja"
     TEST_RESTAURADO = "test_aerobico.restaurado"
+    TEST_DE_LACTATO_BAJA = "test_de_lactato.baja"
     INSCRIPCION_BAJA = "inscripcion.baja"
     INSCRIPCION_RESTAURADA = "inscripcion.restaurada"
     MACROCICLO_BORRADO = "macrociclo.borrado"

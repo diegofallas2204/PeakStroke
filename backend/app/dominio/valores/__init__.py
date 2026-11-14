@@ -19,6 +19,7 @@ from .escalas import (
     Tendencia,
     TipoDeTest,
 )
+from .lactato import EstadoDeZona, MetodoDeFc, ModoDeLactato, SitioDeMuestra, TipoDeDescanso
 from .prueba import (
     DISTANCIA_TIER_1,
     EVENTOS_DE_REFERENCIA,
@@ -40,4 +41,6 @@ __all__ = [
     # escalas
     "Nivel", "Perfil", "Fase", "Especialidad", "Genero", "TipoDeTest",
     "ModoDeIngreso", "Tendencia", "EstadoDeMacro", "Veredicto",
+    # lactato
+    "ModoDeLactato", "TipoDeDescanso", "SitioDeMuestra", "MetodoDeFc", "EstadoDeZona",
 ]

@@ -152,7 +152,7 @@ export function roleMeta(role: string | null | undefined, isOwner = false) {
 
 export const ZONE_META: Record<string, { label: string; color: string }> = {
   R1: { label: 'Base aeróbica', color: '#34d399' },
-  R2: { label: 'Umbral aeróbico', color: '#22d3ee' },
+  R2: { label: 'Umbral anaeróbico', color: '#22d3ee' },
   MVO2: { label: 'VO2 máximo', color: '#60a5fa' },
   RL: { label: 'Res. lactato', color: '#fbbf24' },
   V: { label: 'Velocidad', color: '#fb7185' },

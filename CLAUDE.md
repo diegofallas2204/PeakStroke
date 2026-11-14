@@ -153,6 +153,12 @@ cd backend && .venv\Scripts\python tools/ops.py salud
   sigue siendo del operador, `ops.py restablecer-password`—; la temporal sale una
   vez, queda marcada (TODO-27), corta todas sus sesiones y se audita como
   `cuenta.password_restablecida` con el entrenador de actor
+- **El test de lactato no es un test aeróbico** (2026-11-13): vive en
+  `lactate_tests`, aparte de `aerobic_tests`, porque su ritmo no es una base
+  aeróbica y aquella tabla la leen la base por defecto al inscribir y el CSS de
+  la carga. No guarda nada derivado: lo calcula `TestDeLactato` al leer, y los
+  avisos de calidad (`servicios/avisos_de_lactato.py`) avisan, no bloquean. Los
+  rangos de lactato por zona viven solo en `Zona.rango_de_lactato`
 - **Toda ruta exige sesión salvo las de `PUBLICAS`** (`tests/test_rutas_con_sesion.py`,
   2026-11-13): el test llama a **todas** las rutas del OpenAPI sin token y con el
   login encendido, y falla si alguna responde algo distinto de 401. Lo destapó

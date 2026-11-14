@@ -39,6 +39,7 @@ from .semana import Semana
 from .sesion import RPE_MAXIMO, RPE_MINIMO, Sesion
 from .sesion_abierta import SesionAbierta
 from .test_aerobico import PENDIENTE_DE_TENDENCIA, Parcial, TestAerobico
+from .test_de_lactato import ProtocoloDeMuestra, Repeticion, TestDeLactato
 from .usuario import Usuario
 
 __all__ = [
@@ -61,6 +62,8 @@ __all__ = [
     "Sesion", "RPE_MINIMO", "RPE_MAXIMO",
     # test aeróbico
     "TestAerobico", "Parcial", "PENDIENTE_DE_TENDENCIA",
+    # test de lactato
+    "TestDeLactato", "Repeticion", "ProtocoloDeMuestra",
     # usuario
     "Usuario", "SesionAbierta",
     # equipo

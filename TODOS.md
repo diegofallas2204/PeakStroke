@@ -803,10 +803,9 @@ dos primeros conviene cerrarlos antes de usuarios reales.
   la temporal sigue valiendo (no abre ningún dato de equipo). Arreglarlo es dar
   a esa ruta `get_current_user`, que hoy solo usan tres endpoints **por regla
   escrita** (`CLAUDE.md`): decisión de la persona.
-- **No hay «olvidé mi contraseña».** La restablece el operador con
-  `ops.py restablecer-password`; un entrenador no puede restablecer la de su
-  atleta desde la app. La pantalla de login lo dice mal («pídeselo a tu
-  entrenador»): o se construye ese botón para el entrenador, o se cambia el texto.
+- ~~**No hay «olvidé mi contraseña».**~~ Hecho en `modulo/atletas` (2026-11-13):
+  el entrenador pone una temporal a su atleta desde su ficha. La de un
+  entrenador sigue siendo del operador (`ops.py restablecer-password`).
 - **El freno por origen y las redes compartidas.** 20 fallos en 15 min desde la
   misma IP frenan esa IP: el primer día de un club entero en la wifi de la
   piscina puede llegar. La espera empieza en 30 s y solo crece con fallos nuevos.
@@ -815,3 +814,31 @@ dos primeros conviene cerrarlos antes de usuarios reales.
 - El cliente sigue mandando las cabeceras del conmutador de desarrollo si
   quedaron en `localStorage` de antes; con el login puesto nadie las lee.
 - Sin `navigator.locks` (Safari < 15.4) dos pestañas pueden volver a chocar.
+
+## TODO-37 — Test de lactato: lo que la v1 deja para después (P3)
+
+La v1 (2026-11-13, `modulo/pruebas`) es el modo **control de zona**. Decisiones
+tomadas con la opción recomendada del prompt (nota del vault) o, sin ella, la
+de menos cambio:
+
+- **Agregado propio** (`lactate_tests`), no un `TipoDeTest`: `aerobic_tests` lo
+  leen la base por defecto al inscribir **y** el CSS de la carga; separado, no
+  hay filtro que olvidar. `test_lactato_api.py` lo fija.
+- **Pausa o salida** se guarda como tipo + segundos; los tiempos son siempre los
+  nadados (no hay modo de llegadas de reloj).
+- **El hueco 3.5–4.0 mmol/L** no es de ninguna zona: por encima de R1, por
+  debajo de R2. Rangos en `Zona.rango_de_lactato`, un solo sitio.
+- **La mejor marca** se escribe a mano (opcional).
+- **Lo apunta el entrenador**; el atleta ve los suyos.
+
+Queda:
+- ✨ El modo **escalonado** (5-7×200): el modelo y la base ya lo admiten, el API
+  aún no. Con él, la curva lactato-velocidad y los umbrales (cada uno con su
+  **método**, nota 28 §2); en menores, nunca 4 mmol/L por defecto. Recalibrar las
+  zonas del motor con ellos mueve el snapshot: bloque propio.
+- ✨ Prellenar la mejor marca desde los resultados del atleta.
+- ✨ Importar la hoja de Excel del entrenador.
+- En menores el techo de R1 es su propio umbral: hoy la app solo lo avisa.
+- La migración `a7d3e5f1c9b4` no se probó en PostgreSQL (sí arriba y abajo en
+  SQLite, con `alembic check` limpio). Usa una columna `JSON`.
+- La página del atleta todavía no enlaza a sus tests de lactato (nota 27).

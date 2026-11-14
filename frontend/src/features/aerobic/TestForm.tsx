@@ -10,7 +10,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../lib/api'
 import type { InputMode } from '../../lib/types'
-import { tryToSeconds, toClock } from '../../lib/format'
+import { isoDay, tryToSeconds, toClock } from '../../lib/format'
 import { Field, Modal } from '../../components/ui/primitives'
 
 const MODES = [
@@ -45,7 +45,7 @@ export function TestForm({
     if (open) {
       setError(''); setSplitsText(''); setDirect(''); setT400(''); setT50(''); setNotes('')
       setSendOffText(''); setInputMode('rep')
-      setDate(new Date().toISOString().slice(0, 10))
+      setDate(isoDay(new Date()))
     }
   }
 

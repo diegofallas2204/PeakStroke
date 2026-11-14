@@ -3,7 +3,8 @@ import { getDevBypass, getDevIdentity } from '../hooks/useDevIdentity'
 import { adoptarSesion, getAccessToken, refrescar } from './sesion'
 import type {
   AerobicPreview, AerobicTest, AssignableAthlete, AuthConfig, DashboardSummary,
-  DevIdentity, InputMode, InviteResult, JoinRequest, LinkCode, Member,
+  DevIdentity, InputMode, InviteResult, JoinRequest, LactateAnalysis, LactateTest,
+  LactateTestCreate, LinkCode, Member,
   MemberCreated, PhaseInput, Plan, SeasonResult, SessionResponse, SimulationResult, Swimmer,
   Team, TeamWeek,
   TrainingIntervals, TrainingLoad, TrainingSession, TrainingSessionInput, Week,
@@ -201,6 +202,14 @@ export const api = {
         `/aerobic-tests/${testId}/training-intervals?rep_distance=${repDistance}`,
       ),
     remove: (id: number) => del(`/aerobic-tests/${id}`),
+  },
+  // Test de lactato (2026-11-13). Agregado aparte del test aeróbico: su ritmo
+  // no es una base aeróbica. Apuntarlo y darlo de baja es del entrenador.
+  lactate: {
+    list: (swimmerId: number) => get<LactateTest[]>(`/lactate-tests/?swimmer_id=${swimmerId}`),
+    create: (data: LactateTestCreate) => post<LactateTest>('/lactate-tests/', data),
+    analyze: (data: LactateTestCreate) => post<LactateAnalysis>('/lactate-tests/analyze', data),
+    remove: (id: number) => del(`/lactate-tests/${id}`),
   },
   // Lo que el atleta nadó cada día. El atleta apunta lo suyo y el entrenador lo
   // de sus atletas; lo ajeno es 404. El borrado es REAL (excepción a «nada se

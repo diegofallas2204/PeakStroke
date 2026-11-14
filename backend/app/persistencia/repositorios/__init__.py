@@ -22,6 +22,7 @@ from .semanas import PlanDePrueba, RepositorioDeSemanas
 from .sesiones import RepositorioDeSesiones
 from .sesiones_abiertas import RepositorioDeSesionesAbiertas
 from .tests_aerobicos import RepositorioDeTests
+from .tests_de_lactato import RepositorioDeTestsDeLactato
 from .usuarios import RepositorioDeUsuarios
 
 __all__ = [
@@ -38,5 +39,6 @@ __all__ = [
     "RepositorioDeSesiones",
     "RepositorioDeSesionesAbiertas",
     "RepositorioDeTests",
+    "RepositorioDeTestsDeLactato",
     "RepositorioDeUsuarios",
 ]
