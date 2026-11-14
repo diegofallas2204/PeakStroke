@@ -20,4 +20,5 @@ from app.persistencia.tablas import planes as _planes  # noqa: F401
 from app.persistencia.tablas import resultados as _resultados  # noqa: F401
 from app.persistencia.tablas import sesiones as _sesiones  # noqa: F401
 from app.persistencia.tablas import tests_aerobicos as _tests  # noqa: F401
+from app.persistencia.tablas import tests_de_lactato as _lactato  # noqa: F401
 from app.persistencia.tablas import usuarios as _usuarios  # noqa: F401

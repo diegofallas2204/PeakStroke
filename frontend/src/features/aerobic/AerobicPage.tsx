@@ -1,16 +1,22 @@
 // Base aeróbica: historial de tests por atleta + registro de nuevos tests
-// (T-30, T-15, personalizado N×D, CSS 400/50 o ingreso directo).
+// (T-30, T-15, personalizado N×D, CSS 400/50 o ingreso directo), y la vista
+// «Lactato» (`?vista=lactato`, 2026-11-13) con el test de lactato.
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Timer, Plus, Trash2, TrendingDown, TrendingUp, Minus } from 'lucide-react'
+import { Droplet, Timer, Plus, Trash2, TrendingDown, TrendingUp, Minus } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { AerobicTest } from '../../lib/types'
 import { TEST_TYPE_LABEL } from '../../lib/constants'
-import { toClock } from '../../lib/format'
+import { fechaCorta, toClock } from '../../lib/format'
+import { confirmar } from '../../lib/confirmar'
 import { usePageEnter } from '../../hooks/usePageEnter'
+import { useIsCoach } from '../../hooks/useSession'
 import { PageHeader } from '../../components/layout/PageHeader'
-import { Card, EmptyState, Spinner } from '../../components/ui/primitives'
+import { Card, EmptyState, Segmented, Spinner } from '../../components/ui/primitives'
+import { ErrorDeCarga } from '../../components/ui/ErrorDeCarga'
+import { LactatoForm } from './LactatoForm'
+import { LactatoVista } from './LactatoVista'
 import { TestForm } from './TestForm'
 import { SplitsChart } from './SplitsChart'
 import { TrainingIntervalsCard } from './TrainingIntervalsCard'
@@ -24,17 +30,26 @@ const TREND_META = {
 export function AerobicPage() {
   // `?atleta=<id>` llega desde la página del atleta. Como en Entrenamiento,
   // solo vale si está en la lista (que ya viene acotada).
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const [swimmerId, setSwimmerId] = useState<number | null>(Number(params.get('atleta')) || null)
   const [selectedTest, setSelectedTest] = useState<number | null>(null)
+  const [selectedLactate, setSelectedLactate] = useState<number | null>(null)
   const [showForm, setShowForm] = useState(false)
   const queryClient = useQueryClient()
+  const isCoach = useIsCoach()
+  const vista = params.get('vista') === 'lactato' ? 'lactato' : 'tests'
+  const cambiarVista = (v: 'tests' | 'lactato') => {
+    const siguiente = new URLSearchParams(params)
+    if (v === 'lactato') siguiente.set('vista', 'lactato')
+    else siguiente.delete('vista')
+    setParams(siguiente, { replace: true })
+  }
 
   const { data: swimmers } = useQuery({ queryKey: ['swimmers', ''], queryFn: () => api.swimmers.list() })
   const activeSwimmer = (swimmers?.some((s) => s.id === swimmerId) ? swimmerId : null)
     ?? swimmers?.[0]?.id ?? null
 
-  const { data: tests, isLoading } = useQuery({
+  const { data: tests, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['aerobic', activeSwimmer],
     queryFn: () => api.aerobic.list(activeSwimmer!),
     enabled: activeSwimmer != null,
@@ -56,9 +71,17 @@ export function AerobicPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['aerobic'] }),
   })
 
-  const borrar = (id: number) => {
-    if (confirm('¿Eliminar este test?')) removeTest.mutate(id)
+  const borrar = async (id: number) => {
+    if (await confirmar({
+      titulo: '¿Retirar este test?',
+      texto: 'Deja de contar para la base aeróbica y la carga. La medición no se borra.',
+      accion: 'Retirar', peligro: true,
+    })) removeTest.mutate(id)
   }
+  const atleta = swimmers?.find((s) => s.id === activeSwimmer)
+  const menor = atleta?.age != null && atleta.age < 18
+  // El de lactato lo apunta el entrenador: la muestra la toma el equipo técnico.
+  const puedeRegistrar = activeSwimmer != null && (vista === 'tests' || isCoach)
 
   const ref = usePageEnter([activeSwimmer, isLoading])
 
@@ -66,9 +89,16 @@ export function AerobicPage() {
     <div ref={ref} className="flex flex-col gap-5">
       <PageHeader
         title="Base aeróbica"
-        subtitle="T-30 / T-15, tests personalizados y CSS: el punto de partida del motor de predicción"
+        subtitle="T-30, T-15, CSS y lactato"
         actions={
           <>
+            <Segmented
+              label="Qué medir" value={vista} onChange={cambiarVista} accent="#fb7185"
+              options={[
+                { value: 'tests', label: <span className="flex items-center gap-1"><Timer size={12} /> Tests</span> },
+                { value: 'lactato', label: <span className="flex items-center gap-1"><Droplet size={12} /> Lactato</span> },
+              ]}
+            />
             {/* El selector solo tiene sentido con varios nadadores entre los que
                 elegir. A un atleta le sale un desplegable de una sola opción con
                 su propio nombre, que es ruido. */}
@@ -84,17 +114,30 @@ export function AerobicPage() {
             {/* Sin nadador no hay a quién registrarle el test: el backend lo
                 rechazaría con un 404 que aquí se leería como un fallo. Es el
                 caso del atleta cuya cuenta nadie ligó todavía a una ficha. */}
-            {activeSwimmer != null && (
+            {puedeRegistrar && (
               <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-                <Plus size={14} /> Registrar test
+                <Plus size={14} /> {vista === 'lactato' ? 'Test de lactato' : 'Registrar test'}
               </button>
             )}
           </>
         }
       />
 
-      {isLoading ? (
+      {vista === 'lactato' ? (
+        activeSwimmer == null ? (
+          <EmptyState icon={<Droplet size={24} />} title="Sin ficha deportiva"
+            hint="Tu cuenta todavía no está ligada a un nadador. Pídeselo a tu entrenador." />
+        ) : (
+          <LactatoVista
+            swimmerId={activeSwimmer} menor={menor} puedeApuntar={isCoach}
+            seleccionado={selectedLactate} onSeleccionar={setSelectedLactate}
+            onNuevo={() => setShowForm(true)}
+          />
+        )
+      ) : isLoading ? (
         <Spinner />
+      ) : isError ? (
+        <ErrorDeCarga error={error} que="los tests" onReintentar={() => void refetch()} reintentando={isFetching} />
       ) : !tests?.length ? (
         <EmptyState
           icon={<Timer size={24} />}
@@ -138,7 +181,7 @@ export function AerobicPage() {
                           <span className="text-[10px] text-text-dim">{t.rep_count}×{t.rep_distance}</span>
                         )}
                       </div>
-                      <p className="mt-0.5 text-[10px] text-text-faint">{t.test_date}</p>
+                      <p className="mt-0.5 text-[10px] text-text-faint">{fechaCorta(t.test_date)}</p>
                     </div>
                     <div className="text-right">
                       <p className="mono text-[12.5px] font-bold text-accent-soft">{toClock(t.avg_per100)}</p>
@@ -152,9 +195,9 @@ export function AerobicPage() {
                   <button
                     type="button"
                     className="reveal shrink-0 rounded-md p-1.5 text-text-faint transition-colors hover:text-coral"
-                    aria-label={`Eliminar el test del ${t.test_date}`}
-                    title="Eliminar test"
-                    onClick={() => borrar(t.id)}
+                    aria-label={`Retirar el test del ${fechaCorta(t.test_date)}`}
+                    title="Retirar test"
+                    onClick={() => void borrar(t.id)}
                   >
                     <Trash2 size={12.5} />
                   </button>
@@ -169,9 +212,15 @@ export function AerobicPage() {
       )}
 
       <TestForm
-        open={showForm}
+        open={showForm && vista === 'tests'}
         swimmerId={activeSwimmer}
         onClose={() => setShowForm(false)}
+      />
+      <LactatoForm
+        open={showForm && vista === 'lactato'}
+        swimmerId={activeSwimmer}
+        onClose={() => setShowForm(false)}
+        onCreado={setSelectedLactate}
       />
     </div>
   )
@@ -252,7 +301,7 @@ function TestDetail({ test, previous }: { test: AerobicTest; previous: AerobicTe
         <Card
           title={
             previous
-              ? `Parciales /100m · comparado con ${TEST_TYPE_LABEL[previous.test_type]} (${previous.test_date})`
+              ? `Parciales /100m · comparado con ${TEST_TYPE_LABEL[previous.test_type]} (${fechaCorta(previous.test_date)})`
               : 'Parciales /100m'
           }
           className="card-hover"

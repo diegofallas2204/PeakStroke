@@ -28,6 +28,7 @@ from app.persistencia.repositorios import (
     RepositorioDeSemanas,
     RepositorioDeSesiones,
     RepositorioDeTests,
+    RepositorioDeTestsDeLactato,
     RepositorioDeUsuarios,
 )
 
@@ -86,6 +87,13 @@ async def repo_de_tests(
     principal: Principal = Depends(get_current_principal),
 ) -> RepositorioDeTests:
     return RepositorioDeTests(db, principal)
+
+
+async def repo_de_tests_de_lactato(
+    db: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(get_current_principal),
+) -> RepositorioDeTestsDeLactato:
+    return RepositorioDeTestsDeLactato(db, principal)
 
 
 async def repo_de_usuarios(db: AsyncSession = Depends(get_db)) -> RepositorioDeUsuarios:

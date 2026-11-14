@@ -17,9 +17,14 @@ from app.dominio.valores import (
     EstadoDeMacro,
     Estilo,
     Genero,
+    MetodoDeFc,
     ModoDeIngreso,
+    ModoDeLactato,
     Piscina,
+    SitioDeMuestra,
+    TipoDeDescanso,
     TipoDeTest,
+    Zona,
 )
 
 ESTILOS: tuple[str, ...] = tuple(e.value for e in Estilo)
@@ -29,6 +34,12 @@ PISCINAS: tuple[str, ...] = tuple(p.value for p in Piscina)
 ESTADOS_DE_MACRO: tuple[str, ...] = tuple(e.value for e in EstadoDeMacro)
 TIPOS_DE_TEST: tuple[str, ...] = tuple(t.value for t in TipoDeTest)
 MODOS_DE_INGRESO: tuple[str, ...] = tuple(m.value for m in ModoDeIngreso)
+# Test de lactato (migración a7d3e5f1c9b4, con su propia copia).
+MODOS_DE_LACTATO: tuple[str, ...] = tuple(m.value for m in ModoDeLactato)
+ZONAS: tuple[str, ...] = tuple(z.value for z in Zona)
+TIPOS_DE_DESCANSO: tuple[str, ...] = tuple(t.value for t in TipoDeDescanso)
+SITIOS_DE_MUESTRA: tuple[str, ...] = tuple(s.value for s in SitioDeMuestra)
+METODOS_DE_FC: tuple[str, ...] = tuple(m.value for m in MetodoDeFc)
 
 
 def en(columna: str, valores: tuple[str, ...], *, nombre: str, nulo: bool = False) -> CheckConstraint:

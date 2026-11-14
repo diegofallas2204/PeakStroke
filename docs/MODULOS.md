@@ -218,13 +218,21 @@ de módulo lo reciben con `git merge Preliminar`.
 - ~~`confirm()` del navegador~~ al dar de baja y al revocar un código; un fallo de
   carga ya no sale como «Aún no hay atletas» ni como «Atleta no encontrado».
 
-**`modulo/pruebas`** (Base aeróbica)
-- ✨ **Test de lactato** como opción del test aeróbico: notas 26 y 28 del vault,
-  con su prompt listo (`Workflows/Prompt — Sesión del Test de Lactato`). Es la
-  función nueva más grande que ya está desbloqueada.
-- ❓ ¿Base aeróbica pasa a ser la cuarta vista de Plan semanal o sigue como
-  sección? (la «cuarta pestaña de B1», abierta desde el 2026-08-16).
-- 🧹 Fechas en ISO en el historial de tests; `confirm()` al eliminar un test.
+**`modulo/pruebas`** (Base aeróbica) — ✅ **v1 del lactato hecha** (2026-11-13).
+Trae una migración nueva (`a7d3e5f1c9b4`, dos tablas): al fusionar hay que
+correr `alembic upgrade head` en cada base.
+- ~~**Test de lactato**~~: vista «Lactato» de `/pruebas` (`?vista=lactato`), del
+  modo **control de zona** (serie a ritmo constante). Se apunta tiempo, lactato,
+  FC, esfuerzo CR-10 y brazadas; el resto lo calcula el dominio y avisa (sin
+  bloquear) de muestras dudosas. Agregado **aparte** de `aerobic_tests`: su ritmo
+  no es una base aeróbica y no entra ni en la base por defecto ni en la carga.
+  Decisiones de la v1 y lo que queda (escalonado, curva, Excel): TODO-37.
+- ~~❓ ¿Base aeróbica pasa a ser la cuarta vista de Plan semanal?~~ Sigue como
+  sección (no había opción recomendada; se dejó como está y el lactato entró en
+  ella como vista, que es lo que pedía la nota 26).
+- ~~🧹 Fechas en ISO en el historial; `confirm()` al eliminar un test~~: fecha
+  corta, diálogo propio («Retirar», que es lo que hace), error ≠ vacío y la fecha
+  de hoy sin pasar por UTC en el formulario.
 
 **`modulo/plan-semanal`**
 - ❓ **N1 y N2** (`REDISENO.md` §10.3): qué entra en el promedio semanal —

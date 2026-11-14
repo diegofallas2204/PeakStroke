@@ -40,10 +40,27 @@ from .tiempo import PASO_DE_RELOJ_S, Duracion, Ritmo, Tiempo
 # base aeróbica pediría 50 s (deja de ser continuo).
 _DATOS_DE_ZONA: dict[str, tuple[str, float, tuple[float, float]]] = {
     "R1":   ("Base aeróbica",       0.08, (5.0, 20.0)),
-    "R2":   ("Umbral aeróbico",     0.15, (10.0, 30.0)),
+    "R2":   ("Umbral anaeróbico",   0.15, (10.0, 30.0)),
     "MVO2": ("VO2 máximo",          0.50, (15.0, 90.0)),
     "RL":   ("Resistencia lactato", 1.50, (30.0, 240.0)),
     "V":    ("Velocidad pura",      3.50, (60.0, 300.0)),
+}
+
+# Rango de lactato que se busca en cada zona, en mmol/L (adultos). Decidido el
+# 2026-09-22 (nota 03 del vault, corregida). **Un solo sitio**: de aquí sale el
+# «dentro/fuera de zona» del test de lactato.
+#
+# - Entre 3.5 y 4.0 no hay zona: una muestra ahí está por encima de R1 y por
+#   debajo de R2, y así se dice. No se reparte el hueco a ojo.
+# - En menores el techo de R1 es su propio umbral, que hoy no se mide (llega con
+#   el test escalonado): la referencia de adulto es orientativa para ellos.
+# - V es aláctica: se prescribe por distancia y descanso, no por lactato.
+_RANGO_DE_LACTATO: dict[str, tuple[float, float | None] | None] = {
+    "R1":   (2.0, 3.5),
+    "R2":   (4.0, 6.0),
+    "MVO2": (6.0, 8.0),
+    "RL":   (8.0, None),
+    "V":    None,
 }
 
 
@@ -78,6 +95,11 @@ class Zona(Enum):
     @property
     def etiqueta(self) -> str:
         return _DATOS_DE_ZONA[self.value][0]
+
+    @property
+    def rango_de_lactato(self) -> tuple[float, float | None] | None:
+        """(mínimo, máximo) en mmol/L; máximo `None` = sin techo. `None` en V."""
+        return _RANGO_DE_LACTATO[self.value]
 
     @property
     def ratio_descanso(self) -> float:
