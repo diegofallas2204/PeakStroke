@@ -7,10 +7,12 @@
 // aquí a solas (ver `LinkCodeModal`).
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Search, UserPlus, Users } from 'lucide-react'
+import { Eye, EyeOff, Search, UserPlus, Users } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { Swimmer } from '../../lib/types'
 import { usePageEnter } from '../../hooks/usePageEnter'
+import { confirmar } from '../../lib/confirmar'
+import { ErrorDeCarga } from '../../components/ui/ErrorDeCarga'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { EmptyState, Spinner } from '../../components/ui/primitives'
 import { SwimmerForm } from './SwimmerForm'
@@ -26,10 +28,16 @@ export function SwimmersPage() {
   const [accessOf, setAccessOf] = useState<Swimmer | null>(null)
   const queryClient = useQueryClient()
 
-  const { data: swimmers, isLoading } = useQuery({
-    queryKey: ['swimmers', search],
-    queryFn: () => api.swimmers.list(search || undefined),
+  // Con los de baja incluidos: dar de baja se puede deshacer, y hasta el
+  // 2026-11-13 no había ninguna pantalla que los enseñara — el atleta
+  // desaparecía para siempre aunque el backend supiera reactivarlo.
+  const [verDeBaja, setVerDeBaja] = useState(false)
+  const { data: todos, isLoading, isError, error, refetch, isFetching } = useQuery({
+    queryKey: ['swimmers', search, 'con-bajas'],
+    queryFn: () => api.swimmers.list(search || undefined, true),
   })
+  const deBaja = (todos ?? []).filter((s) => !s.is_active)
+  const swimmers = (todos ?? []).filter((s) => s.is_active || verDeBaja)
   // Los códigos llegan aparte y se cruzan por `swimmer_id`: la definición de
   // "código vivo" vive en su módulo y no duplicada en el de atletas.
   const { data: codes } = useQuery({ queryKey: ['link-codes'], queryFn: api.linkCodes.list })
@@ -39,6 +47,10 @@ export function SwimmersPage() {
   // tiempos reales, tests— se conserva y puede reactivarse.
   const deactivateMutation = useMutation({
     mutationFn: (id: number) => api.swimmers.deactivate(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['swimmers'] }),
+  })
+  const reactivateMutation = useMutation({
+    mutationFn: (id: number) => api.swimmers.reactivate(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['swimmers'] }),
   })
 
@@ -67,6 +79,16 @@ export function SwimmersPage() {
             <button className="btn btn-ghost" onClick={() => { setEditing(null); setShowForm(true) }}>
               Solo ficha
             </button>
+            {deBaja.length > 0 && (
+              <button
+                type="button" role="switch" aria-checked={verDeBaja}
+                className="btn btn-ghost"
+                onClick={() => setVerDeBaja(!verDeBaja)}
+                title={verDeBaja ? 'Ocultar los dados de baja' : 'Ver los dados de baja'}
+              >
+                {verDeBaja ? <EyeOff size={14} /> : <Eye size={14} />} De baja · {deBaja.length}
+              </button>
+            )}
             <button className="btn btn-primary" onClick={() => setShowInvite(true)}>
               <UserPlus size={14} /> Agregar atleta
             </button>
@@ -76,7 +98,9 @@ export function SwimmersPage() {
 
       {isLoading ? (
         <Spinner />
-      ) : !swimmers?.length ? (
+      ) : isError ? (
+        <ErrorDeCarga error={error} que="los atletas" onReintentar={() => void refetch()} reintentando={isFetching} />
+      ) : !swimmers.length ? (
         <EmptyState
           icon={<Users size={24} />}
           title={search ? 'Sin resultados' : 'Aún no hay atletas'}
@@ -98,12 +122,14 @@ export function SwimmersPage() {
               code={codeOf.get(swimmer.id)}
               onEdit={() => { setEditing(swimmer); setShowForm(true) }}
               onManageAccess={() => setAccessOf(swimmer)}
-              onDeactivate={() => {
-                if (confirm(
-                  `¿Dar de baja a ${swimmer.name}? Sus planes, tiempos y tests se conservan.`,
-                ))
-                  deactivateMutation.mutate(swimmer.id)
+              onDeactivate={async () => {
+                if (await confirmar({
+                  titulo: `¿Dar de baja a ${swimmer.name}?`,
+                  texto: 'Deja de salir en el equipo. Sus planes, tiempos y tests se conservan, y se puede reactivar desde «De baja».',
+                  accion: 'Dar de baja',
+                })) deactivateMutation.mutate(swimmer.id)
               }}
+              onReactivate={() => reactivateMutation.mutate(swimmer.id)}
             />
           ))}
         </div>

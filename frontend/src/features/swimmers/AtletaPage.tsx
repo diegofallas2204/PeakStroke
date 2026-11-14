@@ -7,10 +7,13 @@
 // nuevo: lee lo que ya sirven la ficha, los macrociclos, los tests y la carga,
 // todos acotados por el backend como siempre — un id ajeno es un 404.
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, KeyRound, MailCheck, Pencil, UserX } from 'lucide-react'
-import { api } from '../../lib/api'
+import { ArchiveRestore, ArrowLeft, CalendarRange, KeyRound, MailCheck, Pencil, UserX } from 'lucide-react'
+import { api, esNoEncontrado } from '../../lib/api'
+import { enlace } from '../../lib/modulos'
+import { ErrorDeCarga } from '../../components/ui/ErrorDeCarga'
+import { RestablecerPassword } from './RestablecerPassword'
 import { SPECIALTY_COLOR, SPECIALTY_LABEL, STROKE_LABEL } from '../../lib/constants'
 import { initials } from '../../lib/format'
 import { usePageEnter } from '../../hooks/usePageEnter'
@@ -24,7 +27,7 @@ export function AtletaPage() {
   const [editando, setEditando] = useState(false)
   const [acceso, setAcceso] = useState(false)
 
-  const { data: atleta, isLoading, isError } = useQuery({
+  const { data: atleta, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['swimmer', id],
     queryFn: () => api.swimmers.getOne(id),
     enabled: Number.isFinite(id),
@@ -32,10 +35,29 @@ export function AtletaPage() {
   })
   const { data: codigos } = useQuery({ queryKey: ['link-codes'], queryFn: api.linkCodes.list })
   const codigo = codigos?.find((c) => c.swimmer_id === id) ?? null
+  // Su macrociclo, para llevar a él en Macrociclos (nota 27). La consulta es la
+  // misma que la de su bloque: no hay petición nueva.
+  const { data: planes } = useQuery({ queryKey: ['plans'], queryFn: api.plans.list })
+  const suyos = (planes ?? []).filter((p) => p.athletes.some((a) => a.swimmer_id === id))
+  const macro = suyos.find((p) => p.effective_status === 'active') ?? suyos[0]
+  const aMacro = macro ? enlace(`/macrociclos#macro-${macro.id}`) : undefined
+
+  const queryClient = useQueryClient()
+  const reactivar = useMutation({
+    mutationFn: () => api.swimmers.reactivate(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['swimmer', id] })
+      queryClient.invalidateQueries({ queryKey: ['swimmers'] })
+    },
+  })
 
   const ref = usePageEnter([isLoading, atleta?.id])
 
   if (isLoading) return <Spinner />
+  // Un fallo no es «no encontrado»: solo el 404 lo es.
+  if (isError && !esNoEncontrado(error)) {
+    return <ErrorDeCarga error={error} que="el atleta" onReintentar={() => void refetch()} reintentando={isFetching} />
+  }
   if (isError || !atleta) {
     return (
       <EmptyState
@@ -82,6 +104,19 @@ export function AtletaPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {!atleta.is_active && (
+            <IconButton label={`Reactivar a ${atleta.name}`} onClick={() => reactivar.mutate()} disabled={reactivar.isPending}>
+              <ArchiveRestore size={14} className="text-mint" />
+            </IconButton>
+          )}
+          {aMacro && (
+            <Link to={aMacro} className="btn btn-ghost btn-icon" aria-label={`Su macrociclo: ${macro!.name}`} title={`Su macrociclo: ${macro!.name}`}>
+              <CalendarRange size={14} />
+            </Link>
+          )}
+          {atleta.user_id != null && atleta.user_email && (
+            <RestablecerPassword userId={atleta.user_id} nombre={atleta.name} />
+          )}
           {atleta.user_email ? (
             <span
               className="flex max-w-56 items-center gap-1.5 truncate text-[11.5px] text-text-dim"

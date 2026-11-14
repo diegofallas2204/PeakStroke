@@ -66,7 +66,7 @@ export function LoginPage() {
           <LogIn size={15} /> {entrando ? 'Entrando…' : 'Entrar'}
         </button>
         <p className="text-center text-[11px] leading-relaxed text-text-faint">
-          ¿No recuerdas tu contraseña? Pídele a tu entrenador que te la restablezca.
+          ¿No recuerdas tu contraseña? Tu entrenador puede ponerte una temporal desde tu ficha.
         </p>
       </form>
     </MarcoDeAcceso>

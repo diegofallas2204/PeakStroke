@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check, Copy, KeyRound, RefreshCw, Trash2 } from 'lucide-react'
 import { api } from '../../lib/api'
+import { confirmar } from '../../lib/confirmar'
 import type { LinkCode, Swimmer } from '../../lib/types'
 import { Modal } from '../../components/ui/primitives'
 
@@ -91,9 +92,12 @@ export function LinkCodeModal({
             <button
               className="btn btn-danger"
               disabled={revocar.isPending}
-              onClick={() => {
-                if (confirm('¿Revocar este código? Dejará de servir de inmediato.'))
-                  revocar.mutate()
+              onClick={async () => {
+                if (await confirmar({
+                  titulo: '¿Revocar este código?',
+                  texto: 'Deja de servir de inmediato. Puedes generar otro cuando quieras.',
+                  accion: 'Revocar', peligro: true,
+                })) revocar.mutate()
               }}
             >
               <Trash2 size={13.5} /> Revocar

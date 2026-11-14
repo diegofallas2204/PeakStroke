@@ -106,6 +106,9 @@ export const api = {
     members: () => get<Member[]>('/auth/members'),
     createMember: (data: unknown) => post<MemberCreated>('/auth/members', data),
     updateMember: (id: number, data: unknown) => patch<Member>(`/auth/members/${id}`, data),
+    /** Temporal nueva para un atleta del club: sale una vez (2026-11-13). */
+    resetPassword: (id: number) =>
+      post<{ temporary_password: string }>(`/auth/members/${id}/reset-password`, {}),
     // Cambiar la contraseña corta TODAS las sesiones, la de esta pestaña
     // incluida, y la respuesta trae la nueva: hay que adoptarla o la siguiente
     // petición saldría con un token que el servidor acaba de matar.

@@ -1,6 +1,7 @@
 // Macrociclos: tarjetas de planes existentes + asistente de creación
 // + asignación de atletas con sus pruebas objetivo.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CalendarRange, Plus, Trash2, UserPlus, Flag, PlayCircle, PauseCircle, X } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -48,6 +49,15 @@ export function PlansPage() {
 
   const ref = usePageEnter([isLoading, plans?.length])
 
+  // `#macro-<id>` (desde la página del atleta): se lleva a esa tarjeta y se marca.
+  const { hash } = useLocation()
+  const destacado = /^#macro-(\d+)$/.exec(hash)?.[1]
+  useEffect(() => {
+    if (destacado && plans?.length) {
+      document.getElementById(`macro-${destacado}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [destacado, plans?.length])
+
   return (
     <div ref={ref} className="flex flex-col gap-5">
       <PageHeader
@@ -79,7 +89,11 @@ export function PlansPage() {
           // La mutación es una para todas las tarjetas: se bloquea solo la suya.
           const cambiando = setStatus.isPending && setStatus.variables?.id === plan.id
           return (
-            <Card key={plan.id} className="card-hover">
+            <section
+              key={plan.id} id={`macro-${plan.id}`}
+              className={`scroll-mt-4 rounded-[var(--radius-card,16px)] ${String(plan.id) === destacado ? 'ring-2 ring-[var(--page-accent)]' : ''}`}
+            >
+            <Card className="card-hover">
               <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
@@ -203,6 +217,7 @@ export function PlansPage() {
                 </div>
               )}
             </Card>
+            </section>
           )
         })
       )}

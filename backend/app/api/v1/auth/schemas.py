@@ -131,6 +131,12 @@ class MemberCreated(BaseModel):
     temporary_password: str | None = None
 
 
+class PasswordReset(BaseModel):
+    """La temporal que un entrenador acaba de poner a un atleta. Sale una vez:
+    lo que se guarda es el hash, y la cuenta queda obligada a cambiarla."""
+    temporary_password: str
+
+
 class SessionResponse(BaseModel):
     """Lo que devuelve /login y /refresh.
 
