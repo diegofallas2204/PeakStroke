@@ -95,10 +95,9 @@ export function SimCurveChart({ data, curve, goal }: Props) {
         )}
       </div>
       <p className="mt-1.5 text-[10.5px] leading-relaxed text-text-faint">
-        La función define la forma de la progresión, acotada por el techo científico I_max.
         {hasExt
-          ? ' La meta supera el techo del macro: la curva (sólida) cierra en el techo realista y la extensión (ámbar punteada) continúa hasta la meta proyectada.'
-          : ' La meta cabe dentro del techo, así que la curva la alcanza dentro del macro.'}
+          ? 'La línea sólida es el macro y cierra en el techo realista; la punteada sigue hasta la meta.'
+          : 'La meta cabe en el macro: la curva llega a ella antes de que termine.'}
       </p>
     </Card>
   )

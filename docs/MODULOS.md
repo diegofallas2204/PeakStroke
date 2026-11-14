@@ -176,8 +176,19 @@ de módulo lo reciben con `git merge Preliminar`.
 - Menos texto en dos subtítulos, y «Desviación media» deja el trofeo por un
   indicador.
 
-**`modulo/simulador`**
-- Sin pendientes conocidos. **Candidato a primera versión** junto con Inicio.
+**`modulo/simulador`** — ✅ **sin pendientes** (2026-11-13). **Candidato a primera versión** junto con Inicio.
+- ~~Las rutas del simulador iban sin sesión~~ (y `/aerobic-tests/analyze`):
+  ahora son de entrenador (el simulador) y de cualquier miembro (`analyze`).
+  `test_rutas_con_sesion.py` llama a **todas** las rutas sin sesión y falla si
+  una nueva responde algo distinto de 401.
+- ~~Unos parámetros inválidos llegaban al motor y los resultados viejos se
+  quedaban en pantalla~~: se valida antes, con los límites del backend, y
+  cada problema se dice; un fallo del motor enseña `ErrorDeCarga`.
+- ~~Claves internas y cifras sin contexto~~ («competitive», «Tier 2»,
+  «F_FASE», «pace», «supera el techo 1.68% (290%)»): las frases se arman en
+  `simTextos.ts` con los números de la respuesta. El motor no se tocó.
+- ~~«Mejora» y «Acumulada» con signos opuestos~~ en la misma fila; el aviso de
+  extensión, que repetía el veredicto, se quitó.
 
 **`modulo/macrociclos`**
 - 🧹 El asistente de crear macrociclo y «Agregar atleta» no caben en móvil

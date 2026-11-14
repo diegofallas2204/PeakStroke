@@ -9,6 +9,8 @@ import { usePageEnter } from '../../hooks/usePageEnter'
 import { useSimpleMode } from '../../hooks/useSimpleMode'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Card, Spinner } from '../../components/ui/primitives'
+import { ErrorDeCarga } from '../../components/ui/ErrorDeCarga'
+import { problemasDeParams } from './simTextos'
 import { BotonPdf } from '../../components/ui/BotonPdf'
 import { SIM_PARAMS_INICIALES } from './simDefaults'
 import { descargarSimPdf } from './simPdf'
@@ -17,7 +19,7 @@ import { SimFeasibility } from './SimFeasibility'
 import { SimSeason } from './SimSeason'
 import { SimCurveChart } from './SimCurveChart'
 import { SimPlanTable } from './SimPlanTable'
-import { SimExtensionNotice, SimExtensionTable } from './SimExtension'
+import { SimExtensionTable } from './SimExtension'
 import { SimZones } from './SimZones'
 
 export function SimulatorPage() {
@@ -31,9 +33,13 @@ export function SimulatorPage() {
 
   const current = tryToSeconds(debounced.current)
   const goal = tryToSeconds(debounced.goal)
-  const valid = current != null && goal != null && goal < current
+  // Con los mismos límites que el backend: lo que no pase aquí no llega al
+  // motor (antes, unas semanas fuera de rango volvían como un 422 que nadie
+  // pintaba). Los problemas se dicen al lado del formulario.
+  const problemas = problemasDeParams(params)
+  const valid = problemasDeParams(debounced).length === 0
 
-  const { data, isFetching } = useQuery({
+  const { data, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['sim', debounced],
     queryFn: () => api.simulator.run({
       distance: debounced.distance, stroke: debounced.stroke,
@@ -48,13 +54,13 @@ export function SimulatorPage() {
 
   // Proyección ANUAL: temporada = 3 macrociclos encadenados (motor de dominio).
   // Solo depende del tiempo actual y la prueba (no de la meta ni las semanas).
-  const { data: season } = useQuery({
+  const { data: season, isError: seasonFallo } = useQuery({
     queryKey: ['season', debounced.distance, debounced.stroke, current, debounced.pool],
     queryFn: () => api.simulator.season({
       distance: debounced.distance, stroke: debounced.stroke,
       current_time: current, pool: debounced.pool, n_macros: 3,
     }),
-    enabled: current != null,
+    enabled: valid,
     placeholderData: (prev) => prev,
   })
 
@@ -66,26 +72,33 @@ export function SimulatorPage() {
     <div ref={ref} className="flex flex-col gap-5">
       <PageHeader
         title="Simulador de escenarios"
-        subtitle="Modifica semanas, kilómetros y objetivos: el motor recalcula todo en tiempo real, sin tocar los planes guardados"
+        subtitle="Prueba metas y semanas: recalcula al momento y no toca los planes guardados"
       />
 
       <div className="flex flex-col gap-4">
         {/* ── Parámetros (fila superior, a todo el ancho) ── */}
-        <SimParams params={params} setParams={setParams} valid={valid} />
+        <SimParams params={params} setParams={setParams} problemas={problemas} />
 
         {/* ── Resultados ── */}
-        <div className="flex flex-col gap-4">
-          {!data && isFetching && <Spinner />}
-          {data && feasibility && (
+        {/* Los resultados son SIEMPRE de los parámetros de arriba: con unos
+            inválidos o un fallo del motor no se enseñan los de antes como si
+            fueran estos, y mientras recalcula se atenúan. */}
+        <div
+          className="flex flex-col gap-4 transition-opacity duration-200"
+          style={{ opacity: isFetching && data ? 0.55 : 1 }}
+          aria-busy={isFetching}
+        >
+          {valid && isError && (
+            <ErrorDeCarga error={error} que="la simulación" onReintentar={() => void refetch()} reintentando={isFetching} />
+          )}
+          {valid && !isError && !data && isFetching && <Spinner />}
+          {valid && !isError && data && feasibility && (
             <>
-              <SimFeasibility feasibility={feasibility} current={current} goal={goal} simple={simple} />
+              <SimFeasibility
+                feasibility={feasibility} current={current} goal={goal} semanas={debounced.weeks} simple={simple}
+              />
 
-              {!simple && season && <SimSeason season={season} />}
-
-              {/* Aviso de semanas extra: solo en modo completo */}
-              {!simple && feasibility.recommended_weeks != null && (
-                <SimExtensionNotice feasibility={feasibility} weeks={debounced.weeks} />
-              )}
+              {!simple && season && !seasonFallo && <SimSeason season={season} />}
 
               {!simple && <SimCurveChart data={data} curve={debounced.curve} goal={goal} />}
 
@@ -105,7 +118,7 @@ export function SimulatorPage() {
                 <SimPlanTable weeks={data.weeks} simple={simple} />
                 {!simple && (
                   <p className="border-t border-line px-4 py-2.5 text-[10px] text-text-faint">
-                    Tiempo por zona = punto medio del rango (pace /100m sobre el tiempo esperado de la semana).
+                    Tiempo por zona: el punto medio de su rango, por 100 m.
                   </p>
                 )}
               </Card>
