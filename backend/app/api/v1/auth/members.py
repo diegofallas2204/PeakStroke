@@ -6,6 +6,8 @@ en un gesto (`POST /link-codes/invite`), que crea ficha, cuenta y código a la v
 """
 from __future__ import annotations
 
+import secrets
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,10 +18,11 @@ from app.core.dependencies import Principal
 from app.core.guards import require_coach
 from app.dominio.entidades import OperacionDeEquipoImposible
 from app.persistencia.repositorios import RepositorioDeEquipos
+from app.persistencia.repositorios.usuarios import CredencialesCambiadas
 from app.persistencia.tablas.equipos import TeamMember
 
-from . import service
-from .schemas import MemberCreate, MemberCreated, MemberResponse, UserUpdate
+from . import credenciales, service
+from .schemas import MemberCreate, MemberCreated, MemberResponse, PasswordReset, UserUpdate
 
 router = APIRouter()
 
@@ -86,6 +89,48 @@ async def update_member(
     await service.update_member(equipos, user, membership, data)
     _auditar_cambios(principal, user.id, user.email, rol_antes, activa_antes, membership)
     return await service.get_member(db, user, membership)
+
+
+@router.post("/members/{user_id}/reset-password", response_model=PasswordReset)
+async def reset_password(
+    user_id: int,
+    principal: Principal = Depends(require_coach),
+    db: AsyncSession = Depends(get_db),
+):
+    """El entrenador le pone una contraseña temporal a un atleta de su club.
+
+    Es el «olvidé mi contraseña» de la app (2026-11-13): hasta entonces solo lo
+    hacía el operador del servidor (`ops.py restablecer-password`). Hace lo
+    mismo que él —la temporal sale una vez, se cortan todas las sesiones y la
+    cuenta queda obligada a cambiarla (TODO-27)—, con dos límites:
+
+    - **solo sobre atletas**: restablecer la de otro entrenador sería quedarse
+      con su cuenta, y la de un entrenador sigue siendo del operador;
+    - **solo de su club, y con el acceso activo**: otra cuenta es 404.
+    """
+    fila = await service.member_of_team(db, user_id, principal.team_id)
+    if fila is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Cuenta no encontrada")
+    user, membership = fila
+    if membership.role != "athlete":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Desde la app solo se restablece la contraseña de un atleta",
+        )
+    if not membership.is_active:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El acceso de esta cuenta está revocado")
+    temporal = secrets.token_urlsafe(12)
+    try:
+        await credenciales.change_password(db, user, temporal, temporal=True)
+    except CredencialesCambiadas:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "La contraseña cambió mientras tanto: vuelve a intentarlo",
+        ) from None
+    auditar(
+        TipoDeEvento.PASSWORD_RESTABLECIDA, principal, objetivo=("user", user.id),
+        detalle=f"{user.email} · temporal emitida por su entrenador",
+    )
+    return PasswordReset(temporary_password=temporal)
 
 
 def _auditar_cambios(

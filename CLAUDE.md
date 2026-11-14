@@ -148,6 +148,11 @@ cd backend && .venv\Scripts\python tools/ops.py salud
   preguntando `is_owner`) y `is_developer` no es un rol. `Administrador` existe
   solo como hueco: ninguna clave lo construye, y una clave desconocida levanta
   `ValueError` en vez de adivinar
+- **Un entrenador restablece la contraseña de un atleta** (`POST /auth/members/{id}/reset-password`,
+  2026-11-13): solo de **atletas** de su club con acceso activo —la de un entrenador
+  sigue siendo del operador, `ops.py restablecer-password`—; la temporal sale una
+  vez, queda marcada (TODO-27), corta todas sus sesiones y se audita como
+  `cuenta.password_restablecida` con el entrenador de actor
 - **Toda ruta exige sesión salvo las de `PUBLICAS`** (`tests/test_rutas_con_sesion.py`,
   2026-11-13): el test llama a **todas** las rutas del OpenAPI sin token y con el
   login encendido, y falla si alguna responde algo distinto de 401. Lo destapó

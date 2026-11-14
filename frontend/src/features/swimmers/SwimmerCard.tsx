@@ -5,14 +5,14 @@
 // cruzarlas a ojo para responder «¿este ya puede entrar?». La lista de atletas
 // es ahora el pool completo y dice de cada uno en cuál de los tres estados está.
 import { Link } from 'react-router-dom'
-import { Pencil, UserMinus, KeyRound, MailCheck, Ruler, Weight } from 'lucide-react'
+import { ArchiveRestore, Pencil, UserMinus, KeyRound, MailCheck, Ruler, Weight } from 'lucide-react'
 import type { LinkCode, Swimmer } from '../../lib/types'
 import { SPECIALTY_COLOR, SPECIALTY_LABEL, STROKE_LABEL } from '../../lib/constants'
 import { initials } from '../../lib/format'
 import { Card, Chip, IconButton } from '../../components/ui/primitives'
 
 export function SwimmerCard({
-  swimmer, code, onEdit, onDeactivate, onManageAccess,
+  swimmer, code, onEdit, onDeactivate, onManageAccess, onReactivate,
 }: {
   swimmer: Swimmer
   /** Su código vivo, si tiene uno emitido y sin canjear. */
@@ -20,6 +20,8 @@ export function SwimmerCard({
   onEdit: () => void
   onDeactivate: () => void
   onManageAccess: () => void
+  /** Solo para una ficha dada de baja. */
+  onReactivate?: () => void
 }) {
   const color = SPECIALTY_COLOR[swimmer.specialty] ?? '#3b82f6'
 
@@ -29,7 +31,7 @@ export function SwimmerCard({
     // sirve el teclado, el clic central y el lector de pantalla, cosa que un
     // `onClick` en el `div` no da. Los botones van por encima (`relative z-10`)
     // y hacen lo suyo sin navegar.
-    <Card className="card-hover group relative cursor-pointer">
+    <Card className={`card-hover group relative cursor-pointer ${swimmer.is_active ? '' : 'opacity-60'}`}>
       <div className="flex items-start gap-3.5">
         <div
           className="display flex size-11 shrink-0 items-center justify-center rounded-xl text-[13px] font-bold"
@@ -49,6 +51,16 @@ export function SwimmerCard({
             {swimmer.gender ? ` · ${swimmer.gender}` : ''}
           </p>
         </div>
+        {!swimmer.is_active ? (
+          <div className="relative z-10 flex items-center gap-1.5">
+            <Chip color="#fb7185">De baja</Chip>
+            {onReactivate && (
+              <IconButton label={`Reactivar a ${swimmer.name}`} onClick={onReactivate} className="!size-8">
+                <ArchiveRestore size={13} className="text-mint" />
+              </IconButton>
+            )}
+          </div>
+        ) : (
         <div className="reveal relative z-10 flex gap-1">
           <IconButton label={`Editar ${swimmer.name}`} onClick={onEdit} className="!size-8">
             <Pencil size={13} />
@@ -57,6 +69,7 @@ export function SwimmerCard({
             <UserMinus size={13} />
           </IconButton>
         </div>
+        )}
       </div>
 
       <div className="mt-3.5 flex flex-wrap items-center gap-2">

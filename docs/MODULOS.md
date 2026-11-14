@@ -137,9 +137,9 @@ de módulo lo reciben con `git merge Preliminar`.
 **`transversal/sesion` — cuenta, login y perfil** (TODO-36, TODO-17)
 - ❓ La cuenta sin club no puede cambiar su temporal hasta canjear el código:
   darle `get_current_user` a `/auth/me/password` rompe una regla escrita.
-- ❓ «Olvidé mi contraseña»: o el entrenador restablece la de su atleta desde la
-  app (ver `modulo/atletas`), o cambia el texto del login — hoy dice «pídeselo a
-  tu entrenador» y solo puede hacerlo quien opera el servidor.
+- ~~«Olvidé mi contraseña»~~: el entrenador restablece la de su atleta desde su
+  ficha (`modulo/atletas`). La de un **entrenador** sigue siendo del operador
+  (`ops.py restablecer-password`).
 - ❓ TODO-17: la invitación crea la cuenta y el entrenador ve su temporal.
   Mitigado (hay que cambiarla al entrar); bloquea abrir el registro público.
 - 🧹 El freno por origen con un club entero en la misma wifi (20 fallos en 15 min).
@@ -204,14 +204,19 @@ de módulo lo reciben con `git merge Preliminar`.
   defecto ya estaban en la caché y nunca «llegaban»), y al reabrirlo enseñaba
   los datos del anterior: ahora empieza limpio y con las fases del motor.
 
-**`modulo/atletas`**
-- ✨ Restablecer la contraseña de un atleta desde su página (el backend ya tiene
-  la operación, en el CLI). Resuelve el «olvidé mi contraseña» de
-  `transversal/sesion`.
-- ✨ Desde su página, llegar también a su macrociclo (hoy lleva a Plan semanal,
-  Base aeróbica y Entrenamiento). Nota 27 del vault.
-- 🧹 `confirm()` del navegador al dar de baja (`SwimmersPage`) y al revocar un
-  código (`LinkCodeModal`). Dar de baja es reversible: mejor un «Deshacer».
+**`modulo/atletas`** — ✅ **sin pendientes** (2026-11-13). Sale de
+`modulo/macrociclos` (usa su diálogo de confirmación): se fusiona **después** de él.
+- ~~Restablecer la contraseña de un atleta~~: `POST /auth/members/{id}/reset-password`,
+  de entrenador y **solo sobre atletas** de su club con acceso activo; la temporal
+  sale una vez, obliga a cambiarse y corta sus sesiones. Botón en su página. Con
+  esto el texto del login («tu entrenador puede ponerte una temporal») es verdad.
+- ~~Dar de baja no tenía vuelta en la interfaz~~ (el backend sí sabía reactivar):
+  «De baja · n» enseña las fichas dadas de baja y se reactivan desde la tarjeta o
+  desde su página.
+- ~~Llegar a su macrociclo~~: botón en su página a `/macrociclos#macro-<id>`, que
+  lleva a la tarjeta y la marca (solo si la versión trae Macrociclos).
+- ~~`confirm()` del navegador~~ al dar de baja y al revocar un código; un fallo de
+  carga ya no sale como «Aún no hay atletas» ni como «Atleta no encontrado».
 
 **`modulo/pruebas`** (Base aeróbica)
 - ✨ **Test de lactato** como opción del test aeróbico: notas 26 y 28 del vault,
