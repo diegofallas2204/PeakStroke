@@ -36,7 +36,14 @@ export type Vista = {
    * apuntar lo que nadó: dos toques desde su inicio. `null` = ninguna.
    */
   accionRapida: { texto: string; a: string } | null
-  vacio: { titulo: string; pista: string; accion: { texto: string; a: string } | null }
+  vacio: {
+    titulo: string
+    pista: string
+    /** La pista cuando la acción no está en esta build (`lib/modulos.ts`): no
+     *  puede prometer un botón que no aparece. */
+    pistaSinAccion: string
+    accion: { texto: string; a: string } | null
+  }
 }
 
 const ENTRENADOR: Vista = {
@@ -56,6 +63,7 @@ const ENTRENADOR: Vista = {
   vacio: {
     titulo: 'Sin macrociclo activo',
     pista: 'Crea tu primer macrociclo para empezar a planificar la temporada.',
+    pistaSinAccion: 'Cuando haya un macrociclo activo, aquí verás cómo va el equipo.',
     accion: { texto: 'Crear macrociclo', a: '/macrociclos' },
   },
 }
@@ -80,6 +88,7 @@ const ATLETA: Vista = {
     // no hay botón para eso. Sí para apuntar lo que nadó: las sesiones cuelgan
     // del atleta, no del macrociclo, y cuentan aunque no esté en ninguno.
     pista: 'Cuando tu entrenador te inscriba en uno, aquí verás tu plan y tu progresión. Mientras tanto, puedes apuntar lo que nadas.',
+    pistaSinAccion: 'Cuando tu entrenador te inscriba en uno, aquí verás tu plan y tu progresión.',
     accion: { texto: 'Apuntar sesión', a: APUNTAR_SESION },
   },
 }
@@ -100,7 +109,11 @@ function soloLoQueHay(v: Vista): Vista {
     semana: { a: a(v.semana.a) },
     accion: accion(v.accion),
     accionRapida: accion(v.accionRapida),
-    vacio: { ...v.vacio, accion: accion(v.vacio.accion) },
+    vacio: {
+      ...v.vacio,
+      accion: accion(v.vacio.accion),
+      pista: accion(v.vacio.accion) ? v.vacio.pista : v.vacio.pistaSinAccion,
+    },
   }
 }
 

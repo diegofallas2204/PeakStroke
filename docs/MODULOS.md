@@ -146,8 +146,9 @@ de módulo lo reciben con `git merge Preliminar`.
 - 🧹 Perfil: `confirm()` del navegador en «cerrar en todos los dispositivos»
   (`AccountCard`) y al revocar un acceso (`MembersCard`).
 - 🧹 La marca dice «Performance Planner», en inglés.
-- 🧹 Un componente de «no se pudo cargar» con Reintentar, para que ningún módulo
-  pinte un fallo como si estuviera vacío (cada rama lo aplica a lo suyo).
+- 🧹 ~~Un componente de «no se pudo cargar» con Reintentar~~: existe desde
+  `modulo/inicio` (`components/ui/ErrorDeCarga`, y `api.esNoEncontrado` para
+  separar el 404). **Falta aplicarlo en cada módulo**, cada rama a lo suyo.
 - 🧹 Limpiar las cabeceras del conmutador de desarrollo que queden guardadas con
   el login puesto. Sin `navigator.locks` (Safari < 15.4) dos pestañas pueden
   chocar al renovar.
@@ -163,11 +164,17 @@ de módulo lo reciben con `git merge Preliminar`.
 
 ### Por módulo
 
-**`modulo/inicio`**
-- 🧹 Un fallo de carga se pinta como «Sin macrociclo activo» y ofrece crear uno:
-  `DashboardPage` trata cualquier error como vacío. Separar el 404 (no hay
-  macro) de un error de verdad.
-- Lo demás está hecho (móvil, nombre, icono). **Candidato a primera versión.**
+**`modulo/inicio`** — ✅ **sin pendientes** (2026-11-13). **Candidato a primera versión.**
+- ~~Un fallo de carga se pintaba como «Sin macrociclo activo»~~: un 404 es «no
+  hay macro» (y si era una selección vieja, se olvida y vuelve al activo);
+  cualquier otro fallo enseña `ErrorDeCarga` con Reintentar.
+- ~~Con el macro vencido, Inicio lo daba por en curso~~: decía «Semana 12 de
+  12 · Fase Taper», marcaba «Hoy» y anunciaba como «esta semana» una competencia
+  pasada. El resumen trae `is_over` y `weeks_away` cuenta desde hoy.
+- ~~Los vacíos prometían acciones que la versión no trae~~ («puedes apuntar lo
+  que nadas» sin Entrenamiento): con el botón fuera, la pista cambia.
+- Menos texto en dos subtítulos, y «Desviación media» deja el trofeo por un
+  indicador.
 
 **`modulo/simulador`**
 - Sin pendientes conocidos. **Candidato a primera versión** junto con Inicio.

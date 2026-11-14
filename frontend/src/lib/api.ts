@@ -11,6 +11,23 @@ import type {
 
 const BASE = '/api/v1'
 
+/**
+ * Un error del API con su código HTTP. El mensaje es el `detail` del backend,
+ * como antes; `status` deja distinguir «no existe» (404) de «falló» sin
+ * comparar textos (2026-11-10: Inicio pintaba cualquier fallo como vacío).
+ */
+export class ErrorDeApi extends Error {
+  readonly status: number
+  constructor(status: number, mensaje: string) {
+    super(mensaje)
+    this.name = 'ErrorDeApi'
+    this.status = status
+  }
+}
+
+/** Si el error es un 404 del API. */
+export const esNoEncontrado = (e: unknown) => e instanceof ErrorDeApi && e.status === 404
+
 // Nombres fijados aquí y no leídos de `/auth/config` a propósito: la primera
 // petición del arranque ES la de config, así que esperarla para saber cómo
 // mandar cabeceras sería circular. El backend expone los nombres para que el
@@ -62,7 +79,7 @@ async function request<T>(path: string, options?: RequestInit, reintento = true)
       const body = await res.json()
       detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail)
     } catch { /* respuesta sin cuerpo JSON */ }
-    throw new Error(detail)
+    throw new ErrorDeApi(res.status, detail)
   }
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>

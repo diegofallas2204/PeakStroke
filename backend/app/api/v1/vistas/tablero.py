@@ -70,6 +70,17 @@ async def build_summary(
     dentro del repositorio y no hay forma de pedir las pruebas sin él.
     """
     current = macro.semana_actual()
+    # `semana_actual` se queda en la última semana cuando el calendario termina
+    # (lo necesitan el recálculo y el plan semanal). Para Inicio eso no es
+    # «hoy»: con el macro vencido, nada es actual y sus competencias ya pasaron
+    # (2026-11-10, hasta entonces salía «Próxima competencia: esta semana» de
+    # una que fue hace semanas). `current` se queda para la tabla de estado y el
+    # cumplimiento, que se calculan sobre la última semana.
+    hoy = date.today()
+    vencido = hoy > macro.ultimo_dia()
+    semana_hoy = None if vencido else current
+    # Sin tope por arriba ni por abajo: cuántas semanas faltan o pasaron de verdad.
+    transcurridas = (hoy - macro.lunes_de(1)).days // 7 + 1
     events = await repo.pruebas_de(macro.id)
     swimmers = await _swimmers_for(db, events)
     reales = await resultados.reales_por_semana(events, macro.piscina)
@@ -121,18 +132,18 @@ async def build_summary(
             progress_percent=round(max(0.0, min(progress, 110.0)), 1),
         ))
 
-    progression_points = _team_progression(macro, events, current, reales)
-    fase_actual = macro.fase_de(current) if current else None
+    progression_points = _team_progression(macro, events, semana_hoy, reales)
+    fase_actual = macro.fase_de(semana_hoy) if semana_hoy else None
 
     return DashboardSummary(
         plan_id=macro.id, plan_name=macro.nombre,
         plan_status=macro.estado_efectivo().value,
         start_date=macro.inicio,
-        total_weeks=macro.semanas, current_week=current,
+        total_weeks=macro.semanas, current_week=current, is_over=vencido,
         # `fase_de` cae en la última fase para una semana fuera de rango; aquí
         # solo se pinta la que contiene de verdad a la semana en curso.
         current_phase=fase_actual.nombre
-        if fase_actual is not None and current is not None and fase_actual.contiene(current)
+        if fase_actual is not None and semana_hoy is not None and fase_actual.contiene(semana_hoy)
         else None,
         # Derivado de `events`, que ya viene acotado. Contar la nómina entera
         # delataba cuánta gente hay en el macrociclo incluso cuando las filas de
@@ -149,7 +160,7 @@ async def build_summary(
             PhaseStrip(
                 name=f.nombre, type=f.fase.value, color=f.color,
                 week_start=f.semana_inicio, week_end=f.semana_fin,
-                is_current=bool(current and f.contiene(current)),
+                is_current=bool(semana_hoy and f.contiene(semana_hoy)),
             )
             for f in macro.fases
         ],
@@ -158,7 +169,7 @@ async def build_summary(
                 name=c.nombre, week_number=c.semana,
                 week_date=macro.lunes_de(c.semana),
                 days=c.dias, is_main=c.es_principal,
-                weeks_away=(c.semana - current) if current else None,
+                weeks_away=c.semana - transcurridas,
             )
             for c in macro.competencias
         ],

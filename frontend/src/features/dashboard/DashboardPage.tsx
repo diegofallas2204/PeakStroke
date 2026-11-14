@@ -1,12 +1,15 @@
 // Dashboard: pulso general del macrociclo de trabajo.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Trophy, ArrowRight, Waves, ChevronsUpDown, Plus } from 'lucide-react'
 import {
   Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
-import { api } from '../../lib/api'
+import { api, esNoEncontrado } from '../../lib/api'
+import { finDeMacro } from '../../lib/format'
+import { setSelectedPlan } from '../../hooks/useSelectedPlan'
+import { ErrorDeCarga } from '../../components/ui/ErrorDeCarga'
 import { PLAN_STATUS_META } from '../../lib/constants'
 import { usePageEnter } from '../../hooks/usePageEnter'
 import { useSelectedPlanId } from '../../hooks/useSelectedPlan'
@@ -25,7 +28,7 @@ import { MacroSwitcherModal } from '../plans/MacroSwitcherModal'
 export function DashboardPage() {
   const selectedId = useSelectedPlanId()
   const [switcherOpen, setSwitcherOpen] = useState(false)
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['dashboard', selectedId],
     queryFn: () => api.dashboard.summary(selectedId ?? undefined),
     retry: false,
@@ -34,7 +37,25 @@ export function DashboardPage() {
   const vista = vistaPara(useRole())
   const ref = usePageEnter([data?.plan_id])
 
+  // Un 404 con un macro elegido es una selección vieja (lo borraron o ya no es
+  // visible): se olvida y se vuelve al activo, en vez de decir «no hay ninguno».
+  // En un efecto: cambiar la selección avisa a otros componentes (el riel).
+  const seleccionVieja = isError && esNoEncontrado(error) && selectedId != null
+  useEffect(() => {
+    if (seleccionVieja) setSelectedPlan(null)
+  }, [seleccionVieja])
+
   if (isLoading) return <Spinner />
+  if (seleccionVieja) return <Spinner />
+  // Cualquier otro fallo es un fallo, no un vacío: antes, con el backend caído,
+  // Inicio decía «Sin macrociclo activo» y ofrecía crear uno.
+  if (isError && !esNoEncontrado(error)) {
+    return (
+      <div ref={ref}>
+        <ErrorDeCarga error={error} que="el inicio" onReintentar={() => void refetch()} reintentando={isFetching} />
+      </div>
+    )
+  }
   if (isError || !data) {
     // El vacío del atleta no es el del entrenador: él no puede crear un
     // macrociclo, así que ofrecerle el botón sería mandarle a una ruta que la
@@ -55,6 +76,8 @@ export function DashboardPage() {
     )
   }
 
+  // Con el calendario terminado no hay «próxima»: lo dice el backend
+  // (`weeks_away` ya cuenta desde hoy, no desde la última semana).
   const nextComp = data.competitions
     .filter((c) => (c.weeks_away ?? -1) >= 0)
     .sort((a, b) => (a.weeks_away ?? 0) - (b.weeks_away ?? 0))[0]
@@ -65,7 +88,11 @@ export function DashboardPage() {
         title="Inicio"
         subtitle={
           <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
-            <span>Semana {data.current_week ?? '—'} de {data.total_weeks}</span>
+            {data.is_over ? (
+              <span>Terminó el {finDeMacro(data.start_date, data.total_weeks)} · {data.total_weeks} semanas</span>
+            ) : (
+              <span>Semana {data.current_week ?? '—'} de {data.total_weeks}</span>
+            )}
             {data.current_phase && <span> · Fase <span className="font-semibold text-accent-soft">{data.current_phase}</span></span>}
             <Chip color={(PLAN_STATUS_META[data.plan_status] ?? PLAN_STATUS_META.draft).color}>
               {(PLAN_STATUS_META[data.plan_status] ?? PLAN_STATUS_META.draft).label}
@@ -140,7 +167,7 @@ export function DashboardPage() {
                     )
                   }}
                 />
-                {data.current_week && (
+                {data.progression.some((p) => p.is_current) && (
                   <ReferenceLine
                     x={data.progression.find((p) => p.is_current)?.date_label}
                     stroke="var(--color-amber)" strokeDasharray="4 4" strokeOpacity={0.7}
@@ -158,8 +185,7 @@ export function DashboardPage() {
             <Card title="Registro semanal" className="card-hover flex flex-col items-center">
               <RingGauge
                 value={data.compliance_percent} color="#22d3ee"
-                label="Cumplimiento de registro"
-                sublabel="Semanas con tiempo real ingresado"
+                label="Semanas con tiempo real"
               />
             </Card>
             {nextComp && (
@@ -171,10 +197,10 @@ export function DashboardPage() {
                 <p className="display mt-2 text-[15px] font-bold">{nextComp.name}</p>
                 <p className="mt-1 text-[11.5px] text-text-dim">
                   Semana {nextComp.week_number} · {nextComp.days} {nextComp.days === 1 ? 'día' : 'días'}
-                  {nextComp.is_main && <Chip color="#fbbf24"> Principal</Chip>}
+                  {nextComp.is_main && <span className="ml-1.5"><Chip color="#fbbf24">Principal</Chip></span>}
                 </p>
                 <p className="display mt-2 text-2xl font-bold text-amber">
-                  {nextComp.weeks_away === 0 ? 'Esta semana' : `${nextComp.weeks_away} sem.`}
+                  {nextComp.weeks_away === 0 ? 'Esta semana' : nextComp.weeks_away === 1 ? 'En 1 semana' : `En ${nextComp.weeks_away} semanas`}
                 </p>
               </Card>
             )}
@@ -191,10 +217,10 @@ export function DashboardPage() {
           <p className="display mt-2 text-[15px] font-bold">{nextComp.name}</p>
           <p className="mt-1 text-[11.5px] text-text-dim">
             Semana {nextComp.week_number} · {nextComp.days} {nextComp.days === 1 ? 'día' : 'días'}
-            {nextComp.is_main && <Chip color="#fbbf24"> Principal</Chip>}
+            {nextComp.is_main && <span className="ml-1.5"><Chip color="#fbbf24">Principal</Chip></span>}
           </p>
           <p className="display mt-2 text-2xl font-bold text-amber">
-            {nextComp.weeks_away === 0 ? 'Esta semana' : `${nextComp.weeks_away} sem.`}
+            {nextComp.weeks_away === 0 ? 'Esta semana' : nextComp.weeks_away === 1 ? 'En 1 semana' : `En ${nextComp.weeks_away} semanas`}
           </p>
         </Card>
       )}
@@ -204,7 +230,7 @@ export function DashboardPage() {
           <PhaseStrip
             phases={data.phases}
             totalWeeks={data.total_weeks}
-            currentWeek={data.current_week}
+            currentWeek={data.is_over ? null : data.current_week}
             competitions={data.competitions}
           />
         </Card>

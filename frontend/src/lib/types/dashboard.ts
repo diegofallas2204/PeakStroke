@@ -37,6 +37,8 @@ export interface DashboardSummary {
   total_weeks: number
   current_week: number | null
   current_phase: string | null
+  /** El calendario del macro ya terminó: nada es «actual». */
+  is_over: boolean
   athletes_total: number
   events_total: number
   ahead: number
