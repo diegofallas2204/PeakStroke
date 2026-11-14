@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencias import repo_de_macrociclos, repo_de_tests
 from app.core.auditoria import TipoDeEvento, auditar
 from app.core.database import get_db
+from app.core.dependencies import get_current_principal
 from app.core.guards import require_coach
 from app.core.principal import Principal
 from app.engine.aerobic import analyze_splits
@@ -65,7 +66,12 @@ async def create_test(
     return service.to_response(test)
 
 
-@router.post("/analyze", response_model=AnalyzePreviewResponse)
+# Cualquier miembro de un club: el formulario de tests lo usan entrenador y
+# atleta. Iba sin sesión hasta el 2026-11-13 (`test_rutas_con_sesion.py`).
+@router.post(
+    "/analyze", response_model=AnalyzePreviewResponse,
+    dependencies=[Depends(get_current_principal)],
+)
 async def analyze_preview(data: AnalyzePreviewRequest):
     """Análisis en vivo de parciales sin persistir (preview del formulario)."""
     try:

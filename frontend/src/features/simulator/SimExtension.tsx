@@ -1,52 +1,12 @@
-// Las dos tarjetas de EXTENSIÓN: el aviso de cuántas semanas extra harían falta,
-// y la tabla que las detalla. La extensión es una estimación paralela — no
+// La tarjeta de EXTENSIÓN: las semanas que harían falta después del macro.
+// Cuántas son ya lo dice el veredicto (`SimFeasibility`); hasta el 2026-11-13
+// había además una tarjeta de aviso que repetía las dos cosas. La extensión es una estimación paralela — no
 // modifica el plan del macro ni ningún cálculo del simulador.
-import { CalendarClock, Repeat2 } from 'lucide-react'
+import { Repeat2 } from 'lucide-react'
 import type { Feasibility, SimWeek } from '../../lib/types'
 import { toClock } from '../../lib/format'
 import { Card } from '../../components/ui/primitives'
 import { SimPlanTable } from './SimPlanTable'
-
-/** Aviso: la meta supera el techo realista del macro en las semanas pedidas. */
-export function SimExtensionNotice({ feasibility, weeks }: { feasibility: Feasibility; weeks: number }) {
-  return (
-    <Card title="Semanas adicionales estimadas" className="card-hover" animate={false}>
-      <div className="flex items-start gap-3.5">
-        <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl"
-          style={{ color: '#fbbf24', background: '#fbbf2416', border: '1px solid #fbbf2433' }}>
-          <CalendarClock size={17} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[12px] leading-relaxed text-text-dim">
-            La meta supera el techo realista en {weeks} semanas. El motor estima
-            cuántas necesitarías y detalla cada una en la <span className="font-semibold text-text">tabla de extensión</span> de abajo
-            — <span className="font-semibold text-text">no modifica tu plan ni ningún cálculo</span>.
-          </p>
-          <div className="overflow-x-auto">
-          <table className="tbl mt-3">
-            <tbody>
-              <tr>
-                <td className="text-text-dim">Semanas del plan actual</td>
-                <td className="mono text-right">{weeks}</td>
-              </tr>
-              <tr>
-                <td className="text-text-dim">Semanas estimadas para la meta</td>
-                <td className="mono text-right">{feasibility.recommended_weeks}</td>
-              </tr>
-              <tr>
-                <td className="font-semibold">Semanas extra (tabla de extensión)</td>
-                <td className="mono text-right font-bold" style={{ color: '#fbbf24' }}>
-                  +{feasibility.extension_weeks ?? Math.max(0, (feasibility.recommended_weeks ?? weeks) - weeks)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          </div>
-        </div>
-      </div>
-    </Card>
-  )
-}
 
 /** Las semanas de extensión, detalladas igual que el plan del macro. */
 export function SimExtensionTable(
@@ -54,7 +14,7 @@ export function SimExtensionTable(
 ) {
   return (
     <Card
-      title={`Semanas de extensión · +${extensionWeeks.length} (continuación realista hasta la meta)`}
+      title={`Semanas de extensión · +${extensionWeeks.length}`}
       className="card-hover" animate={false} flush
     >
       <div className="flex items-center gap-2.5 px-4 pt-3.5">
@@ -63,10 +23,9 @@ export function SimExtensionTable(
           <Repeat2 size={14} />
         </span>
         <p className="text-[11.5px] leading-relaxed text-text-dim">
-          El macro de {weeks} sem cierra en el techo realista
-          (<span className="mono font-semibold text-text">{toClock(feasibility.realistic_ceiling)}</span>);
-          estas semanas continúan al ritmo seguro hasta la meta. Total estimado:{' '}
-          <span className="font-semibold" style={{ color: '#fbbf24' }}>{feasibility.recommended_weeks} semanas</span>.
+          Las {weeks} semanas cierran en{' '}
+          <span className="mono font-semibold text-text">{toClock(feasibility.realistic_ceiling)}</span>;
+          estas siguen al ritmo seguro hasta la meta. No cambian el plan.
         </p>
       </div>
       <div className="mt-2.5">

@@ -4,6 +4,7 @@ import { FlaskConical, ShieldAlert, ShieldCheck, ShieldX, Waves, Zap } from 'luc
 import type { Feasibility } from '../../lib/types'
 import { toClock } from '../../lib/format'
 import { Card } from '../../components/ui/primitives'
+import { fraseDeFactibilidad } from './simTextos'
 
 const FEAS = {
   ok: { icon: ShieldCheck, color: '#34d399', label: 'Objetivo realista' },
@@ -16,10 +17,12 @@ interface Props {
   /** Tiempo actual en segundos, para expresar la mejora total en porcentaje. */
   current: number | null
   goal: number | null
+  /** Semanas del plan simulado, para la frase del veredicto. */
+  semanas: number
   simple: boolean
 }
 
-export function SimFeasibility({ feasibility, current, goal, simple }: Props) {
+export function SimFeasibility({ feasibility, current, goal, semanas, simple }: Props) {
   const meta = FEAS[feasibility.status] ?? { icon: FlaskConical, color: '#8b93b8', label: '' }
   const Icon = meta.icon
   const color = meta.color
@@ -34,12 +37,21 @@ export function SimFeasibility({ feasibility, current, goal, simple }: Props) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <p className="display text-[14px] font-bold" style={{ color }}>{meta.label}</p>
-            <span className="flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-text-dim">
+            {/* «Tier 1/2» es la clave del motor: lo que dice es si la prueba
+                se rige por la base aeróbica (≥ 400 m) o por la velocidad. */}
+            <span
+              className="flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-text-dim"
+              title={feasibility.tier === 1 ? 'Prueba de 400 m o más: manda la base aeróbica' : 'Prueba de menos de 400 m: manda la velocidad'}
+            >
               {feasibility.tier === 1 ? <Waves size={10} /> : <Zap size={10} />}
-              Tier {feasibility.tier} · {feasibility.tier === 1 ? 'aeróbico' : 'velocidad'}
+              {feasibility.tier === 1 ? 'Aeróbica' : 'Velocidad'}
             </span>
           </div>
-          <p className="mt-1 text-[12px] leading-relaxed text-text-dim">{feasibility.message}</p>
+          <p className="mt-1 text-[12px] leading-relaxed text-text-dim">
+            {current != null && goal != null
+              ? fraseDeFactibilidad(feasibility, current, goal, semanas)
+              : feasibility.message}
+          </p>
         </div>
       </div>
       {!simple && (

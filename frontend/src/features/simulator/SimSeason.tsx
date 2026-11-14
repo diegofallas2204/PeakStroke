@@ -4,10 +4,11 @@ import { CalendarClock } from 'lucide-react'
 import type { SeasonResult } from '../../lib/types'
 import { toClock } from '../../lib/format'
 import { Card } from '../../components/ui/primitives'
+import { fraseDeTemporada, nivelLegible } from './simTextos'
 
 const VERDICT: Record<string, { color: string; label: string }> = {
   ok: { color: '#34d399', label: 'Realista' },
-  optimistic: { color: '#fbbf24', label: 'Optimista · techo' },
+  optimistic: { color: '#fbbf24', label: 'Optimista' },
   unrealistic: { color: '#fb7185', label: 'Poco realista' },
 }
 
@@ -21,27 +22,24 @@ export function SimSeason({ season }: { season: SeasonResult }) {
           style={{ color: v.color, background: `${v.color}16`, border: `1px solid ${v.color}33` }}>
           <CalendarClock size={19} />
         </span>
-        <div className="flex-1">
-          <div className="flex items-center gap-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <p className="display text-[14px] font-bold" style={{ color: v.color }}>
               Temporada: −{season.season_improvement_pct.toFixed(2)}%
             </p>
             <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider"
               style={{ color: v.color }}>{v.label}</span>
             <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-text-dim">
-              nivel {season.level}
+              {nivelLegible(season.level)}
             </span>
           </div>
-          <p className="mt-1 text-[12px] leading-relaxed text-text-dim">{season.message}</p>
-          <p className="mt-0.5 text-[11px] text-text-faint">
-            Techo típico de la literatura para {season.level}:{' '}
-            <span className="mono">{season.annual_low_pct}–{season.annual_high_pct}%</span> anual ·
-            de <span className="mono text-text-dim">{toClock(season.season_start)}</span> a{' '}
-            <span className="mono text-text-dim">{toClock(season.season_end)}</span>
+          <p className="mt-1 text-[12px] leading-relaxed text-text-dim">{fraseDeTemporada(season)}</p>
+          <p className="mono mt-0.5 text-[11px] text-text-faint">
+            {toClock(season.season_start)} → {toClock(season.season_end)}
           </p>
         </div>
       </div>
-      <div className="mt-4 grid grid-cols-3 gap-3 border-t border-line pt-3.5">
+      <div className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-3.5 sm:gap-3">
         {season.macros.map((m) => (
           <div key={m.n_mac}>
             <p className="card-title !text-[9px]">Macro {m.n_mac}</p>

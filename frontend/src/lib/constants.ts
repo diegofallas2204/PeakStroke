@@ -64,8 +64,8 @@ export function coerceStroke(distance: number, stroke: string): string {
 }
 
 export const POOLS = [
-  { value: '50', label: '50 m (piscina larga)' },
-  { value: '25', label: '25 m (piscina corta)' },
+  { value: '50', label: '50 m (larga)' },
+  { value: '25', label: '25 m (corta)' },
 ]
 
 export const POOL_LABEL: Record<string, string> = Object.fromEntries(
@@ -75,7 +75,7 @@ export const POOL_LABEL: Record<string, string> = Object.fromEntries(
 // "science" = curva científica por defecto (distribución F_FASE del motor de
 // dominio, respaldada por la literatura). Las demás solo comparan escenarios.
 export const CURVES = [
-  { value: 'science', label: 'Científica (F_FASE)' },
+  { value: 'science', label: 'Científica' },
   { value: 'sigmoid', label: 'Sigmoidal' },
   { value: 'linear', label: 'Lineal' },
   { value: 'exponential', label: 'Exponencial' },

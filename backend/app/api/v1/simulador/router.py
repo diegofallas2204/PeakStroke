@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.core.guards import require_coach
 from app.dominio.servicios.curvas import Curva
 from app.dominio.servicios.kilometraje import km_por_zona
 from app.dominio.servicios.motor import MOTOR, SemanaGenerada
@@ -19,7 +20,12 @@ from .schemas import (
     SimWeek,
 )
 
-router = APIRouter()
+# De entrenador, en el router entero (2026-11-13). Hasta entonces las dos rutas
+# iban sin ninguna dependencia: con el login encendido, cualquiera sin cuenta
+# hacía trabajar al motor, y el menú se lo escondía al atleta sin que el
+# backend se lo negara. No toca datos de nadie, pero «ningún router sin guard»
+# no tiene excepciones por ser un cálculo. Lo vigila `test_rutas_con_sesion.py`.
+router = APIRouter(dependencies=[Depends(require_coach)])
 
 
 def _to_simweek(s: SemanaGenerada, specialty: str, distance: int) -> SimWeek:

@@ -13,7 +13,7 @@ export function SimZones({ weeks }: { weeks: SimWeek[] }) {
   return (
     <Card
       animate={false}
-      title="Zonas de entrenamiento (pace /100m)"
+      title="Zonas de entrenamiento · ritmo /100 m"
       className="card-hover"
       action={
         <div className="flex gap-1.5">
@@ -57,8 +57,8 @@ export function SimZones({ weeks }: { weeks: SimWeek[] }) {
         })}
       </div>
       <p className="mt-3 text-[10px] text-text-faint">
-        Semana {week.week_number} ({week.date_label}) · tiempo esperado {toClock(week.expected_time)} ·
-        pace {toClock(week.pace_100m)} /100m
+        Semana {week.week_number} ({week.date_label}) · esperado {toClock(week.expected_time)} ·
+        ritmo {toClock(week.pace_100m)} /100 m
       </p>
     </Card>
   )

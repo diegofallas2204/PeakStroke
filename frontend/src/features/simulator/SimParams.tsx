@@ -11,11 +11,11 @@ import type { SimParamsState } from './simDefaults'
 interface Props {
   params: SimParamsState
   setParams: React.Dispatch<React.SetStateAction<SimParamsState>>
-  /** El tiempo meta debe ser menor al actual; si no, se avisa y no se consulta. */
-  valid: boolean
+  /** Lo que impide simular (`simTextos.problemasDeParams`). Vacía = se puede. */
+  problemas: string[]
 }
 
-export function SimParams({ params, setParams, valid }: Props) {
+export function SimParams({ params, setParams, problemas }: Props) {
   const set = (key: keyof SimParamsState, numeric = false) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setParams((p) => ({ ...p, [key]: numeric ? Number(e.target.value) : e.target.value }))
@@ -77,10 +77,10 @@ export function SimParams({ params, setParams, valid }: Props) {
           </select>
         </Field>
       </div>
-      {!valid && (
-        <p className="mt-3 text-[11px] text-coral">
-          El tiempo meta debe ser menor al actual (formato m:ss.cc).
-        </p>
+      {problemas.length > 0 && (
+        <ul role="alert" className="mt-3 flex flex-col gap-1 text-[11.5px] text-coral">
+          {problemas.map((p) => <li key={p}>{p}</li>)}
+        </ul>
       )}
     </Card>
   )

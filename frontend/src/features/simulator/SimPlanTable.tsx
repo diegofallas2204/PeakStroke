@@ -42,8 +42,11 @@ export function SimPlanTable({ weeks, extension = false, simple = false }: Props
                 </td>
               ))}
               {!simple && (
+                // El motor da el cambio de tiempo (−0.06 = 6 centésimas más
+                // rápido); «Mejora» lo enseña como mejora, con el mismo signo
+                // que «Acumulada». Antes salían −0.06s y 0.06s en la misma fila.
                 <td className="mono" style={{ color: w.improvement_vs_prev < 0 ? 'var(--color-mint)' : 'var(--color-text-dim)' }}>
-                  {w.improvement_vs_prev.toFixed(2)}s
+                  {(-w.improvement_vs_prev).toFixed(2)}s
                 </td>
               )}
               {!simple && (

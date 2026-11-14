@@ -29,7 +29,7 @@ export function descargarSimPdf(
     ...tablaDeSemanas(data.weeks, simple),
     note: simple
       ? undefined
-      : 'Tiempo por zona = punto medio del rango (pace /100m sobre el tiempo esperado de la semana).',
+      : 'Tiempo por zona: el punto medio de su rango, por 100 m.',
   })
 
   if (!simple && data.extension_weeks.length > 0) {
@@ -90,7 +90,7 @@ function tablaDeZonas(weeks: SimWeek[]): TablaPdf {
     (w.zones[z] ? `${toClock(w.zones[z]!.min, 1)} - ${toClock(w.zones[z]!.max, 1)}` : '—')
 
   return {
-    caption: 'Zonas de entrenamiento (pace /100m)',
+    caption: 'Zonas de entrenamiento (ritmo /100 m)',
     head: [
       'Zona', 'Nombre',
       `S${inicio.week_number} ritmo`, `S${inicio.week_number} rango`,
