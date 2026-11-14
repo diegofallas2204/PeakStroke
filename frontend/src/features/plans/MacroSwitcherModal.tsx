@@ -11,6 +11,7 @@ import { api } from '../../lib/api'
 import type { Plan } from '../../lib/types'
 import { PLAN_STATUS_META } from '../../lib/constants'
 import { Modal } from '../../components/ui/primitives'
+import { fechaCorta } from '../../lib/format'
 import { useSelectedPlanId, setSelectedPlan } from '../../hooks/useSelectedPlan'
 
 function StatusChip({ status }: { status: string }) {
@@ -97,7 +98,7 @@ export function MacroSwitcherModal({ open, onClose }: { open: boolean; onClose: 
                 </div>
 
                 <div className="card p-4">
-                  <ProfileRow label="Inicio" value={current.start_date} />
+                  <ProfileRow label="Inicio" value={fechaCorta(current.start_date)} />
                   <ProfileRow
                     label="Semana actual"
                     value={`${current.current_week ?? '—'} / ${current.total_weeks}`}

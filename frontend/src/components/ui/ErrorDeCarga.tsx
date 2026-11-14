@@ -26,7 +26,8 @@ export function ErrorDeCarga({
   return (
     <EmptyState
       icon={<CloudOff size={24} />}
-      title={`No se pudo cargar ${que}`}
+      // «No se pudieron cargar los macrociclos», no «se pudo cargar los…».
+      title={`No se ${/^(los|las) /.test(que) ? 'pudieron' : 'pudo'} cargar ${que}`}
       hint={motivo}
       action={
         <button className="btn btn-primary" onClick={onReintentar} disabled={reintentando}>
