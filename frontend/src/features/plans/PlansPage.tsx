@@ -6,7 +6,9 @@ import { CalendarRange, Plus, Trash2, UserPlus, Flag, PlayCircle, PauseCircle, X
 import { api } from '../../lib/api'
 import type { Plan } from '../../lib/types'
 import { SPECIALTY_LABEL, PLAN_STATUS_META } from '../../lib/constants'
-import { toClock } from '../../lib/format'
+import { fechaCorta, toClock } from '../../lib/format'
+import { confirmar } from '../../lib/confirmar'
+import { ErrorDeCarga } from '../../components/ui/ErrorDeCarga'
 import { usePageEnter } from '../../hooks/usePageEnter'
 import { useIsOwner } from '../../hooks/useSession'
 import { PageHeader } from '../../components/layout/PageHeader'
@@ -21,7 +23,9 @@ export function PlansPage() {
   // Borrar un macro es de dueño (R4): el backend ya lo niega al asistente.
   const isOwner = useIsOwner()
 
-  const { data: plans, isLoading } = useQuery({ queryKey: ['plans'], queryFn: api.plans.list })
+  const { data: plans, isLoading, isError, error, refetch, isFetching } = useQuery({
+    queryKey: ['plans'], queryFn: api.plans.list,
+  })
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['plans'] })
@@ -48,7 +52,7 @@ export function PlansPage() {
     <div ref={ref} className="flex flex-col gap-5">
       <PageHeader
         title="Macrociclos"
-        subtitle="El macrociclo se define a nivel general y luego se ligan los atletas con sus pruebas"
+        subtitle="Primero el ciclo; después, cada atleta con sus pruebas"
         actions={
           <button className="btn btn-primary" onClick={() => setShowWizard(true)}>
             <Plus size={14} /> Nuevo macrociclo
@@ -58,11 +62,15 @@ export function PlansPage() {
 
       {isLoading ? (
         <Spinner />
+      ) : isError ? (
+        // Un fallo no es «no hay ninguno»: antes decía «Sin macrociclos» y
+        // ofrecía crear uno con el backend caído.
+        <ErrorDeCarga error={error} que="los macrociclos" onReintentar={() => void refetch()} reintentando={isFetching} />
       ) : !plans?.length ? (
         <EmptyState
           icon={<CalendarRange size={24} />}
           title="Sin macrociclos"
-          hint="Crea el primer macrociclo de la temporada: duración, kilometraje, curva de progresión y fases."
+          hint="Crea el primero de la temporada: duración, kilometraje y fases."
           action={<button className="btn btn-primary" onClick={() => setShowWizard(true)}><Plus size={14} /> Crear macrociclo</button>}
         />
       ) : (
@@ -84,7 +92,7 @@ export function PlansPage() {
                     )}
                   </div>
                   <p className="mt-1 text-[11.5px] text-text-dim">
-                    Inicio {plan.start_date} · {plan.total_weeks} semanas · micros de {plan.weeks_per_micro} ·{' '}
+                    Inicio {fechaCorta(plan.start_date)} · {plan.total_weeks} semanas · micros de {plan.weeks_per_micro} ·{' '}
                     {plan.total_km} km
                     {plan.main_event && <> · objetivo: <span className="text-text">{plan.main_event}</span></>}
                   </p>
@@ -115,7 +123,13 @@ export function PlansPage() {
                   {isOwner && (
                     <IconButton
                       label={`Eliminar ${plan.name}`} tone="danger"
-                      onClick={() => confirm(`¿Eliminar "${plan.name}" y todos sus planes semanales?`) && removePlan.mutate(plan.id)}
+                      onClick={async () => {
+                        if (await confirmar({
+                          titulo: `¿Eliminar «${plan.name}»?`,
+                          texto: 'Se borran sus fases y el plan semana a semana de cada atleta. Los tiempos nadados se quedan en cada atleta. No se puede deshacer.',
+                          accion: 'Eliminar', peligro: true,
+                        })) removePlan.mutate(plan.id)
+                      }}
                     >
                       <Trash2 size={14} />
                     </IconButton>
@@ -172,10 +186,13 @@ export function PlansPage() {
                         <button
                           className="reveal rounded-md p-1.5 text-text-faint transition-colors hover:bg-surface-3 hover:text-coral"
                           title={`Quitar a ${ap.swimmer_name}`}
-                          onClick={() =>
-                            confirm(`¿Quitar a ${ap.swimmer_name} del macrociclo?`) &&
-                            removeAthlete.mutate({ planId: plan.id, athletePlanId: ap.id })
-                          }
+                          onClick={async () => {
+                            if (await confirmar({
+                              titulo: `¿Quitar a ${ap.swimmer_name} de «${plan.name}»?`,
+                              texto: 'Sale del macrociclo y de su plan semanal. Sus tiempos nadados se conservan.',
+                              accion: 'Quitar', peligro: true,
+                            })) removeAthlete.mutate({ planId: plan.id, athletePlanId: ap.id })
+                          }}
                           aria-label={`Quitar a ${ap.swimmer_name}`}
                         >
                           <X size={12} />

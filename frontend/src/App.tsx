@@ -5,6 +5,7 @@ import { RutaPorRol } from './components/layout/RutaPorRol'
 import { seccionDe } from './components/layout/navConfig'
 import { Spinner } from './components/ui/primitives'
 import { Avisos } from './components/ui/Avisos'
+import { Confirmaciones } from './components/ui/Confirmaciones'
 import { PuertaDeSesion } from './features/auth/PuertaDeSesion'
 import { useSimpleMode } from './hooks/useSimpleMode'
 
@@ -88,6 +89,7 @@ export default function App() {
       </main>
       </PuertaDeSesion>
       <Avisos />
+      <Confirmaciones />
     </div>
   )
 }

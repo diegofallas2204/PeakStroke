@@ -7,6 +7,7 @@ import { api } from '../../lib/api'
 import { POOLS } from '../../lib/constants'
 import type { ClaveDeFase, PhaseInput } from '../../lib/types'
 import { Field, Modal } from '../../components/ui/primitives'
+import { fechaCorta } from '../../lib/format'
 import { enBlanco, problemaDelCalendario } from './calendario'
 
 type PhaseDraft = PhaseInput
@@ -14,13 +15,15 @@ interface CompDraft { name: string; week_number: number; days: number; is_main: 
 
 const STEPS = ['Configuración', 'Fases y competencias', 'Resumen']
 
+const FORM_INICIAL = {
+  name: '', start_date: '', total_weeks: 12, weeks_per_micro: 4,
+  total_km: 320, pool: '50', n_mac: 1, main_event: '', notes: '',
+}
+
 export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [step, setStep] = useState(0)
   const [error, setError] = useState('')
-  const [form, setForm] = useState({
-    name: '', start_date: '', total_weeks: 12, weeks_per_micro: 4,
-    total_km: 320, pool: '50', n_mac: 1, main_event: '', notes: '',
-  })
+  const [form, setForm] = useState(FORM_INICIAL)
   const [phases, setPhases] = useState<PhaseDraft[]>([])
   const [comps, setComps] = useState<CompDraft[]>([])
   const queryClient = useQueryClient()
@@ -38,12 +41,22 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
   const colorDe = (type: ClaveDeFase) => opciones.find((o) => o.type === type)?.color
 
   // Ajustes de estado durante el render (patrón oficial de React) en vez de efectos:
-  // al abrir el asistente se vuelve al primer paso; al llegar las fases por
-  // defecto de otro total de semanas, reemplazan a las que había.
+  // al abrir, el asistente empieza **limpio y con las fases del motor**; al
+  // llegar las fases por defecto de otro total de semanas, reemplazan a las que
+  // había.
+  //
+  // Copiarlas al abrir no sobra (2026-11-13): las fases por defecto se guardan
+  // en la caché del navegador, así que tras recargar ya estaban al montarse,
+  // `porDefecto` nunca «llegaba» y el paso de fases salía vacío. Y sin limpiar
+  // el formulario, abrirlo después de crear uno enseñaba los datos del anterior.
   const [prevOpen, setPrevOpen] = useState(open)
   if (open !== prevOpen) {
     setPrevOpen(open)
-    if (open) { setStep(0); setError('') }
+    if (open) {
+      setStep(0); setError('')
+      setForm(FORM_INICIAL); setComps([])
+      setPhases(porDefecto ?? [])
+    }
   }
   const [prevPorDefecto, setPrevPorDefecto] = useState(porDefecto)
   if (porDefecto !== prevPorDefecto) {
@@ -106,8 +119,8 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
       </div>
 
       {step === 0 && (
-        <div className="grid grid-cols-3 gap-4">
-          <Field label="Nombre del macrociclo" className="col-span-3">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="Nombre del macrociclo" className="sm:col-span-3">
             <input className="field" value={form.name} onChange={set('name')} placeholder="Ej. Temporada Nacional 2026" autoFocus />
           </Field>
           <Field label="Fecha de inicio">
@@ -140,7 +153,7 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
           <Field label="Evento objetivo">
             <input className="field" value={form.main_event} onChange={set('main_event')} placeholder="Ej. Nacional Juvenil" />
           </Field>
-          <Field label="Objetivo / notas" className="col-span-3">
+          <Field label="Objetivo / notas" className="sm:col-span-3">
             <textarea className="field min-h-16 resize-y" value={form.notes} onChange={set('notes')} placeholder="Enfoque de la temporada, prioridades técnicas…" />
           </Field>
         </div>
@@ -159,17 +172,27 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
               </button>
             </div>
             <div className="flex flex-col gap-2">
+              <div className="hidden grid-cols-[18px_1fr_150px_80px_80px_34px] gap-2.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-text-faint sm:grid">
+                <span /><span>Nombre</span><span>Tipo</span><span className="text-center">Desde</span><span className="text-center">Hasta</span><span />
+              </div>
               {phases.map((phase, i) => (
-                <div key={i} className="grid grid-cols-[18px_1fr_150px_80px_80px_34px] items-center gap-2.5 rounded-xl border border-line bg-surface-2 px-3 py-2">
+                // En móvil: color · nombre · papelera, y debajo tipo y semanas.
+                // Desde `sm` el envoltorio desaparece (`contents`) y todo va en
+                // una fila; la papelera vuelve al final con `order-last`.
+                <div key={i} className="grid grid-cols-[18px_1fr_34px] items-center gap-2.5 rounded-xl border border-line bg-surface-2 px-3 py-2 sm:grid-cols-[18px_1fr_150px_80px_80px_34px]">
                   <input
                     type="color" value={phase.color}
                     onChange={(e) => setPhases((p) => p.map((x, j) => j === i ? { ...x, color: e.target.value } : x))}
                     className="size-[18px] cursor-pointer rounded-full border-none bg-transparent"
                     aria-label="Color de fase"
                   />
-                  <input className="field !py-1.5" value={phase.name}
+                  <input className="field !py-1.5" value={phase.name} aria-label="Nombre de la fase"
                     onChange={(e) => setPhases((p) => p.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
-                  <select className="field !py-1.5" value={phase.type}
+                  <button className="btn btn-danger !p-1.5 sm:order-last" onClick={() => setPhases((p) => p.filter((_, j) => j !== i))} aria-label="Quitar fase" title="Quitar fase">
+                    <Trash2 size={12} />
+                  </button>
+                  <div className="col-span-3 grid grid-cols-[1fr_64px_64px] gap-2.5 sm:contents">
+                  <select className="field !py-1.5" value={phase.type} aria-label="Tipo de fase"
                     onChange={(e) => {
                       const type = e.target.value as ClaveDeFase
                       setPhases((p) => p.map((x, j) => j === i ? { ...x, type, color: colorDe(type) ?? x.color } : x))
@@ -177,12 +200,12 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
                     {opciones.map((o) => <option key={o.type} value={o.type}>{o.name}</option>)}
                   </select>
                   <input type="number" className="field !py-1.5 text-center" value={phase.week_start} min={1} max={form.total_weeks}
+                    aria-label="Desde la semana" title="Desde la semana"
                     onChange={(e) => setPhases((p) => p.map((x, j) => j === i ? { ...x, week_start: Number(e.target.value) } : x))} />
                   <input type="number" className="field !py-1.5 text-center" value={phase.week_end} min={1} max={form.total_weeks}
+                    aria-label="Hasta la semana" title="Hasta la semana"
                     onChange={(e) => setPhases((p) => p.map((x, j) => j === i ? { ...x, week_end: Number(e.target.value) } : x))} />
-                  <button className="btn btn-danger !p-1.5" onClick={() => setPhases((p) => p.filter((_, j) => j !== i))} aria-label="Quitar fase">
-                    <Trash2 size={12} />
-                  </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -202,22 +225,31 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
               <p className="text-[11.5px] text-text-faint">Agrega las fechas de competencia para marcarlas en el plan (la principal suele ir al final).</p>
             )}
             <div className="flex flex-col gap-2">
+              {comps.length > 0 && (
+                <div className="hidden grid-cols-[1fr_120px_100px_110px_34px] gap-2.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-text-faint sm:grid">
+                  <span>Nombre</span><span className="text-center">Semana</span><span className="text-center">Días</span><span /><span />
+                </div>
+              )}
               {comps.map((comp, i) => (
-                <div key={i} className="grid grid-cols-[1fr_120px_100px_110px_34px] items-center gap-2.5 rounded-xl border border-line bg-surface-2 px-3 py-2">
-                  <input className="field !py-1.5" placeholder="Nombre de la competencia" value={comp.name}
+                <div key={i} className="grid grid-cols-[1fr_34px] items-center gap-2.5 rounded-xl border border-line bg-surface-2 px-3 py-2 sm:grid-cols-[1fr_120px_100px_110px_34px]">
+                  <input className="field !py-1.5" placeholder="Nombre de la competencia" value={comp.name} aria-label="Nombre de la competencia"
                     onChange={(e) => setComps((c) => c.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
+                  <button className="btn btn-danger !p-1.5 sm:order-last" onClick={() => setComps((c) => c.filter((_, j) => j !== i))} aria-label="Quitar competencia" title="Quitar competencia">
+                    <Trash2 size={12} />
+                  </button>
+                  <div className="col-span-2 grid grid-cols-[1fr_1fr_auto] items-center gap-2.5 sm:contents">
                   <input type="number" className="field !py-1.5 text-center" value={comp.week_number} min={1} max={form.total_weeks}
+                    aria-label="Semana" title="Semana"
                     onChange={(e) => setComps((c) => c.map((x, j) => j === i ? { ...x, week_number: Number(e.target.value) } : x))} />
                   <input type="number" className="field !py-1.5 text-center" value={comp.days} min={1} max={7}
+                    aria-label="Días" title="Días"
                     onChange={(e) => setComps((c) => c.map((x, j) => j === i ? { ...x, days: Number(e.target.value) } : x))} />
                   <label className="flex items-center gap-1.5 text-[11px] text-text-dim">
                     <input type="checkbox" checked={comp.is_main}
                       onChange={(e) => setComps((c) => c.map((x, j) => j === i ? { ...x, is_main: e.target.checked } : x))} />
                     Principal
                   </label>
-                  <button className="btn btn-danger !p-1.5" onClick={() => setComps((c) => c.filter((_, j) => j !== i))} aria-label="Quitar competencia">
-                    <Trash2 size={12} />
-                  </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -227,10 +259,10 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
 
       {step === 2 && (
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {[
               ['Nombre', form.name],
-              ['Inicio', form.start_date],
+              ['Inicio', fechaCorta(form.start_date)],
               ['Duración', `${form.total_weeks} semanas · micros de ${form.weeks_per_micro}`],
               ['Kilometraje', `${form.total_km} km`],
               ['Piscina', POOLS.find((p) => p.value === form.pool)?.label ?? ''],
@@ -245,7 +277,7 @@ export function PlanWizard({ open, onClose }: { open: boolean; onClose: () => vo
           </div>
           <div className="flex h-9 gap-[3px]">
             {phases.map((phase, i) => (
-              <div key={i} className="flex items-center justify-center rounded-lg text-[10.5px] font-bold uppercase tracking-wide"
+              <div key={i} title={phase.name} className="flex min-w-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-lg px-1 text-[10.5px] font-bold uppercase tracking-wide"
                 style={{ flex: phase.week_end - phase.week_start + 1, color: phase.color, background: `${phase.color}18`, border: `1px solid ${phase.color}30` }}>
                 {phase.name}
               </div>

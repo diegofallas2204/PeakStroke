@@ -6,7 +6,7 @@ import { Plus, Trash2, UserPlus, ShieldCheck, ShieldAlert, ShieldX } from 'lucid
 import { api } from '../../lib/api'
 import type { Feasibility, Plan } from '../../lib/types'
 import { DISTANCES, coerceStroke, strokeOptionsForDistance } from '../../lib/constants'
-import { tryToSeconds } from '../../lib/format'
+import { fechaCorta, tryToSeconds } from '../../lib/format'
 import { Field, Modal } from '../../components/ui/primitives'
 
 interface EventDraft { distance: number; stroke: string; current: string; goal: string }
@@ -138,7 +138,7 @@ export function AssignAthleteModal({ plan, onClose }: { plan: Plan | null; onClo
 
   return (
     <Modal open={plan !== null} onClose={onClose} title={`Agregar atleta · ${plan?.name ?? ''}`} wide>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Atleta">
           <select className="field" value={swimmerId} disabled={!available.length}
             onChange={(e) => setSwimmerId(e.target.value ? Number(e.target.value) : '')}>
@@ -159,7 +159,7 @@ export function AssignAthleteModal({ plan, onClose }: { plan: Plan | null; onClo
           />
           {tests?.length ? (
             <p className="mt-1 text-[10px] text-mint">
-              Autocompletada del último test ({tests[0].test_type} · {tests[0].test_date})
+              Del último test ({tests[0].test_type} · {fechaCorta(tests[0].test_date)})
             </p>
           ) : swimmerId !== '' ? (
             <p className="mt-1 text-[10px] text-text-faint">Sin tests registrados: puedes ingresarla manualmente.</p>
@@ -180,7 +180,9 @@ export function AssignAthleteModal({ plan, onClose }: { plan: Plan | null; onClo
         <div className="flex flex-col gap-3">
           {events.map((ev, i) => (
             <div key={i} className="rounded-xl border border-line bg-surface-2 p-3">
-              <div className="grid grid-cols-[90px_120px_1fr_1fr_34px] items-end gap-2.5">
+              {/* En móvil, dos columnas y la papelera abajo a la derecha; desde
+                  `sm`, la fila de siempre. */}
+              <div className="grid grid-cols-2 items-end gap-2.5 sm:grid-cols-[90px_120px_1fr_1fr_34px]">
                 <Field label="Distancia">
                   <select className="field !py-1.5" value={ev.distance}
                     onChange={(e) => setEvents((evs) => evs.map((x, j) => {
@@ -207,7 +209,7 @@ export function AssignAthleteModal({ plan, onClose }: { plan: Plan | null; onClo
                     onChange={(e) => setEvents((evs) => evs.map((x, j) => j === i ? { ...x, goal: e.target.value } : x))} />
                 </Field>
                 <button
-                  className="btn btn-danger mb-0.5 !p-1.5" disabled={events.length === 1}
+                  className="btn btn-danger col-span-2 mb-0.5 justify-self-end !p-1.5 sm:col-span-1" disabled={events.length === 1}
                   onClick={() => { setEvents((evs) => evs.filter((_, j) => j !== i)); setFeasibilities((f) => f.filter((_, j) => j !== i)) }}
                   aria-label="Quitar prueba"
                 >

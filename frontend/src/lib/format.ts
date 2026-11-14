@@ -14,6 +14,12 @@ export function fechaSinZona(iso: string): Date {
   return new Date(y, m - 1, d)
 }
 
+/** `'2026-08-10'` -> `'10 ago 2026'`, leída sin zona (ver `fechaSinZona`). */
+export function fechaCorta(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  return fechaSinZona(iso).toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 /** `'2026-08-10'` + 12 semanas -> el domingo en que termina, `'1 nov'`. */
 export function finDeMacro(inicio: string, semanas: number): string {
   const fin = fechaSinZona(inicio)

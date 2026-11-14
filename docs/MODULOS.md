@@ -190,13 +190,19 @@ de módulo lo reciben con `git merge Preliminar`.
 - ~~«Mejora» y «Acumulada» con signos opuestos~~ en la misma fila; el aviso de
   extensión, que repetía el veredicto, se quitó.
 
-**`modulo/macrociclos`**
-- 🧹 El asistente de crear macrociclo y «Agregar atleta» no caben en móvil
-  (`PlanWizard`, `AssignAthleteModal`: filas de columnas fijas).
-- 🧹 Fechas en ISO (`2026-08-10`) en la tarjeta y en el selector de macrociclo
-  (`PlansPage`, `MacroSwitcherModal`). Ojo: `new Date('2026-08-10')` es
-  medianoche UTC y en Costa Rica pinta el día anterior; hay que leerla sin zona.
-- 🧹 `confirm()` del navegador al eliminar un macro y al quitar un atleta.
+**`modulo/macrociclos`** — ✅ **sin pendientes** (2026-11-13).
+- ~~El asistente y «Agregar atleta» no cabían en móvil~~: cada fase y cada
+  competencia van en dos líneas en móvil y en una fila con cabecera desde `sm`;
+  los números sueltos (desde, hasta, semana, días) llevan nombre.
+- ~~Fechas en ISO~~: `format.fechaCorta` (leída sin zona) en la tarjeta, el
+  selector de macrociclo, el resumen del asistente y la base aeróbica.
+- ~~`confirm()` del navegador~~: el diálogo propio `lib/confirmar` (montado en
+  `App` como `Confirmaciones`) dice qué se borra y qué no, y arranca con el foco
+  en Cancelar. **Sirve para los `confirm()` de los demás módulos.**
+- ~~Un fallo de carga salía como «Sin macrociclos»~~: `ErrorDeCarga`.
+- ~~Tras recargar, el asistente abría el paso de fases vacío~~ (las fases por
+  defecto ya estaban en la caché y nunca «llegaban»), y al reabrirlo enseñaba
+  los datos del anterior: ahora empieza limpio y con las fases del motor.
 
 **`modulo/atletas`**
 - ✨ Restablecer la contraseña de un atleta desde su página (el backend ya tiene
