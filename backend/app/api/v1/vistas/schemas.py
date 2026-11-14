@@ -57,6 +57,11 @@ class DashboardSummary(BaseModel):
     total_weeks: int
     current_week: int | None
     current_phase: str | None
+    # El calendario del macro ya terminó (hoy pasa de su último día). Con él,
+    # nada es «actual»: ni semana, ni fase, ni competencia por delante. Sale
+    # aparte de `plan_status` porque un macro se puede cerrar a mano antes de
+    # tiempo, y uno vencido puede seguir marcado como activo.
+    is_over: bool = False
     athletes_total: int
     events_total: int
     ahead: int

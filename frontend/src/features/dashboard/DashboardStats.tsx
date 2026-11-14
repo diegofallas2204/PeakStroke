@@ -4,7 +4,7 @@
 // entre roles son las etiquetas y a dónde llevan, y meterlo por dentro de la
 // página la habría empujado sobre el límite de ~300 líneas del CLAUDE.md a
 // cambio de un `if` por tarjeta.
-import { CalendarRange, TrendingUp, Trophy, Users } from 'lucide-react'
+import { CalendarRange, Gauge, TrendingUp, Users } from 'lucide-react'
 import type { DashboardSummary } from '../../lib/types'
 import { StatCard } from '../../components/ui/StatCard'
 import type { Vista } from './vistaPorRol'
@@ -27,7 +27,7 @@ export function DashboardStats({
       <StatCard
         label="Semana actual" value={data.current_week ?? 0} suffix={`/ ${data.total_weeks}`}
         accent="#22d3ee" icon={<CalendarRange size={15} />}
-        sub={simple ? undefined : (data.current_phase ? `Fase ${data.current_phase}` : 'Fuera de calendario')}
+        sub={simple ? undefined : data.is_over ? 'Terminado' : (data.current_phase ? `Fase ${data.current_phase}` : 'Aún no empieza')}
         to={vista.semana.a || undefined}
       />
       <StatCard
@@ -45,8 +45,8 @@ export function DashboardStats({
       <StatCard
         label="Desviación media" value={data.avg_deviation_percent ?? 0} suffix="%" decimals={2}
         accent={data.avg_deviation_percent != null && data.avg_deviation_percent > 0 ? '#fb7185' : '#34d399'}
-        icon={<Trophy size={15} />}
-        sub={simple ? undefined : 'Real vs. plan (negativo = más rápido)'}
+        icon={<Gauge size={15} />}
+        sub={simple ? undefined : 'Real vs. plan · − es más rápido'}
         to={vista.desviacion.a || undefined}
       />
     </div>

@@ -5,6 +5,22 @@ export function initials(name: string): string {
   return name.split(' ').slice(0, 2).map((p) => p[0]).join('').toUpperCase()
 }
 
+/**
+ * `'2026-08-10'` -> el 10 de agosto **en la hora local**. `new Date('2026-08-10')`
+ * es medianoche UTC, que en Costa Rica (UTC-6) es el día 9.
+ */
+export function fechaSinZona(iso: string): Date {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+/** `'2026-08-10'` + 12 semanas -> el domingo en que termina, `'1 nov'`. */
+export function finDeMacro(inicio: string, semanas: number): string {
+  const fin = fechaSinZona(inicio)
+  fin.setDate(fin.getDate() + semanas * 7 - 1)
+  return fin.toLocaleDateString('es', { day: 'numeric', month: 'short' })
+}
+
 /** ISO -> '3 ago 2026'. Devuelve '—' si no hay fecha. */
 export function toShortDate(iso: string | null | undefined): string {
   if (!iso) return '—'
