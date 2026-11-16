@@ -227,6 +227,14 @@ correr `alembic upgrade head` en cada base.
   bloquear) de muestras dudosas. Agregado **aparte** de `aerobic_tests`: su ritmo
   no es una base aeróbica y no entra ni en la base por defecto ni en la carga.
   Decisiones de la v1 y lo que queda (escalonado, curva, Excel): TODO-37.
+- ~~**Según la plantilla del entrenador**~~ (2026-11-16, migración `b8e4f2a6d1c3`):
+  el formulario y la ficha tienen la forma de `Tabla Medición` —cabecera
+  (técnica, piscina, Tiempo Pro, Intens. Pro, pausas, tiempo actual), las 12
+  columnas en su orden y el pie con tiempo promedio, intensidad (%) y
+  recuperación—. **Cada columna se puede ocultar** (botón «Columnas», se
+  recuerda por navegador); las de cálculo se rellenan solas. La ficha añade una
+  **lectura** de los datos según la teoría (zona, estado estable, ritmo,
+  intensidad, técnica, serie y recuperación).
 - ~~❓ ¿Base aeróbica pasa a ser la cuarta vista de Plan semanal?~~ Sigue como
   sección (no había opción recomendada; se dejó como está y el lactato entró en
   ella como vista, que es lo que pedía la nota 26).

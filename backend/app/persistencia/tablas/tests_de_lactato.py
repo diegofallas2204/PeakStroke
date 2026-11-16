@@ -16,6 +16,7 @@ from datetime import date, datetime
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Float,
@@ -41,6 +42,8 @@ class LactateTest(Base):
         voc.en("rest_type", voc.TIPOS_DE_DESCANSO, nombre="ck_lactate_tests_rest_type", nulo=True),
         voc.en("sample_site", voc.SITIOS_DE_MUESTRA, nombre="ck_lactate_tests_sample_site", nulo=True),
         voc.en("hr_method", voc.METODOS_DE_FC, nombre="ck_lactate_tests_hr_method", nulo=True),
+        voc.en("stroke", voc.ESTILOS, nombre="ck_lactate_tests_stroke", nulo=True),
+        CheckConstraint("pool_length IS NULL OR pool_length IN (25, 50)", name="ck_lactate_tests_pool_length"),
         ForeignKeyConstraint(
             ["swimmer_id", "team_id"], ["swimmers.id", "swimmers.team_id"],
             name="fk_lactate_tests_swimmer_in_team",
@@ -66,6 +69,11 @@ class LactateTest(Base):
     analyzer: Mapped[str | None] = mapped_column(String(60))
     sample_minute: Mapped[float | None] = mapped_column(Float)     # minuto tras la repetición
     hr_method: Mapped[str | None] = mapped_column(String(12))      # banda | palpacion | optico
+    # Cabecera de la plantilla (b8e4f2a6d1c3): «Técnica», «Piscina» e «Intens. Pro».
+    stroke: Mapped[str | None] = mapped_column(String(12))
+    pool_length: Mapped[int | None] = mapped_column(Integer)
+    proposed_intensity_min: Mapped[float | None] = mapped_column(Float)   # % de su mejor marca
+    proposed_intensity_max: Mapped[float | None] = mapped_column(Float)
     notes: Mapped[str | None] = mapped_column(Text)
     # Se da de baja, no se borra: la medición no se puede rehacer.
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1", index=True)
@@ -73,6 +81,9 @@ class LactateTest(Base):
 
     reps: Mapped[list[LactateRep]] = relationship(
         back_populates="test", cascade="all, delete-orphan", order_by="LactateRep.rep_number",
+    )
+    recovery: Mapped[list[LactateRecovery]] = relationship(
+        back_populates="test", cascade="all, delete-orphan", order_by="LactateRecovery.minute",
     )
 
 
@@ -91,5 +102,24 @@ class LactateRep(Base):
     effort: Mapped[float | None] = mapped_column(Float)            # CR-10
     stroke_counts: Mapped[list[int] | None] = mapped_column(JSON)  # conteos del tramo
     segment_time: Mapped[float | None] = mapped_column(Float)      # tiempo del tramo contado
+    series: Mapped[int | None] = mapped_column(Integer)            # «Serie» de la plantilla
+    splits: Mapped[list[float] | None] = mapped_column(JSON)       # «Parciales»
 
     test: Mapped[LactateTest] = relationship(back_populates="reps")
+
+
+class LactateRecovery(Base):
+    """El bloque de recuperación de la plantilla: una medición tras la serie."""
+
+    __tablename__ = "lactate_recovery"
+    __table_args__ = (UniqueConstraint("test_id", "minute", name="uq_lactate_recovery_minute"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    test_id: Mapped[int] = mapped_column(
+        ForeignKey("lactate_tests.id", ondelete="CASCADE"), index=True,
+    )
+    minute: Mapped[float] = mapped_column(Float)
+    heart_rate: Mapped[int | None] = mapped_column(Integer)
+    lactate: Mapped[float | None] = mapped_column(Float)
+
+    test: Mapped[LactateTest] = relationship(back_populates="recovery")

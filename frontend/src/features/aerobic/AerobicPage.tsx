@@ -130,6 +130,7 @@ export function AerobicPage() {
         ) : (
           <LactatoVista
             swimmerId={activeSwimmer} menor={menor} puedeApuntar={isCoach}
+            nombre={atleta?.name} edad={atleta?.age}
             seleccionado={selectedLactate} onSeleccionar={setSelectedLactate}
             onNuevo={() => setShowForm(true)}
           />
@@ -219,6 +220,7 @@ export function AerobicPage() {
       <LactatoForm
         open={showForm && vista === 'lactato'}
         swimmerId={activeSwimmer}
+        atleta={atleta}
         onClose={() => setShowForm(false)}
         onCreado={setSelectedLactate}
       />

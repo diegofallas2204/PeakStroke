@@ -235,3 +235,73 @@ def test_la_migracion_sube_y_baja_en_sqlite(tmp_path, monkeypatch):
     assert not {"lactate_tests", "lactate_test_reps"} & tablas()
     command.upgrade(cfg, "head")
     assert {"lactate_tests", "lactate_test_reps"} <= tablas()
+
+
+class TestLaPlantilla:
+    """La cabecera, las columnas y el pie de `Tabla Medición` (2026-11-16)."""
+
+    async def test_cabecera_columnas_y_recuperacion_van_y_vuelven(self, client, world: World):
+        cuerpo = _cuerpo(world.sofia_swimmer_id, stroke="libre", pool_length=50,
+                         proposed_intensity_min=75, proposed_intensity_max=80,
+                         recovery=[{"minute": 3, "heart_rate": 120, "lactate": 4.0},
+                                   {"minute": 10, "heart_rate": 100, "lactate": 2.1}])
+        cuerpo["reps"][0].update({"series": 1, "splits": [72.0, 73.0, 73.0, 73.0]})
+        r = await client.post(RUTA, json=cuerpo, headers=como(world.owner_email))
+        assert r.status_code == 201, r.text
+        body = r.json()
+        assert (body["stroke"], body["pool_length"]) == ("libre", 50)
+        assert (body["proposed_intensity_min"], body["proposed_intensity_max"]) == (75, 80)
+        assert body["recovery"] == [{"minute": 3.0, "heart_rate": 120, "lactate": 4.0},
+                                    {"minute": 10.0, "heart_rate": 100, "lactate": 2.1}]
+        primera = body["reps"][0]
+        assert (primera["series"], primera["splits"]) == (1, [72.0, 73.0, 73.0, 73.0])
+        assert primera["m_per_cycle"] == pytest.approx(3.28)
+        s = body["summary"]
+        assert s["intensity_state"] == "encima"
+        assert s["recovery_peak"] == [3.0, 4.0]
+        assert s["clearance_pct"] == pytest.approx(47.5)
+        tipos = {f["kind"] for f in body["findings"]}
+        assert {"zona", "estado_estable", "ritmo", "intensidad", "tecnica", "recuperacion"} <= tipos
+        leido = (await client.get(f"{RUTA}{body['id']}", headers=como(world.owner_email))).json()
+        assert leido == body
+
+    async def test_sin_tiempo_propuesto_se_calcula_de_la_intensidad(self, client, world: World):
+        r = await _crear(client, world, proposed_min=None, proposed_max=None,
+                         proposed_intensity_min=75, proposed_intensity_max=80)
+        s = r.json()["summary"]
+        assert s["proposed_effective"] == [pytest.approx(245.12 / 0.8, abs=0.01),
+                                           pytest.approx(245.12 / 0.75, abs=0.01)]
+        assert s["diff_proposed"] is not None
+
+    @pytest.mark.parametrize("cambio", [
+        {"stroke": "crol"}, {"pool_length": 33}, {"proposed_intensity_max": None, "proposed_intensity_min": 75},
+        {"recovery": [{"minute": 5, "lactate": 3}, {"minute": 3, "lactate": 4}]},
+    ])
+    async def test_lo_que_la_plantilla_no_admite(self, client, world: World, cambio):
+        assert (await _crear(client, world, **cambio)).status_code == 422
+
+
+def test_la_migracion_de_la_plantilla_impone_sus_check(tmp_path, monkeypatch):
+    from alembic.config import Config
+
+    from alembic import command
+    from app.core.config import settings
+
+    ruta = tmp_path / "plantilla.db"
+    monkeypatch.setattr(settings, "database_url", f"sqlite+aiosqlite:///{ruta.as_posix()}")
+    cfg = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    command.upgrade(cfg, "head")
+    con = sqlite3.connect(ruta)
+    con.execute("INSERT INTO teams (id, name, is_active) VALUES (1, 't', 1)")
+    con.execute("INSERT INTO swimmers (id, team_id, name, specialty, main_stroke, is_active) "
+                "VALUES (1, 1, 'a', 'fondo', 'libre', 1)")
+    con.commit()
+    base = ("INSERT INTO lactate_tests (team_id, swimmer_id, test_date, mode, target_zone, rep_distance, "
+            "stroke, pool_length) VALUES (1, 1, '2026-09-22', 'control', 'R1', 400, ?, ?)")
+    con.execute(base, ("libre", 50))
+    for malo in (("crol", 50), ("libre", 33)):
+        with pytest.raises(sqlite3.IntegrityError):
+            con.execute(base, malo)
+    con.close()
+    command.downgrade(cfg, "a7d3e5f1c9b4")
+    command.upgrade(cfg, "head")

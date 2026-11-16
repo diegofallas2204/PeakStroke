@@ -12,10 +12,12 @@ import { ErrorDeCarga } from '../../components/ui/ErrorDeCarga'
 import { LactatoDetalle } from './LactatoDetalle'
 
 export function LactatoVista({
-  swimmerId, menor, puedeApuntar, seleccionado, onSeleccionar, onNuevo,
+  swimmerId, menor, nombre, edad, puedeApuntar, seleccionado, onSeleccionar, onNuevo,
 }: {
   swimmerId: number
   menor: boolean
+  nombre?: string
+  edad?: number | null
   puedeApuntar: boolean
   seleccionado: number | null
   onSeleccionar: (id: number) => void
@@ -103,7 +105,7 @@ export function LactatoVista({
           })}
         </div>
       </Card>
-      <LactatoDetalle test={test} menor={menor} />
+      <LactatoDetalle test={test} menor={menor} nombre={nombre} edad={edad} />
     </div>
   )
 }

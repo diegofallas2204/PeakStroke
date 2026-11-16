@@ -13,6 +13,17 @@ export interface LactateRepIn {
   effort: number | null
   stroke_counts: number[]
   segment_time: number | null
+  /** «Serie» de la plantilla. */
+  series: number | null
+  /** «Parciales» de la plantilla. */
+  splits: number[]
+}
+
+/** Una fila del bloque de recuperación de la plantilla. */
+export interface LactateRecovery {
+  minute: number
+  heart_rate: number | null
+  lactate: number | null
 }
 
 export interface LactateTestCreate {
@@ -31,7 +42,13 @@ export interface LactateTestCreate {
   sample_minute: number | null
   hr_method: 'banda' | 'palpacion' | 'optico' | null
   notes: string | null
+  /** Cabecera de la plantilla: «Técnica», «Piscina», «Intens. Pro». */
+  stroke: string | null
+  pool_length: 25 | 50 | null
+  proposed_intensity_min: number | null
+  proposed_intensity_max: number | null
   reps: LactateRepIn[]
+  recovery: LactateRecovery[]
 }
 
 export interface LactateRepOut extends LactateRepIn {
@@ -41,6 +58,8 @@ export interface LactateRepOut extends LactateRepIn {
   pct_reference: number | null
   strokes_mean: number | null
   m_per_stroke: number | null
+  /** «Efectividad por ciclo»: metros por ciclo. */
+  m_per_cycle: number | null
   cycle_rate: number | null
   cycle_rate_estimated: boolean
   stroke_index: number | null
@@ -72,6 +91,17 @@ export interface LactateSummary {
   strokes_last: number | null
   stroke_drift_pct: number | null
   stroke_index: number | null
+  intensity_state: EstadoDeZona | null
+  proposed_effective: [number, number] | null
+  recovery_peak: [number, number] | null
+  clearance_pct: number | null
+  clearance_rate: number | null
+}
+
+export interface LactateFinding {
+  kind: string
+  tone: 'bien' | 'atencion' | 'info'
+  message: string
 }
 
 export interface LactateAnalysis {
@@ -79,6 +109,7 @@ export interface LactateAnalysis {
   reps: LactateRepOut[]
   summary: LactateSummary
   warnings: LactateWarning[]
+  findings: LactateFinding[]
 }
 
 export interface LactateTest extends LactateAnalysis, Omit<LactateTestCreate, 'reps'> {

@@ -11,6 +11,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 from app.api.entrada import Entrada
+from app.api.vocabulario import MainStroke
 
 ZonaDeLactato = Literal["R1", "R2", "MVO2", "RL", "V"]
 Conteo = Annotated[int, Field(ge=1, le=200)]
@@ -24,6 +25,16 @@ class LactateRepIn(Entrada):
     effort: float | None = Field(None, ge=0, le=10)         # CR-10
     stroke_counts: list[Conteo] = Field(default_factory=list, max_length=40)
     segment_time: float | None = Field(None, gt=0, le=3600)
+    series: int | None = Field(None, ge=1, le=20)                  # «Serie»
+    splits: list[Annotated[float, Field(gt=0, le=3600)]] = Field(default_factory=list, max_length=40)
+
+
+class LactateRecoveryIn(Entrada):
+    """Una fila del bloque de recuperación de la plantilla."""
+
+    minute: float = Field(ge=0, le=120)
+    heart_rate: int | None = Field(None, ge=30, le=250)
+    lactate: float | None = Field(None, ge=0, le=30)
 
 
 class LactateTestCreate(Entrada):
@@ -44,7 +55,13 @@ class LactateTestCreate(Entrada):
     sample_minute: float | None = Field(None, ge=0, le=30)
     hr_method: Literal["banda", "palpacion", "optico"] | None = None
     notes: str | None = Field(None, max_length=2000)
+    # Cabecera de la plantilla: «Técnica», «Piscina» e «Intens. Pro» (% de su mejor marca).
+    stroke: MainStroke | None = None
+    pool_length: Literal[25, 50] | None = None
+    proposed_intensity_min: float | None = Field(None, gt=0, le=150)
+    proposed_intensity_max: float | None = Field(None, gt=0, le=150)
     reps: list[LactateRepIn] = Field(min_length=1, max_length=40)
+    recovery: list[LactateRecoveryIn] = Field(default_factory=list, max_length=20)
 
 
 class LactateRepOut(BaseModel):
@@ -55,12 +72,15 @@ class LactateRepOut(BaseModel):
     effort: float | None
     stroke_counts: list[int]
     segment_time: float | None
+    series: int | None
+    splits: list[float]
     # Derivado
     speed: float                       # m/s
     pct_proposed: float | None
     pct_reference: float | None
     strokes_mean: float | None
     m_per_stroke: float | None
+    m_per_cycle: float | None          # «Efectividad por ciclo»: longitud de ciclo
     cycle_rate: float | None           # ciclos/min
     cycle_rate_estimated: bool
     stroke_index: float | None
@@ -92,6 +112,24 @@ class LactateSummary(BaseModel):
     strokes_last: float | None
     stroke_drift_pct: float | None
     stroke_index: float | None
+    intensity_state: Literal["debajo", "dentro", "encima"] | None
+    # El propuesto apuntado o, si falta, el que sale de la intensidad y su marca.
+    proposed_effective: tuple[float, float] | None
+    recovery_peak: tuple[float, float] | None      # (minuto, mmol/L)
+    clearance_pct: float | None
+    clearance_rate: float | None                   # mmol/L por minuto
+
+
+class LactateFinding(BaseModel):
+    kind: str
+    tone: Literal["bien", "atencion", "info"]
+    message: str
+
+
+class LactateRecoveryOut(BaseModel):
+    minute: float
+    heart_rate: int | None
+    lactate: float | None
 
 
 class LactateAnalysis(BaseModel):
@@ -99,6 +137,7 @@ class LactateAnalysis(BaseModel):
     reps: list[LactateRepOut]
     summary: LactateSummary
     warnings: list[LactateWarning]
+    findings: list[LactateFinding]
 
 
 class LactateTestResponse(LactateAnalysis):
@@ -120,3 +159,8 @@ class LactateTestResponse(LactateAnalysis):
     hr_method: str | None
     notes: str | None
     is_active: bool
+    stroke: str | None
+    pool_length: int | None
+    proposed_intensity_min: float | None
+    proposed_intensity_max: float | None
+    recovery: list[LactateRecoveryOut]

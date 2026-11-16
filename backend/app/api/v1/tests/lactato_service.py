@@ -7,9 +7,16 @@ y se da forma. Nada se guarda calculado.
 from __future__ import annotations
 
 from app.core.principal import Principal
-from app.dominio.entidades import ProtocoloDeMuestra, Repeticion, TestDeLactato
+from app.dominio.entidades import (
+    MuestraDeRecuperacion,
+    ProtocoloDeMuestra,
+    Repeticion,
+    TestDeLactato,
+)
 from app.dominio.servicios.avisos_de_lactato import avisos
+from app.dominio.servicios.lectura_de_lactato import lectura
 from app.dominio.valores import (
+    Estilo,
     MetodoDeFc,
     ModoDeLactato,
     SitioDeMuestra,
@@ -23,6 +30,8 @@ from app.persistencia.tablas.tests_de_lactato import LactateTest
 
 from .lactato_schemas import (
     LactateAnalysis,
+    LactateFinding,
+    LactateRecoveryOut,
     LactateRepOut,
     LactateSummary,
     LactateTestCreate,
@@ -39,6 +48,8 @@ def entidad_desde_peticion(data: LactateTestCreate) -> TestDeLactato:
     """`ValueError` si no cuadra (el router: 422). La entidad es la que valida."""
     if (data.proposed_min is None) != (data.proposed_max is None):
         raise ValueError("El tiempo propuesto lleva sus dos extremos")
+    if (data.proposed_intensity_min is None) != (data.proposed_intensity_max is None):
+        raise ValueError("La intensidad propuesta lleva sus dos extremos")
     return TestDeLactato(
         atleta_id=data.swimmer_id, fecha=data.test_date,
         modo=ModoDeLactato.desde_texto(data.mode), zona=Zona.desde_texto(data.target_zone),
@@ -47,6 +58,14 @@ def entidad_desde_peticion(data: LactateTestCreate) -> TestDeLactato:
         descanso_s=data.rest_s,
         propuesto=(data.proposed_min, data.proposed_max) if data.proposed_min is not None else None,
         referencia=data.reference_time, tramo_m=data.counted_segment_m,
+        intensidad_propuesta=(
+            (data.proposed_intensity_min, data.proposed_intensity_max)
+            if data.proposed_intensity_min is not None else None
+        ),
+        estilo=Estilo.desde_texto(data.stroke) if data.stroke else None, piscina_m=data.pool_length,
+        recuperacion=[
+            MuestraDeRecuperacion(m.minute, fc=m.heart_rate, lactato=m.lactate) for m in data.recovery
+        ],
         protocolo=ProtocoloDeMuestra(
             sitio=SitioDeMuestra.desde_texto(data.sample_site) if data.sample_site else None,
             analizador=(data.analyzer or "").strip() or None,
@@ -59,6 +78,7 @@ def entidad_desde_peticion(data: LactateTestCreate) -> TestDeLactato:
                 i + 1, Tiempo(r.swim_time), lactato=r.lactate, fc=r.heart_rate,
                 esfuerzo=r.effort, brazadas=tuple(r.stroke_counts),
                 tiempo_tramo=Tiempo(r.segment_time) if r.segment_time else None,
+                serie=r.series, parciales=tuple(r.splits),
             )
             for i, r in enumerate(data.reps)
         ],
@@ -74,11 +94,13 @@ def analizar(test: TestDeLactato) -> LactateAnalysis:
             rep_number=r.numero, swim_time=r.tiempo.segundos, lactate=r.lactato,
             heart_rate=r.fc, effort=r.esfuerzo, stroke_counts=list(r.brazadas),
             segment_time=r.tiempo_tramo.segundos if r.tiempo_tramo else None,
+            series=r.serie, splits=list(r.parciales),
             speed=round(test.velocidad(r), 3),
             pct_proposed=_r(test.pct_del_propuesto(r), 1),
             pct_reference=_r(test.pct_de_referencia(r), 1),
             strokes_mean=_r(r.brazadas_medias()),
             m_per_stroke=_r(test.metros_por_brazada(r)),
+            m_per_cycle=_r(test.metros_por_ciclo(r)),
             cycle_rate=_r(frecuencia, 1), cycle_rate_estimated=estimada,
             stroke_index=_r(test.indice_de_brazada(r)),
             internal_drift_pct=_r(r.deriva_interna_pct(), 1),
@@ -104,6 +126,13 @@ def analizar(test: TestDeLactato) -> LactateAnalysis:
         strokes_last=_r(con_conteo[-1].brazadas_medias()) if con_conteo else None,
         stroke_drift_pct=_r(test.deriva_de_brazada_pct(), 1),
         stroke_index=_r(test.indice_de_brazada()),
+        intensity_state=intensidad.value if (intensidad := test.estado_de_intensidad()) else None,
+        proposed_effective=(
+            (round(p[0], 2), round(p[1], 2)) if (p := test.propuesto_efectivo()) else None
+        ),
+        recovery_peak=test.pico_de_recuperacion(),
+        clearance_pct=_r(test.aclaramiento_pct(), 1),
+        clearance_rate=_r(test.tasa_de_aclaramiento(), 3),
     )
     return LactateAnalysis(
         zone_range=test.zona.rango_de_lactato, reps=reps, summary=resumen,
@@ -111,6 +140,7 @@ def analizar(test: TestDeLactato) -> LactateAnalysis:
             LactateWarning(rep_number=a.repeticion, field=a.campo, message=a.mensaje)
             for a in avisos(test)
         ],
+        findings=[LactateFinding(kind=h.tipo, tone=h.tono, message=h.mensaje) for h in lectura(test)],
     )
 
 
@@ -126,6 +156,11 @@ def to_response(fila: LactateTest) -> LactateTestResponse:
         sample_site=fila.sample_site, analyzer=fila.analyzer,
         sample_minute=fila.sample_minute, hr_method=fila.hr_method,
         notes=fila.notes, is_active=fila.is_active,
+        stroke=fila.stroke, pool_length=fila.pool_length,
+        proposed_intensity_min=fila.proposed_intensity_min, proposed_intensity_max=fila.proposed_intensity_max,
+        recovery=[
+            LactateRecoveryOut(minute=m.minute, heart_rate=m.heart_rate, lactate=m.lactate) for m in fila.recovery
+        ],
     )
 
 

@@ -16,6 +16,8 @@ from sqlalchemy.orm import selectinload
 from app.core.principal import Principal
 from app.persistencia.tablas.tests_de_lactato import LactateTest
 
+_CARGAR = (selectinload(LactateTest.reps), selectinload(LactateTest.recovery))
+
 
 class RepositorioDeTestsDeLactato:
     __slots__ = ("db", "principal")
@@ -32,7 +34,7 @@ class RepositorioDeTestsDeLactato:
 
     async def filas(self, *, swimmer_id: int | None = None) -> list[LactateTest]:
         """`swimmer_id` filtra dentro de lo visible; nunca lo amplía."""
-        stmt = self.acotar(select(LactateTest).options(selectinload(LactateTest.reps))) \
+        stmt = self.acotar(select(LactateTest).options(*_CARGAR)) \
             .order_by(LactateTest.test_date.desc(), LactateTest.id.desc())
         if swimmer_id is not None:
             stmt = stmt.where(LactateTest.swimmer_id == swimmer_id)
@@ -41,7 +43,7 @@ class RepositorioDeTestsDeLactato:
     async def fila_de(self, test_id: int) -> LactateTest | None:
         """`None` si es de otro equipo o de otro atleta: el router responde 404."""
         stmt = self.acotar(
-            select(LactateTest).options(selectinload(LactateTest.reps)), incluir_de_baja=True,
+            select(LactateTest).options(*_CARGAR), incluir_de_baja=True,
         ).where(LactateTest.id == test_id)
         return (await self.db.execute(stmt)).scalar_one_or_none()
 

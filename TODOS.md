@@ -828,7 +828,13 @@ de menos cambio:
   nadados (no hay modo de llegadas de reloj).
 - **El hueco 3.5–4.0 mmol/L** no es de ninguna zona: por encima de R1, por
   debajo de R2. Rangos en `Zona.rango_de_lactato`, un solo sitio.
-- **La mejor marca** se escribe a mano (opcional).
+- **La mejor marca** se escribe a mano (opcional). Desde el 2026-11-16 es el
+  «Tiempo Actual» de la plantilla; sin «Tiempo Pro», el propuesto sale de la
+  «Intens. Pro» y esa marca.
+- **«Efectividad por ciclo»** de la plantilla = longitud de ciclo (m por ciclo,
+  2 brazadas). El índice de ciclo de Costill (velocidad × longitud) va aparte.
+  Si el entrenador la entiende de otra forma, se cambia en un sitio
+  (`TestDeLactato.metros_por_ciclo`).
 - **Lo apunta el entrenador**; el atleta ve los suyos.
 
 Queda:
@@ -839,6 +845,9 @@ Queda:
 - ✨ Prellenar la mejor marca desde los resultados del atleta.
 - ✨ Importar la hoja de Excel del entrenador.
 - En menores el techo de R1 es su propio umbral: hoy la app solo lo avisa.
-- La migración `a7d3e5f1c9b4` no se probó en PostgreSQL (sí arriba y abajo en
-  SQLite, con `alembic check` limpio). Usa una columna `JSON`.
+- Las migraciones `a7d3e5f1c9b4` y `b8e4f2a6d1c3` no se probaron en PostgreSQL
+  (sí arriba y abajo en SQLite, con `alembic check` limpio). Usan columnas `JSON`.
+- La lectura describe; los umbrales de sus reglas (deriva de brazada > 10 %,
+  pendiente de 1 s por repetición, ±2 s del propuesto) son razonables pero no
+  están validados con más series: revisarlos con el entrenador.
 - La página del atleta todavía no enlaza a sus tests de lactato (nota 27).
