@@ -256,7 +256,9 @@ class WeekUpdateRequest(Entrada):
     real_time: float | None = Field(default=None, gt=0)
     clear_real_time: bool = False
     disabled: bool | None = None
-    disable_reason: str | None = None
+    # Lo que cabe en `weeks.disable_reason` (String(200)). Sin el límite, en
+    # PostgreSQL un motivo más largo salía como un 500 (2026-11-16).
+    disable_reason: str | None = Field(default=None, max_length=200)
 
     def touches_coach_only_fields(self) -> bool:
         """True si la petición intenta escribir algo reservado al entrenador.

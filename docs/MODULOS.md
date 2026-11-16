@@ -242,13 +242,20 @@ correr `alembic upgrade head` en cada base.
   corta, diálogo propio («Retirar», que es lo que hace), error ≠ vacío y la fecha
   de hoy sin pasar por UTC en el formulario.
 
-**`modulo/plan-semanal`**
+**`modulo/plan-semanal`** — ✅ **sin pendientes propios** (2026-11-16). Solo
+quedan N1 y N2, que son decisión tuya y bloquean el módulo diario, no este.
 - ❓ **N1 y N2** (`REDISENO.md` §10.3): qué entra en el promedio semanal —
   ¿todos los tiempos de la prueba o el que marque el entrenador?, ¿la
   competencia manda? Aparcadas; bloquean el módulo de entrenamiento diario.
-- ✨ PDF de la tabla individual del atleta (nota 24: ya existen el del simulador
-  y el del equipo).
-- 🧹 El motivo del parón se pide con `prompt()` del navegador (`VistaPlan`).
+  Sin opción recomendada: siguen abiertas.
+- ~~✨ PDF de la tabla individual del atleta~~: botón «PDF» en la vista Plan, con
+  el mismo constructor que el del simulador y el del equipo (ritmo y salida por
+  zona salvo en modo simple).
+- ~~🧹 El motivo del parón con `prompt()`~~: diálogo propio con los motivos
+  habituales de un toque; reactivar sigue siendo directo.
+- Además: el botón de parón no tenía etiqueta accesible (solo `title`); un fallo
+  al cargar las semanas dejaba el spinner girando para siempre; y el motivo del
+  parón no tenía límite en el API (la columna es de 200: en PostgreSQL, un 500).
 
 **`modulo/entrenamiento`**
 - ❓ TODO-20: ¿borrar una sesión se audita? (probablemente sí cuando el

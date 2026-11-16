@@ -9,7 +9,11 @@ import type { Week } from '../../lib/types'
 import { toClock, tryToSeconds, signed } from '../../lib/format'
 import { avisarError } from '../../lib/avisos'
 import { useSimpleMode } from '../../hooks/useSimpleMode'
-import { Card, StatusBadge } from '../../components/ui/primitives'
+import { Card, IconButton, StatusBadge } from '../../components/ui/primitives'
+import { BotonPdf } from '../../components/ui/BotonPdf'
+import type { EventSelection } from '../../components/ui/EventPicker'
+import { MarcarParon } from './MarcarParon'
+import { descargarPlanPdf } from './planPdf'
 
 function RealTimeCell({
   week, onSave,
@@ -59,10 +63,11 @@ function RealTimeCell({
 }
 
 export function VistaPlan({
-  weeks, eventId, currentWeek, focusWeek, onSelectWeek, onVerZonas,
+  weeks, eventId, selection, currentWeek, focusWeek, onSelectWeek, onVerZonas,
 }: {
   weeks: Week[]
   eventId: number
+  selection: EventSelection
   currentWeek: number | null
   focusWeek: Week | null
   onSelectWeek: (weekNumber: number) => void
@@ -70,6 +75,7 @@ export function VistaPlan({
 }) {
   const [simple] = useSimpleMode()
   const queryClient = useQueryClient()
+  const [parando, setParando] = useState<Week | null>(null)
 
   const updateWeek = useMutation({
     mutationFn: ({ weekId, body }: { weekId: number; body: unknown }) =>
@@ -88,15 +94,14 @@ export function VistaPlan({
       body: seconds == null ? { clear_real_time: true } : { real_time: seconds },
     })
 
+  // Parar pide el motivo en un diálogo; reactivar es directo (se deshace igual).
   const togglePause = (week: Week) => {
-    const reason = !week.disabled
-      ? prompt('Motivo del parón (lesión, vacaciones…):', week.disable_reason ?? '') ?? undefined
-      : undefined
-    if (!week.disabled && reason === undefined) return
-    updateWeek.mutate({
-      weekId: week.id,
-      body: { disabled: !week.disabled, disable_reason: reason || null },
-    })
+    if (!week.disabled) { setParando(week); return }
+    updateWeek.mutate({ weekId: week.id, body: { disabled: false, disable_reason: null } })
+  }
+  const confirmarParon = (motivo: string | null) => {
+    if (parando) updateWeek.mutate({ weekId: parando.id, body: { disabled: true, disable_reason: motivo } })
+    setParando(null)
   }
 
   return (
@@ -104,10 +109,18 @@ export function VistaPlan({
       title={simple ? 'Plan semanal' : 'Plan generado por el motor · click en una fila para elegir la semana'}
       // Las zonas ya no viven aquí, así que la fila enfocada se lleva su enlace:
       // un clic hasta el detalle, sin volver a buscar la semana en la otra vista.
-      action={focusWeek && (
-        <button className="btn btn-ghost !py-1 !text-[11.5px]" onClick={onVerZonas}>
-          <Waves size={12.5} /> Zonas · S{focusWeek.week_number}
-        </button>
+      action={(
+        <div className="flex items-center gap-1">
+          {focusWeek && (
+            <button className="btn btn-ghost !py-1 !text-[11.5px]" onClick={onVerZonas}>
+              <Waves size={12.5} /> Zonas · S{focusWeek.week_number}
+            </button>
+          )}
+          <BotonPdf
+            title={`Descarga el plan de ${selection.athlete.swimmer_name} semana a semana${simple ? '' : ', con ritmo y salida por zona'}`}
+            onClick={() => descargarPlanPdf(weeks, selection, simple)}
+          />
+        </div>
       )}
       className="card-hover"
       flush
@@ -169,13 +182,13 @@ export function VistaPlan({
                   )}
                   <td>{week.real_time != null ? <StatusBadge status={week.status} /> : <span className="text-[10.5px] text-text-faint">—</span>}</td>
                   <td onClick={(e) => e.stopPropagation()}>
-                    <button
-                      className="btn btn-ghost !p-1.5"
+                    <IconButton
+                      className="!size-7"
                       onClick={() => togglePause(week)}
-                      title={week.disabled ? 'Reactivar semana' : 'Marcar parón (lesión/vacaciones)'}
+                      label={week.disabled ? `Reactivar la semana ${week.week_number}` : `Marcar parón en la semana ${week.week_number}`}
                     >
                       {week.disabled ? <PlayCircle size={13} className="text-mint" /> : <PauseCircle size={13} className="text-text-dim" />}
-                    </button>
+                    </IconButton>
                   </td>
                 </tr>
               )
@@ -183,6 +196,7 @@ export function VistaPlan({
           </tbody>
         </table>
       </div>
+      <MarcarParon week={parando} onCancel={() => setParando(null)} onConfirm={confirmarParon} />
     </Card>
   )
 }
