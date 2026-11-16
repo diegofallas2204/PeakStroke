@@ -6,12 +6,13 @@
 import {
   CartesianGrid, ComposedChart, Line, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
-import { AlertTriangle, CheckCircle2, Droplet, Footprints, HeartPulse, Timer, XCircle } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Droplet, Footprints, HeartPulse, Info, Timer, XCircle } from 'lucide-react'
 import type { EstadoDeZona, LactateTest, LactateWarning } from '../../lib/types'
 import { ZONE_META } from '../../lib/constants'
 import { signed, toClock } from '../../lib/format'
 import { ChartTooltip } from '../../components/charts/chartTheme'
 import { Card, Chip } from '../../components/ui/primitives'
+import { LactatoPlantilla } from './LactatoPlantilla'
 
 const ESTADO: Record<EstadoDeZona, { texto: string; color: string }> = {
   dentro: { texto: 'En zona', color: '#34d399' },
@@ -21,7 +22,9 @@ const ESTADO: Record<EstadoDeZona, { texto: string; color: string }> = {
 
 const TICK = { fill: 'var(--color-text-dim)', fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }
 
-export function LactatoDetalle({ test, menor }: { test: LactateTest; menor: boolean }) {
+export function LactatoDetalle({
+  test, menor, nombre, edad,
+}: { test: LactateTest; menor: boolean; nombre?: string; edad?: number | null }) {
   const s = test.summary
   const zona = ZONE_META[test.target_zone]
   const dudosos = (campo: LactateWarning['field']) =>
@@ -69,6 +72,26 @@ export function LactatoDetalle({ test, menor }: { test: LactateTest; menor: bool
         </p>
       )}
 
+      {test.findings.length > 0 && (
+        <Card className="card-hover" title="Lectura">
+          <ul className="flex flex-col gap-2 text-[12.5px]">
+            {test.findings.map((h) => {
+              const Icono = h.tone === 'bien' ? CheckCircle2 : h.tone === 'atencion' ? AlertTriangle : Info
+              const color = h.tone === 'bien' ? 'text-mint' : h.tone === 'atencion' ? 'text-amber' : 'text-cyan'
+              return (
+                <li key={h.kind} className="flex gap-2">
+                  <Icono size={14} className={`mt-0.5 shrink-0 ${color}`} aria-hidden />
+                  <span className="text-text-dim">{h.message}</span>
+                </li>
+              )
+            })}
+          </ul>
+          <p className="mt-3 text-[10.5px] text-text-faint">
+            Describe, no diagnostica: el mismo % de la mejor marca es otra zona en cada nadador, y una muestra dudosa cambia la lectura.
+          </p>
+        </Card>
+      )}
+
       {test.warnings.length > 0 && (
         <Card className="!border-[rgba(251,191,36,.35)]" title={
           <span className="flex items-center gap-1.5 text-amber"><AlertTriangle size={13} /> Revisar</span>
@@ -83,6 +106,8 @@ export function LactatoDetalle({ test, menor }: { test: LactateTest; menor: bool
           </ul>
         </Card>
       )}
+
+      <LactatoPlantilla test={test} nombre={nombre} edad={edad} />
 
       <div className="grid gap-4 [&>*]:min-w-0 sm:grid-cols-2">
         <Serie

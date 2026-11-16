@@ -36,3 +36,16 @@ export function parsearBrazadas(texto: string): number[] | undefined {
   const numeros = partes.map(Number)
   return numeros.every((n) => Number.isInteger(n) && n >= 1 && n <= 200) ? numeros : undefined
 }
+
+/** Parciales: `1:12, 1:13 / 1:13 1:13` → segundos. Vacío o faltante → []. */
+export function parsearTiempos(texto: string): number[] | undefined {
+  const crudo = limpiar(texto)
+  if (FALTANTE.test(crudo)) return []
+  const partes = crudo.split(/[\s,;/]+/).filter(Boolean)
+  const segundos = partes.map((p) => {
+    const [m, s] = p.includes(':') ? p.split(':') : ['0', p]
+    const n = Number(m) * 60 + Number(s)
+    return Number.isFinite(n) && n > 0 && /^\d+(\.\d+)?$/.test(s) && /^\d+$/.test(m) ? n : NaN
+  })
+  return segundos.every((n) => !Number.isNaN(n)) ? segundos : undefined
+}

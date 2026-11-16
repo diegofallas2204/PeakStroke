@@ -8,8 +8,14 @@ from __future__ import annotations
 
 from enum import Enum
 
-from app.dominio.entidades import ProtocoloDeMuestra, Repeticion, TestDeLactato
+from app.dominio.entidades import (
+    MuestraDeRecuperacion,
+    ProtocoloDeMuestra,
+    Repeticion,
+    TestDeLactato,
+)
 from app.dominio.valores import (
+    Estilo,
     MetodoDeFc,
     ModoDeLactato,
     SitioDeMuestra,
@@ -17,7 +23,7 @@ from app.dominio.valores import (
     TipoDeDescanso,
     Zona,
 )
-from app.persistencia.tablas.tests_de_lactato import LactateRep, LactateTest
+from app.persistencia.tablas.tests_de_lactato import LactateRecovery, LactateRep, LactateTest
 
 
 def _o_none(enum: type[Enum], valor: str | None) -> Enum | None:
@@ -35,6 +41,12 @@ def test_de_lactato_desde_fila(fila: LactateTest) -> TestDeLactato:
         distancia_rep=fila.rep_distance,
         descanso=_o_none(TipoDeDescanso, fila.rest_type), descanso_s=fila.rest_s,
         propuesto=propuesto, referencia=fila.reference_time, tramo_m=fila.counted_segment_m,
+        intensidad_propuesta=(
+            (fila.proposed_intensity_min, fila.proposed_intensity_max)
+            if fila.proposed_intensity_min is not None and fila.proposed_intensity_max is not None else None
+        ),
+        estilo=_o_none(Estilo, fila.stroke), piscina_m=fila.pool_length,
+        recuperacion=[MuestraDeRecuperacion(m.minute, fc=m.heart_rate, lactato=m.lactate) for m in fila.recovery],
         protocolo=ProtocoloDeMuestra(
             sitio=_o_none(SitioDeMuestra, fila.sample_site), analizador=fila.analyzer,
             minuto=fila.sample_minute, metodo_fc=_o_none(MetodoDeFc, fila.hr_method),
@@ -45,6 +57,7 @@ def test_de_lactato_desde_fila(fila: LactateTest) -> TestDeLactato:
                 r.rep_number, Tiempo(r.swim_time), lactato=r.lactate, fc=r.heart_rate,
                 esfuerzo=r.effort, brazadas=tuple(r.stroke_counts or ()),
                 tiempo_tramo=Tiempo(r.segment_time) if r.segment_time else None,
+                serie=r.series, parciales=tuple(r.splits or ()),
             )
             for r in fila.reps
         ],
@@ -63,6 +76,9 @@ def fila_de_test_de_lactato(test: TestDeLactato, *, team_id: int) -> LactateTest
         sample_site=p.sitio.value if p.sitio else None, analyzer=p.analizador,
         sample_minute=p.minuto, hr_method=p.metodo_fc.value if p.metodo_fc else None,
         notes=test.notas, is_active=test.activo,
+        stroke=test.estilo.value if test.estilo else None, pool_length=test.piscina_m,
+        proposed_intensity_min=test.intensidad_propuesta[0] if test.intensidad_propuesta else None,
+        proposed_intensity_max=test.intensidad_propuesta[1] if test.intensidad_propuesta else None,
     )
     fila.reps = [
         LactateRep(
@@ -70,7 +86,11 @@ def fila_de_test_de_lactato(test: TestDeLactato, *, team_id: int) -> LactateTest
             heart_rate=r.fc, effort=r.esfuerzo,
             stroke_counts=list(r.brazadas) or None,
             segment_time=r.tiempo_tramo.segundos if r.tiempo_tramo else None,
+            series=r.serie, splits=list(r.parciales) or None,
         )
         for r in test.repeticiones
+    ]
+    fila.recovery = [
+        LactateRecovery(minute=m.minuto, heart_rate=m.fc, lactate=m.lactato) for m in test.recuperacion
     ]
     return fila

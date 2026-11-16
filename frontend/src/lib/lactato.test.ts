@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parsearBrazadas, parsearEsfuerzo, parsearNumero } from './lactato'
+import { parsearBrazadas, parsearEsfuerzo, parsearNumero, parsearTiempos } from './lactato'
 
 describe('los faltantes de la hoja del 22/09', () => {
   it.each(['', ' ', '-', '--', 'NA', 'na', "'-'", 's/d'])('«%s» es un faltante', (t) => {
@@ -43,5 +43,18 @@ describe('parsearBrazadas', () => {
   it('un conteo imposible marca el campo', () => {
     expect(parsearBrazadas('31, 0')).toBeUndefined()
     expect(parsearBrazadas('31, 3.5')).toBeUndefined()
+  })
+})
+
+describe('parsearTiempos (parciales)', () => {
+  it('acepta reloj y segundos, con comas, barras o espacios', () => {
+    expect(parsearTiempos('1:12, 1:13/1:13 73.5')).toEqual([72, 73, 73, 73.5])
+  })
+  it('un faltante es una lista vacía', () => {
+    expect(parsearTiempos('-')).toEqual([])
+  })
+  it('lo que no es un tiempo marca el campo', () => {
+    expect(parsearTiempos('1:12, uno')).toBeUndefined()
+    expect(parsearTiempos('1:1x')).toBeUndefined()
   })
 })

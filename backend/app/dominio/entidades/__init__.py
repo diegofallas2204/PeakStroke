@@ -26,6 +26,7 @@ from .codigo_de_vinculacion import HORAS_DE_VIDA, CanjeImposible, CodigoDeVincul
 from .equipo import Equipo, OperacionDeEquipoImposible, Pertenencia, rol_para
 from .inscripcion import Inscripcion, InscripcionImposible
 from .macrociclo import Competencia, FaseDelMacro, Macrociclo, lunes_de
+from .partes_del_lactato import MuestraDeRecuperacion, ProtocoloDeMuestra, Repeticion
 from .prueba_objetivo import PruebaObjetivo
 from .resultado import (
     DIAS_DE_UNA_SEMANA,
@@ -39,7 +40,7 @@ from .semana import Semana
 from .sesion import RPE_MAXIMO, RPE_MINIMO, Sesion
 from .sesion_abierta import SesionAbierta
 from .test_aerobico import PENDIENTE_DE_TENDENCIA, Parcial, TestAerobico
-from .test_de_lactato import ProtocoloDeMuestra, Repeticion, TestDeLactato
+from .test_de_lactato import TestDeLactato
 from .usuario import Usuario
 
 __all__ = [
@@ -63,7 +64,7 @@ __all__ = [
     # test aeróbico
     "TestAerobico", "Parcial", "PENDIENTE_DE_TENDENCIA",
     # test de lactato
-    "TestDeLactato", "Repeticion", "ProtocoloDeMuestra",
+    "TestDeLactato", "Repeticion", "ProtocoloDeMuestra", "MuestraDeRecuperacion",
     # usuario
     "Usuario", "SesionAbierta",
     # equipo

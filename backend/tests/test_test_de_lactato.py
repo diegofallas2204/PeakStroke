@@ -187,3 +187,107 @@ class TestSinDatosOpcionales:
         # propio de una serie a ritmo constante.
         t = _test(A01, modo=ModoDeLactato.ESCALONADO)
         assert t.estado_estable() is None
+
+
+# ── La plantilla del entrenador (Tabla Medición, 2026-11-16) ────────────────
+#
+# Cabecera: técnica, piscina, tiempo e intensidad propuestos, pausas y tiempo
+# actual. Columnas: serie, rep., tiempo, intensidad (esfuerzo), velocidad,
+# lactato, FC, frecuencia de ciclo, brazadas, efectividad por ciclo, metros por
+# brazada y parciales. Pie: tiempo promedio, intensidad (%) y la recuperación.
+
+from app.dominio.entidades import MuestraDeRecuperacion  # noqa: E402
+from app.dominio.servicios.lectura_de_lactato import lectura  # noqa: E402
+from app.dominio.valores import Estilo  # noqa: E402
+
+
+class TestLaPlantilla:
+    def test_la_cabecera(self):
+        t = _test(A01, estilo=Estilo.LIBRE, piscina_m=50, intensidad_propuesta=(75.0, 80.0))
+        assert (t.estilo, t.piscina_m, t.intensidad_propuesta) == (Estilo.LIBRE, 50, (75.0, 80.0))
+
+    def test_efectividad_por_ciclo_es_la_longitud_de_ciclo(self):
+        t = _test(A01)
+        # Metros por ciclo = 2 brazadas: 100 m / 30.5 brazadas en la rep. 1.
+        assert t.metros_por_ciclo(t.repeticiones[0]) == pytest.approx(100 / 30.5)
+
+    def test_la_intensidad_real_frente_a_la_propuesta(self):
+        t = _test(A01, intensidad_propuesta=(75.0, 80.0))
+        assert round(t.pct_de_referencia(), 1) == 83.8
+        assert t.estado_de_intensidad() is EstadoDeZona.ENCIMA
+        assert _test(A01).estado_de_intensidad() is None
+
+    def test_sin_tiempo_propuesto_sale_de_la_intensidad_y_su_marca(self):
+        t = TestDeLactato(
+            fecha=date(2026, 9, 22), zona=Zona.R1, distancia_rep=400,
+            repeticiones=[Repeticion(1, Tiempo(300.0))], referencia=245.12,
+            intensidad_propuesta=(75.0, 80.0),
+        )
+        bajo, alto = t.propuesto_efectivo()
+        assert (bajo, alto) == (pytest.approx(245.12 / 0.80), pytest.approx(245.12 / 0.75))
+        assert t.propuesto is None   # no se inventa como dato apuntado
+
+    def test_los_parciales_afinan_la_frecuencia(self):
+        t = _test(A01)
+        rep = Repeticion(1, Tiempo(291.0), brazadas=(31, 31, 30, 30), parciales=(72.0, 73.0, 73.0, 73.0))
+        valor, estimada = t.frecuencia_de_ciclo(rep)
+        # Cada conteo es del 2.º 50 de un 100: medio parcial por conteo.
+        assert estimada is True
+        assert valor == pytest.approx(15.25 / (72.75 / 2) * 60)
+
+    def test_serie_y_parciales_validos(self):
+        with pytest.raises(ValueError):
+            Repeticion(1, Tiempo(300.0), serie=0)
+        with pytest.raises(ValueError):
+            Repeticion(1, Tiempo(300.0), parciales=(72.0, -1.0))
+
+
+class TestLaRecuperacion:
+    def _con_recuperacion(self):
+        return _test(A01, recuperacion=[
+            MuestraDeRecuperacion(3, fc=120, lactato=4.0),
+            MuestraDeRecuperacion(5, fc=110, lactato=3.2),
+            MuestraDeRecuperacion(10, fc=100, lactato=2.1),
+        ])
+
+    def test_pico_y_aclaramiento(self):
+        t = self._con_recuperacion()
+        assert t.pico_de_recuperacion() == (3, 4.0)
+        assert t.aclaramiento_pct() == pytest.approx(47.5)
+        assert t.tasa_de_aclaramiento() == pytest.approx(1.9 / 7)
+
+    def test_sin_recuperacion_no_hay_nada_que_decir(self):
+        t = _test(A01)
+        assert t.pico_de_recuperacion() is None
+        assert t.aclaramiento_pct() is None
+
+    def test_minutos_en_orden_y_valores_fisiologicos(self):
+        with pytest.raises(ValueError):
+            _test(A01, recuperacion=[MuestraDeRecuperacion(5, lactato=3.0), MuestraDeRecuperacion(3, lactato=4.0)])
+        with pytest.raises(ValueError):
+            MuestraDeRecuperacion(3, lactato=-1.0)
+
+
+class TestLaLectura:
+    """Lo que la teoría dice de los números (notas 26 y 28, y la bibliografía)."""
+
+    def test_la_serie_limpia(self):
+        tipos = {h.tipo: h for h in lectura(_test(A01, intensidad_propuesta=(75.0, 80.0)))}
+        assert tipos["zona"].tono == "bien"
+        assert tipos["estado_estable"].tono == "bien"
+        # Más rápido que lo propuesto y aun así en zona y estable: le queda holgado.
+        assert "holgado" in tipos["ritmo"].mensaje
+        # +34 % de brazadas al mismo ritmo con el lactato plano: fatiga técnica.
+        assert tipos["tecnica"].tono == "atencion"
+        assert "frecuencia" in tipos["tecnica"].mensaje
+        assert tipos["intensidad"].tono == "atencion"
+
+    def test_una_serie_descendente(self):
+        reps = [(t, None, None, None, ()) for t in (338.0, 330.0, 323.0, 317.0, 315.0, 315.0)]
+        t = _test({"referencia": None, "propuesto": None, "reps": reps}, tramo_m=None)
+        assert "serie" in {h.tipo for h in lectura(t)}
+
+    def test_la_recuperacion_se_lee(self):
+        t = TestLaRecuperacion()._con_recuperacion()
+        rec = next(h for h in lectura(t) if h.tipo == "recuperacion")
+        assert "min 3" in rec.mensaje and "48 %" in rec.mensaje
