@@ -40,8 +40,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.anonimizacion import familia_de, huella_de, periodo_de, red_de
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.principal import Principal
+from app.core.proxy import ip_del_cliente, redes
 from app.persistencia.repositorios.auditoria import RepositorioDeAuditoria
 from app.persistencia.tablas.auditoria import (
     FALLO,
@@ -242,11 +244,17 @@ class MiddlewareDeAuditoria:
             await self.app(scope, receive, send)
             return
         cliente = scope.get("client")
-        user_agent = next(
-            (v.decode("latin-1") for k, v in scope.get("headers", ()) if k == b"user-agent"),
-            None,
+        cabeceras = dict(scope.get("headers", ()))
+        user_agent = cabeceras.get(b"user-agent")
+        reenviado = cabeceras.get(b"x-forwarded-for")
+        # Detrás de un proxy propio, la IP real (`core/proxy.py`); sin proxy
+        # declarado, la de la conexión y `X-Forwarded-For` no se cree (R11).
+        ip = ip_del_cliente(
+            cliente[0] if cliente else None,
+            reenviado.decode("latin-1") if reenviado else None,
+            redes(settings.proxies_de_confianza),
         )
         async with contexto_de_auditoria(
-            ip=cliente[0] if cliente else None, user_agent=user_agent,
+            ip=ip, user_agent=user_agent.decode("latin-1") if user_agent else None,
         ):
             await self.app(scope, receive, send)

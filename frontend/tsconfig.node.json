@@ -20,5 +20,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "modulosDeRama.ts", "modulosDeRama.test.ts"]
+  "include": ["vite.config.ts", "modulosDeRama.ts", "modulosDeRama.test.ts", "cabecerasDeSeguridad.ts", "cabecerasDeSeguridad.test.ts"]
 }

@@ -1,0 +1,112 @@
+# CI de PeakStroke (TODO-34, 2026-11-16).
+#
+# Corre en cada push y en cada PR hacia Preliminar o main. Tres trabajos:
+# - backend: ruff, la suite entera (SQLite) y pip-audit de lo instalado.
+# - postgres: las migraciones contra un PostgreSQL de verdad —subir, comprobar
+#   que el modelo y la base dicen lo mismo, bajar hasta el principio, volver a
+#   subir— y el seed. Hasta hoy solo se probaban en SQLite.
+# - frontend: tipos, lint, tests, build y npm audit de lo que va a producción.
+#
+# Las versiones de Python salen de backend/requirements.lock: lo que pasa aquí
+# es lo que pasó en local.
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [Preliminar, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.*
+      - name: Dependencias
+        run: pip install -r requirements.txt -c requirements.lock ruff
+      - name: Lint
+        run: ruff check app tests alembic
+      - name: Tests
+        run: python -m pytest tests/ -q -p no:cacheprovider
+      - name: Vulnerabilidades conocidas en las dependencias
+        run: |
+          pip install pip-audit
+          pip-audit --progress-spinner off
+
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: peakstroke
+          POSTGRES_PASSWORD: peakstroke
+          POSTGRES_DB: peakstroke
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U peakstroke -d peakstroke"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      PEAKSTROKE_DATABASE_URL: postgresql+asyncpg://peakstroke:peakstroke@localhost:5432/peakstroke
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.*
+      - name: Dependencias
+        run: pip install -r requirements.txt -c requirements.lock asyncpg
+      - name: Migraciones arriba
+        run: alembic upgrade head
+      - name: El modelo y la base dicen lo mismo
+        run: alembic check
+      - name: Migraciones abajo hasta el principio
+        run: alembic downgrade base
+      - name: Y otra vez arriba
+        run: alembic upgrade head
+      - name: Seed
+        run: python seed.py
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Tipos
+        run: npx tsc -b
+      - name: Lint
+        run: npx eslint .
+      - name: Tests
+        run: npx vitest run
+      - name: Build
+        run: npm run build
+      # Lo que llega al navegador. Las devDependencies tienen avisos moderados en
+      # la cadena de eslint que piden un cambio mayor (TODO-34); no bloquean.
+      - name: Vulnerabilidades en lo que va a producción
+        run: npm audit --omit=dev --audit-level=high

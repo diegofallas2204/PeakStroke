@@ -163,6 +163,14 @@ cd backend && .venv\Scripts\python tools/ops.py salud
   `frontend/src/features/aerobic/lactatoColumnas.ts`, cada una ocultable, y la
   lectura según la teoría en `servicios/lectura_de_lactato.py` (describe, no
   diagnostica)
+- **Desplegar** (TODO-34, 2026-11-16): `docs/DESPLIEGUE.md`. La IP del cliente
+  la decide **solo** `core/proxy.py` con `PEAKSTROKE_PROXIES_DE_CONFIANZA`
+  (uvicorn va con `--no-proxy-headers`); las cabeceras de seguridad del API en
+  `core/cabeceras.py` y las del frontend en `frontend/cabecerasDeSeguridad.ts`
+  (con su copia `public/_headers`, comparada por un test). La CI
+  (`.github/workflows/ci.yml`) prueba las migraciones en PostgreSQL: una
+  migración nueva que no baje o no cuadre con el modelo la rompe. Las
+  dependencias de Python se instalan con `-c requirements.lock`
 - **Lo de otro club es indistinguible de lo que no existe** (TODO-2,
   `tests/test_frontera_entre_clubes.py`, 2026-11-16): barre **todas** las rutas
   del OpenAPI con los ids de un segundo club —en la ruta, la query y el

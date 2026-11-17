@@ -20,9 +20,10 @@ eso implica, a sabiendas:
   contador de origen empieza de cero. Para una ventana de 15 minutos da igual.
 - «Origen» es la IPv4 completa o la `/64` de una IPv6 (`anonimizacion.huella_de`):
   en IPv6 cada abonado puede estrenar dirección en cada intento.
-- `X-Forwarded-For` se ignora (R11). Detrás de un proxy **todo el mundo comparte
-  origen** y el tope por origen frenaría a todos: es de lo que hay que resolver
-  al desplegar (TODO-34), no aquí.
+- `X-Forwarded-For` se ignora (R11) salvo desde un proxy declarado en
+  `PEAKSTROKE_PROXIES_DE_CONFIANZA` (`core/proxy.py`, 2026-11-16). Sin
+  declararlo, detrás de un proxy **todo el mundo comparte origen** y el tope por
+  origen frenaría a todos.
 
 Un intento frenado se audita (`frenado`) pero **no cuenta** como fallo: si
 contara, insistir alargaría la espera para siempre y quien se equivocó no

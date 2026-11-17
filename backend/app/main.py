@@ -24,6 +24,7 @@ from app.api.v1.vistas.router import router as dashboard_router
 # SQLAlchemy pueda resolver las FKs entre módulos (p. ej. swimmers -> teams).
 from app.core import model_registry  # noqa: F401
 from app.core.auditoria import MiddlewareDeAuditoria
+from app.core.cabeceras import MiddlewareDeCabeceras
 from app.core.config import settings
 from app.core.database import init_db
 from app.core.dev_identity import DEV_BYPASS_HEADER, DEV_USER_HEADER
@@ -35,13 +36,18 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title=settings.app_name, version=settings.version, lifespan=lifespan)
+# En producción no hay documentación interactiva: es un mapa del API para quien
+# no tiene por qué tenerlo, y carga JavaScript de un CDN (TODO-34).
+_documentacion = {} if not settings.is_production else {"docs_url": None, "redoc_url": None, "openapi_url": None}
+app = FastAPI(title=settings.app_name, version=settings.version, lifespan=lifespan, **_documentacion)
 # Un 422 cuyo `input` trae un número no finito se pinta igual (TODO-23).
 app.add_exception_handler(RequestValidationError, validacion_pintable)
 
 # La auditoría envuelve cada petición: apunta durante y escribe al terminar, ya
 # enviada la respuesta. Ver `core/auditoria.py`.
 app.add_middleware(MiddlewareDeAuditoria)
+# Las cabeceras de seguridad, en cada respuesta y también en los errores.
+app.add_middleware(MiddlewareDeCabeceras)
 
 app.add_middleware(
     CORSMiddleware,
