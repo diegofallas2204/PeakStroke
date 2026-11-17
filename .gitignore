@@ -7,6 +7,9 @@ backend/peakstroke.db
 # Copias de la base antes de una migración (p. ej. peakstroke.db.antes-c6)
 backend/peakstroke.db.*
 backend/.env
+# El piloto (piloto.ps1): su base y su secreto, nunca en git.
+backend/piloto.db*
+backend/.env.piloto
 
 # Node
 frontend/node_modules/

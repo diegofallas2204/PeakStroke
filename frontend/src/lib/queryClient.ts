@@ -36,10 +36,15 @@ export const queryClient = new QueryClient({
   }),
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60_000,        // 5 min: navegar entre vistas no re-llama al API
+      // Varios usuarios sobre los mismos datos (2026-11-17, piloto): lo que apunta
+      // uno tiene que llegarle al otro. Con 5 min de frescura y sin pedir al
+      // volver a la ventana, el entrenador no veía el tiempo de su atleta ni
+      // recargando (la caché persistida seguía «fresca»). 30 s y volver a pedir
+      // al enfocar o reconectar; la caché en disco sigue dando la carga rápida.
+      staleTime: 30_000,
       gcTime: 24 * 60 * 60_000,     // 24 h en cache (y persistido en disco)
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
       retry: 1,
     },
   },
