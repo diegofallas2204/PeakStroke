@@ -813,14 +813,14 @@ dos primeros conviene cerrarlos antes de usuarios reales.
 - ~~**No hay «olvidé mi contraseña».**~~ Hecho en `modulo/atletas` (2026-11-13):
   el entrenador pone una temporal a su atleta desde su ficha. La de un
   entrenador sigue siendo del operador (`ops.py restablecer-password`).
-- **El freno por origen y las redes compartidas.** 20 fallos en 15 min desde la
-  misma IP frenan esa IP: el primer día de un club entero en la wifi de la
-  piscina puede llegar. La espera empieza en 30 s y solo crece con fallos nuevos.
+- ~~**El freno por origen y las redes compartidas.**~~ Configurable desde el
+  2026-11-16 con `PEAKSTROKE_FRENO_FALLOS_POR_ORIGEN` (20 por defecto).
 - **La migración `f4c2a9d7e1b3` no se probó en PostgreSQL** (sí arriba y abajo
   en SQLite, con `alembic check` limpio). Es un `ADD COLUMN` con `DEFAULT false`.
-- El cliente sigue mandando las cabeceras del conmutador de desarrollo si
-  quedaron en `localStorage` de antes; con el login puesto nadie las lee.
-- Sin `navigator.locks` (Safari < 15.4) dos pestañas pueden volver a chocar.
+- ~~El cliente sigue mandando las cabeceras del conmutador~~: con sesión real no
+  se mandan y se borran al ver el login encendido (2026-11-16).
+- Sin `navigator.locks` (Safari < 15.4) dos pestañas pueden volver a chocar:
+  aceptado (2026-11-16), no se finge un cerrojo.
 
 ## TODO-37 — Test de lactato: lo que la v1 deja para después (P3)
 

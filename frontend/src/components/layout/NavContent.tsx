@@ -49,7 +49,7 @@ export function NavBrand({ variant }: { variant: Variant }) {
           </span>
         </p>
         <p className="mt-1 text-[9px] uppercase tracking-[0.22em] text-text-faint">
-          Performance Planner
+          Planificador de natación
         </p>
       </div>
     </div>

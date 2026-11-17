@@ -37,13 +37,15 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auditoria import TipoDeEvento, huella_del_origen
+from app.core.config import settings
 from app.persistencia.repositorios import RepositorioDeAuditoria
 
 VENTANA = timedelta(minutes=15)
 ESPERA_BASE = timedelta(seconds=30)
 # Fallos en la ventana a partir de los cuales hay que esperar.
 FALLOS_POR_CORREO = 5      # mismo correo, mismo origen
-FALLOS_POR_ORIGEN = 20     # cualquier correo, mismo origen: un barrido
+# Cualquier correo, mismo origen (un barrido): `settings.freno_fallos_por_origen`,
+# 20 por defecto y configurable para la wifi compartida de un club.
 FALLOS_DE_CANJE = 5        # misma cuenta probando códigos
 
 # El `detail` del evento de un intento frenado. Es lo que lo deja fuera de la cuenta.
@@ -99,7 +101,7 @@ async def espera_de_login(db: AsyncSession, correo: str) -> int:
     )
     return max(
         _segundos(del_correo, FALLOS_POR_CORREO, ahora),
-        _segundos(del_origen, FALLOS_POR_ORIGEN, ahora),
+        _segundos(del_origen, settings.freno_fallos_por_origen, ahora),
     )
 
 

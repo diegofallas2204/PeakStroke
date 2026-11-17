@@ -36,9 +36,11 @@ export const esNoEncontrado = (e: unknown) => e instanceof ErrorDeApi && e.statu
 const DEV_USER_HEADER = 'X-PeakStroke-Dev-User'
 const DEV_BYPASS_HEADER = 'X-PeakStroke-Dev-Bypass'
 
-/** Las cabeceras del conmutador, si hay algo que decir. */
+/** Las cabeceras del conmutador, si hay algo que decir. Con una sesión real
+ * (hay token) nunca: con el login encendido el backend no las lee. */
 function devHeaders(): Record<string, string> {
   const headers: Record<string, string> = {}
+  if (getAccessToken() !== null) return headers
   const identity = getDevIdentity()
   if (identity) headers[DEV_USER_HEADER] = identity
   if (getDevBypass()) headers[DEV_BYPASS_HEADER] = 'true'

@@ -6,6 +6,7 @@ import { initials, toShortDate } from '../../lib/format'
 import { Card, Chip } from '../../components/ui/primitives'
 import { useAuthConfig } from '../../hooks/useSession'
 import { cerrarSesion } from '../../lib/sesion'
+import { confirmar } from '../../lib/confirmar'
 
 export function AccountCard({
   session, onChangePassword,
@@ -14,8 +15,12 @@ export function AccountCard({
   const accent = SECTION_ACCENT['/perfil']
   const conLogin = useAuthConfig().data?.auth_enabled === true
 
-  const salirDeTodos = () => {
-    if (confirm('¿Cerrar la sesión en todos tus dispositivos? Tendrás que volver a entrar también en este.'))
+  const salirDeTodos = async () => {
+    if (await confirmar({
+      titulo: '¿Cerrar la sesión en todos tus dispositivos?',
+      texto: 'Tendrás que volver a entrar también en este.',
+      accion: 'Cerrar en todos', peligro: true,
+    }))
       void cerrarSesion(true)
   }
 
