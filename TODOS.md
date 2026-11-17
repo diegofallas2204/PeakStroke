@@ -790,7 +790,12 @@ mal su contraseña).
 - `backend/requirements.lock` con las versiones exactas.
 - `/docs` apagado en producción.
 
-**Queda**: decidir dónde se aloja; los avisos moderados de npm en
+**Alojamiento aplazado** (decisión del 2026-11-17): todavía no hay SaaS de pago.
+Primero un **piloto con un equipo** para comprobar que el software sirve y
+ajustarlo. Se comparó Render (≈13 USD/mes), un VPS en Hetzner (≈5 €/mes) y
+Fly.io (≈45 USD/mes); se retoma al terminar el piloto.
+
+**Queda**: dónde se aloja (tras el piloto); los avisos moderados de npm en
 devDependencies (cadena de eslint, piden un cambio mayor); y lo de abajo.
 
 Lo que decía:

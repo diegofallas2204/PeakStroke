@@ -118,8 +118,8 @@ de módulo lo reciben con `git merge Preliminar`.
 
 **`transversal/infra` — publicar** (TODO-34) — ✅ **hecho lo que no depende del
 alojamiento** (2026-11-16): guía `docs/DESPLIEGUE.md`, cabeceras de seguridad,
-proxy de confianza, CI con PostgreSQL y versiones fijadas. **Queda decidir dónde
-se aloja.**
+proxy de confianza, CI con PostgreSQL y versiones fijadas. **El alojamiento se
+aplaza** (2026-11-17): primero un piloto con un equipo, sin SaaS de pago.
 - 🔒 Dónde se aloja, guía de despliegue y las tres variables obligatorias
   (`ENVIRONMENT=production`, `JWT_SECRET`, `REFRESH_COOKIE_SECURE`).
 - 🔒 HTTPS y cabeceras de seguridad (CSP, `X-Content-Type-Options`, `frame-ancestors`).
