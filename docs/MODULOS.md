@@ -140,7 +140,8 @@ aeróbico con nadador ajeno → 500). Detalle en TODO-2.
   nunca una fila ajena. Hay tests sueltos, no el barrido, y es la promesa más
   cara del producto.
 
-**`transversal/sesion` — cuenta, login y perfil** (TODO-36, TODO-17)
+**`transversal/sesion` — cuenta, login y perfil** (TODO-36, TODO-17) — ✅ **hecho**
+(2026-11-16) salvo las dos decisiones (❓) de abajo.
 - ❓ La cuenta sin club no puede cambiar su temporal hasta canjear el código:
   darle `get_current_user` a `/auth/me/password` rompe una regla escrita.
 - ~~«Olvidé mi contraseña»~~: el entrenador restablece la de su atleta desde su
