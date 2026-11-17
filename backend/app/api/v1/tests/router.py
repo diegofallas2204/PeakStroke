@@ -55,8 +55,8 @@ async def create_test(
     macrociclos: RepositorioDeMacrociclos = Depends(repo_de_macrociclos),
 ):
     # Sin require_coach: registrar los propios tests aeróbicos es una de las
-    # cosas que el atleta puede hacer. Que sea SUYO lo comprueba el service; que
-    # el nadador sea de su equipo lo impone la FK compuesta del esquema.
+    # cosas que el atleta puede hacer. Que sea SUYO y de su equipo lo comprueba
+    # el service con el repositorio acotado (la FK compuesta queda de red).
     try:
         test = await service.create_test(repo, macrociclos, data, repo.principal)
     except ValueError as exc:

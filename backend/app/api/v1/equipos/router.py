@@ -77,12 +77,24 @@ async def transfer_ownership(
     return await service.to_response(db, repo, equipo, principal)
 
 
+async def _entrenador_o_404(repo: RepositorioDeEquipos, team_id: int, coach_id: int) -> None:
+    """Un entrenador de otro club, un atleta o un id que no existe: 404 los tres.
+
+    Hasta el 2026-11-16 respondía 200 con cualquiera (el barrido de
+    `test_frontera_entre_clubes.py` lo encontró): no devolvía datos ajenos, pero
+    contestaba como si esa persona fuera entrenador del club.
+    """
+    if not await repo.es_entrenador_del_equipo(team_id, coach_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Entrenador no encontrado")
+
+
 @router.get("/mine/coaches/{coach_id}/athletes", response_model=list[int])
 async def coach_athletes(
     coach_id: int,
     principal: Principal = Depends(require_coach),
     repo: RepositorioDeEquipos = Depends(repo_de_equipos),
 ):
+    await _entrenador_o_404(repo, principal.team_id, coach_id)
     return await repo.atletas_de(principal.team_id, coach_id)
 
 
@@ -93,12 +105,11 @@ async def set_coach_athletes(
     principal: Principal = Depends(require_coach),
     repo: RepositorioDeEquipos = Depends(repo_de_equipos),
 ):
-    try:
-        return await repo.fijar_atletas_de(
-            principal.team_id, coach_id, data.swimmer_ids,
-        )
-    except Exception as exc:  # la FK compuesta rechaza atletas de otro equipo
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            "Algún atleta o entrenador no pertenece a este equipo",
-        ) from exc
+    await _entrenador_o_404(repo, principal.team_id, coach_id)
+    # Antes lo rechazaba la FK compuesta, a través de un `except Exception` que
+    # respondía 400. Ahora se pregunta: un atleta de otro club no existe.
+    # La FK sigue debajo como red, no como la única puerta.
+    propios = await repo.nadadores_del_equipo(principal.team_id, data.swimmer_ids)
+    if propios != set(data.swimmer_ids):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Atleta no encontrado")
+    return await repo.fijar_atletas_de(principal.team_id, coach_id, data.swimmer_ids)

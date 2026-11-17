@@ -147,7 +147,26 @@ Cualquiera de las dos que se relaje hay que decidirla antes de escribir código,
 
 ---
 
-## TODO-2 — Tests de la frontera ENTRE equipos (P1)
+## ~~TODO-2 — Tests de la frontera ENTRE equipos~~ — CERRADO 2026-11-16
+
+**Cómo quedó** (`backend/tests/test_frontera_entre_clubes.py`): un segundo club
+montado por su entrenador a través del API, y un barrido de **todas** las rutas
+de `app.openapi()` —una ruta nueva entra sola— como la dueña y como una atleta
+del club A. Para cada id del club B la respuesta tiene que ser idéntica a la de
+un id que no existe (código y cuerpo), ninguna respuesta puede llevar la marca
+de sus datos, los listados tampoco, y al final una foto de todo lo de B tiene
+que salir igual. Cubre ids en la ruta, en la query y en el cuerpo.
+
+**Lo que encontró**, corregido en la misma rama:
+- `GET` y `PUT /teams/mine/coaches/{coach_id}/athletes` respondían 200 con un
+  entrenador de otro club (o un atleta, o un id inexistente); el `PUT` dejaba a
+  la FK rechazar a los nadadores ajenos tras un `except Exception` que daba 400.
+  Ahora: 404 «Entrenador no encontrado» / «Atleta no encontrado», preguntando.
+- `POST /aerobic-tests/` con el nadador de otro club, siendo entrenador, llegaba
+  al INSERT y la FK lo paraba con un **500**. Ahora pregunta al repositorio
+  acotado y responde 404.
+
+Lo que decía:
 
 > **Alcance corregido el 2026-08-06** por `/plan-eng-review`. La versión anterior decía
 > "aislamiento entre equipos" a secas y daba por hecho que era la única frontera. Hay dos:

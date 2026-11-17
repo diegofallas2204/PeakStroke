@@ -163,6 +163,14 @@ cd backend && .venv\Scripts\python tools/ops.py salud
   `frontend/src/features/aerobic/lactatoColumnas.ts`, cada una ocultable, y la
   lectura según la teoría en `servicios/lectura_de_lactato.py` (describe, no
   diagnostica)
+- **Lo de otro club es indistinguible de lo que no existe** (TODO-2,
+  `tests/test_frontera_entre_clubes.py`, 2026-11-16): barre **todas** las rutas
+  del OpenAPI con los ids de un segundo club —en la ruta, la query y el
+  cuerpo— y exige la misma respuesta (código y cuerpo) que con un id
+  inexistente, ninguna fila suya y sus datos intactos. Una ruta nueva entra
+  sola; si necesita cuerpo para no dar 422, se añade a `_cuerpo`. **Un alta que
+  recibe ids en el cuerpo los pregunta a su repositorio acotado**: la FK
+  compuesta es la red, no la puerta (dejarla de puerta daba 500)
 - **Toda ruta exige sesión salvo las de `PUBLICAS`** (`tests/test_rutas_con_sesion.py`,
   2026-11-13): el test llama a **todas** las rutas del OpenAPI sin token y con el
   login encendido, y falla si alguna responde algo distinto de 401. Lo destapó

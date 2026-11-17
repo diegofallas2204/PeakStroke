@@ -220,6 +220,25 @@ class RepositorioDeEquipos:
 
     # ── Asignación entrenador ↔ atleta ───────────────────────────────────────
 
+    async def es_entrenador_del_equipo(self, team_id: int, user_id: int) -> bool:
+        """Si esa cuenta es entrenador (de alta o revocado) de ese equipo.
+
+        La frontera entre clubes (2026-11-16): hasta hoy las asignaciones
+        contestaban 200 con el id de un entrenador de otro club, o de un atleta.
+        """
+        stmt = select(TeamMember.id).where(
+            TeamMember.team_id == team_id, TeamMember.user_id == user_id,
+            TeamMember.role == ROLE_COACH,
+        )
+        return (await self.db.execute(stmt)).first() is not None
+
+    async def nadadores_del_equipo(self, team_id: int, swimmer_ids: list[int]) -> set[int]:
+        """Los de esa lista que son del equipo. El resto, para quien pregunta, no existe."""
+        if not swimmer_ids:
+            return set()
+        stmt = select(Swimmer.id).where(Swimmer.team_id == team_id, Swimmer.id.in_(swimmer_ids))
+        return set((await self.db.execute(stmt)).scalars())
+
     async def atletas_de(self, team_id: int, coach_id: int) -> list[int]:
         stmt = select(CoachAthlete.swimmer_id).where(
             CoachAthlete.team_id == team_id, CoachAthlete.coach_id == coach_id,
