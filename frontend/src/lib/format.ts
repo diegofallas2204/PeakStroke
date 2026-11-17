@@ -27,10 +27,20 @@ export function finDeMacro(inicio: string, semanas: number): string {
   return fin.toLocaleDateString('es', { day: 'numeric', month: 'short' })
 }
 
-/** ISO -> '3 ago 2026'. Devuelve '—' si no hay fecha. */
+/**
+ * ISO -> '3 ago 2026'. Devuelve '—' si no hay fecha.
+ *
+ * Dos trampas de zona horaria (TODO-35, 2026-11-16):
+ * - `'2026-09-22'` a secas, `new Date` lo lee como medianoche **UTC**: en Costa
+ *   Rica pintaba el 21. Una fecha sin hora es ese día: `fechaCorta`.
+ * - `'2026-09-22T03:00:00'` sin zona viene del backend, que guarda en UTC, pero
+ *   `new Date` lo leía como hora **local**. Sin zona se le pone la `Z`.
+ */
 export function toShortDate(iso: string | null | undefined): string {
   if (!iso) return '—'
-  const d = new Date(iso)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return fechaCorta(iso)
+  const sinZona = /T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(iso)
+  const d = new Date(sinZona ? `${iso}Z` : iso)
   if (Number.isNaN(d.getTime())) return '—'
   return d.toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })
 }
