@@ -4,9 +4,13 @@ from __future__ import annotations
 import logging
 import secrets
 from pathlib import Path
+from typing import Annotated
 
-from pydantic import Field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from sqlalchemy.engine import make_url
+
+from app.core.proxy import redes
 
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
 
@@ -57,6 +61,22 @@ class Settings(BaseSettings):
     # aquí. Nunca por debajo del tope por correo (5), que protege a cada cuenta.
     freno_fallos_por_origen: int = Field(default=20, ge=5, le=500)
 
+    # --- Despliegue (TODO-34) ------------------------------------------------
+    # Redes de los proxies propios (el balanceador del alojamiento, Caddy…), por
+    # comas: `10.0.0.0/8,172.16.0.0/12`. Solo desde ellas se cree
+    # `X-Forwarded-For` (`core/proxy.py`). Vacío = no hay proxy, y la cabecera se
+    # ignora: creerla sin proxy dejaría falsificar el origen del freno.
+    proxies_de_confianza: Annotated[list[str], NoDecode] = []
+
+    @field_validator("proxies_de_confianza", mode="before")
+    @classmethod
+    def _proxies(cls, valor: object) -> list[str]:
+        if isinstance(valor, str):
+            valor = [p for p in valor.split(",") if p.strip()]
+        lista = [str(p).strip() for p in valor or []]
+        redes(lista)   # una red mal escrita no arranca
+        return lista
+
     @property
     def is_production(self) -> bool:
         return self.environment.lower() in {"production", "prod"}
@@ -81,6 +101,14 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _check_production(self) -> Settings:
         """Impide desplegar con la configuración de desarrollo puesta."""
+        # Sin login el API está abierto: toda petición entra como el dueño. Eso
+        # solo se admite contra una base local, aunque falte ENVIRONMENT (2026-11-16):
+        # una base remota es un despliegue, se haya declarado o no.
+        if not self.auth_enabled and not _base_local(self.database_url):
+            raise ValueError(
+                "Sin login (PEAKSTROKE_AUTH_ENABLED=false) solo se arranca contra una "
+                "base local. Contra una base remota pon PEAKSTROKE_AUTH_ENABLED=true."
+            )
         if not self.is_production:
             # El secreto de desarrollo está en el repositorio: quien lo lea firma
             # el token de cualquier cuenta. Hasta el 2026-11-09 eso solo se
@@ -115,6 +143,14 @@ class Settings(BaseSettings):
                 "para que la cookie de refresh no viaje por http."
             )
         return self
+
+
+def _base_local(url: str) -> bool:
+    """SQLite, o un servidor en esta misma máquina (el `docker-compose.yml`)."""
+    datos = make_url(url)
+    if datos.drivername.startswith("sqlite"):
+        return True
+    return (datos.host or "") in {"", "localhost", "127.0.0.1", "::1"}
 
 
 settings = Settings()

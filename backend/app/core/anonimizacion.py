@@ -24,8 +24,8 @@ solo la del periodo en curso — las anteriores ya se borraron.
 
 **`X-Forwarded-For` se ignora a propósito**: sin un proxy de confianza
 configurado, esa cabecera la escribe el cliente, y cualquiera podría firmar sus
-intentos con la IP de otro. Cuando haya proxy delante, se lee de ahí y en ese
-único sitio.
+intentos con la IP de otro. Con proxy delante se declara en
+`PEAKSTROKE_PROXIES_DE_CONFIANZA` y se lee en un único sitio: `core/proxy.py`.
 """
 from __future__ import annotations
 

@@ -775,7 +775,25 @@ tabla nueva. Decidir: ¿bloqueo temporal de la cuenta, retraso creciente, o solo
 por IP? (bloquear la cuenta deja que cualquiera eche a un entrenador escribiendo
 mal su contraseña).
 
-## TODO-34 — Lo que el despliegue tiene que traer (P2)
+## TODO-34 — Lo que el despliegue tiene que traer (P2) — casi cerrado 2026-11-16
+
+**Hecho en `transversal/infra`** (guía: `docs/DESPLIEGUE.md`):
+- La app no arranca sin login contra una base remota, aunque falte
+  `ENVIRONMENT` (además de las tres comprobaciones de producción de antes).
+- Cabeceras de seguridad en cada respuesta del API (`core/cabeceras.py`) y las
+  del frontend en un solo sitio (`frontend/cabecerasDeSeguridad.ts` →
+  `public/_headers`), probadas contra la build real sin violaciones de CSP.
+- Proxy de confianza: `PEAKSTROKE_PROXIES_DE_CONFIANZA` (`core/proxy.py`).
+- CI (`.github/workflows/ci.yml`): ruff, suite, pip-audit; migraciones en
+  PostgreSQL 17 arriba, `alembic check`, abajo y arriba, y seed; tsc, eslint,
+  vitest, build y `npm audit` de producción.
+- `backend/requirements.lock` con las versiones exactas.
+- `/docs` apagado en producción.
+
+**Queda**: decidir dónde se aloja; los avisos moderados de npm en
+devDependencies (cadena de eslint, piden un cambio mayor); y lo de abajo.
+
+Lo que decía:
 
 `/cso` del 2026-11-09. Nada de esto es un fallo del código de hoy; es lo que
 falta el día que haya un dominio:
