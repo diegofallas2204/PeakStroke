@@ -813,7 +813,18 @@ falta el día que haya un dominio:
 - La base de desarrollo va una migración por detrás (`d1a7c3e9f5b2`; el repo,
   `e3b8f1a6c4d2`): `alembic upgrade head`, con copia antes.
 
-## TODO-35 — Lo que la revisión de interfaz dejó sin tocar (P3)
+## ~~TODO-35 — Lo que la revisión de interfaz dejó sin tocar~~ — CERRADO 2026-11-16
+
+**Cómo quedó**: lo resolvieron las ramas de módulo y `transversal/sesion` (marca
+en español; ningún `confirm()`/`prompt()`; fechas legibles; asistente y
+«Agregar atleta» en móvil; error ≠ vacío en cada sección), y
+`transversal/interfaz` lo último: `toShortDate` ya no pinta el día anterior en
+Costa Rica (fecha sin hora = ese día; hora sin zona = UTC, con test en esa
+zona), y en móvil la barra superior lleva solo el icono de la sección. Queda
+fuera a propósito el «Deshacer» tras una baja: la baja ya se confirma y se
+reactiva desde «De baja».
+
+Lo que decía:
 
 Auditoría de heurísticas del 2026-11-09; lo que sí se arregló está en la bitácora
 de ese día. Pide decisión o es más grande que un retoque:

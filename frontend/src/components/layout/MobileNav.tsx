@@ -87,16 +87,19 @@ export function MobileNav({
           </span>
         </p>
 
-        {/* Sección activa — sustituye al indicador lateral del riel.
+        {/* Sección activa — sustituye al indicador lateral del riel. Solo el
+            icono con su color: el nombre ya es el título de la página, justo
+            debajo, y repetirlo era leer lo mismo dos veces (TODO-35). Queda como
+            etiqueta para el lector de pantalla y al pasar el dedo.
             Se omite si la ruta no es ninguna sección conocida: mejor sin
-            etiqueta que con una que no corresponde a lo que hay en pantalla. */}
+            indicador que con uno que no corresponde a lo que hay en pantalla. */}
         {active && ActiveIcon && (
           <span
-            className="ml-auto flex min-w-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold"
+            role="img" aria-label={`Sección: ${active.label}`} title={active.label}
+            className="ml-auto flex size-8 shrink-0 items-center justify-center rounded-full"
             style={{ color: active.color, background: `${active.color}16` }}
           >
-            <ActiveIcon size={13} strokeWidth={2.2} className="shrink-0" />
-            <span className="truncate">{active.label}</span>
+            <ActiveIcon size={15} strokeWidth={2.2} />
           </span>
         )}
       </div>
