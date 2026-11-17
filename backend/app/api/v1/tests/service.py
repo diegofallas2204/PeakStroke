@@ -15,7 +15,11 @@ from app.dominio.entidades import TestAerobico
 from app.dominio.valores import ModoDeIngreso, TipoDeTest
 from app.engine.aerobic import css_from_400_50
 from app.persistencia.mapeo import test_desde_fila
-from app.persistencia.repositorios import RepositorioDeMacrociclos, RepositorioDeTests
+from app.persistencia.repositorios import (
+    RepositorioDeAtletas,
+    RepositorioDeMacrociclos,
+    RepositorioDeTests,
+)
 from app.persistencia.tablas.tests_aerobicos import AerobicSplit, AerobicTest
 
 from .schemas import AerobicTestCreate, AerobicTestResponse
@@ -63,6 +67,12 @@ async def create_test(
     El equipo sigue saliendo de la sesión.
     """
     if not principal.owns_swimmer(data.swimmer_id):
+        return None
+    # `owns_swimmer` dice que sí a cualquier id si quien escribe es entrenador:
+    # el de un nadador de otro club llegaba al INSERT, la FK compuesta lo paraba
+    # y salía un 500 (barrido de `test_frontera_entre_clubes.py`, 2026-11-16).
+    # Se pregunta al repositorio acotado, como en el resto de las altas.
+    if await RepositorioDeAtletas(tests.db, principal).por_id(data.swimmer_id) is None:
         return None
     if data.plan_id is not None and await macrociclos.por_id(data.plan_id) is None:
         return None

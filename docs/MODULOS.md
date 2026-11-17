@@ -129,7 +129,10 @@ de módulo lo reciben con `git merge Preliminar`.
 - 🧹 Fijar las versiones de Python (`requirements.txt` va con `>=`), `pip-audit`,
   y los 10 avisos moderados de npm en la cadena de eslint.
 
-**`transversal/fronteras` — aislamiento entre clubes** (TODO-2)
+**`transversal/fronteras` — aislamiento entre clubes** (TODO-2) — ✅ **hecho** (2026-11-16):
+barrido de todas las rutas en `tests/test_frontera_entre_clubes.py`; encontró y
+cerró dos fugas (asignaciones de entrenador con ids ajenos → 200, y alta de test
+aeróbico con nadador ajeno → 500). Detalle en TODO-2.
 - 🔒 Barrer todas las rutas desde el club A contra los ids del club B: 404 y
   nunca una fila ajena. Hay tests sueltos, no el barrido, y es la promesa más
   cara del producto.
