@@ -795,6 +795,9 @@ Primero un **piloto con un equipo** para comprobar que el software sirve y
 ajustarlo. Se comparó Render (≈13 USD/mes), un VPS en Hetzner (≈5 €/mes) y
 Fly.io (≈45 USD/mes); se retoma al terminar el piloto.
 
+**Para el piloto** (2026-11-17): `piloto.ps1` y `docs/PILOTO.md`: la app con login
+en la red local, varias cuentas a la vez y la IP real de cada dispositivo.
+
 **Queda**: dónde se aloja (tras el piloto); los avisos moderados de npm en
 devDependencies (cadena de eslint, piden un cambio mayor); y lo de abajo.
 
