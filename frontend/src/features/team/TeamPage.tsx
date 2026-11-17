@@ -4,8 +4,8 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Table2 } from 'lucide-react'
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { api } from '../../lib/api'
-import { moduloActivo } from '../../lib/modulos'
+import { api, esNoEncontrado } from '../../lib/api'
+import { enlace } from '../../lib/modulos'
 import { SPECIALTY_LABEL, ZONE_META, ZONE_ORDER } from '../../lib/constants'
 import { toClock } from '../../lib/format'
 import { usePageEnter } from '../../hooks/usePageEnter'
@@ -16,6 +16,7 @@ import { weekDateTick } from '../../components/charts/weekAxisTick'
 import { Card, EmptyState, Spinner, StatusBadge } from '../../components/ui/primitives'
 import { Link } from 'react-router-dom'
 import { BotonPdf } from '../../components/ui/BotonPdf'
+import { ErrorDeCarga } from '../../components/ui/ErrorDeCarga'
 import { descargarEquipoPdf } from './teamPdf'
 import { CeldaDeCarga } from './CeldaDeCarga'
 
@@ -40,7 +41,7 @@ export function TeamPage() {
     queryFn: () => api.dashboard.summary(selectedId ?? undefined),
     retry: false,
   })
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['team-week', selectedId, week],
     queryFn: () => api.dashboard.teamWeek(selectedId ?? undefined, week ?? undefined),
     retry: false,
@@ -50,6 +51,15 @@ export function TeamPage() {
   const ref = usePageEnter([data?.week_number, isLoading])
 
   if (isLoading) return <Spinner />
+  // Solo el 404 es «no hay macrociclo activo»; cualquier otro fallo se dice.
+  if (isError && !esNoEncontrado(error)) {
+    return (
+      <div ref={ref}>
+        <PageHeader title="Tabla del equipo" />
+        <ErrorDeCarga error={error} que="la tabla del equipo" onReintentar={() => void refetch()} reintentando={isFetching} />
+      </div>
+    )
+  }
   if (isError || !data) {
     return (
       <div ref={ref}>
@@ -153,11 +163,12 @@ export function TeamPage() {
               {data.rows.map((row) => (
                 <tr key={row.event_id} style={{ opacity: row.disabled ? 0.4 : 1 }}>
                   <td>
-                    {/* El nombre lleva a la curva del atleta: la columna de forma
-                        resume un día, la curva enseña por qué. */}
-                    {row.swimmer_id != null && moduloActivo('/entrenamiento') ? (
+                    {/* El nombre lleva a la página del atleta (nota 27): todo lo
+                        suyo en un sitio. La curva de carga va por la columna
+                        Forma, que es la que la resume. */}
+                    {row.swimmer_id != null && enlace(`/atletas/${row.swimmer_id}`) ? (
                       <Link
-                        to={`/entrenamiento?atleta=${row.swimmer_id}`}
+                        to={`/atletas/${row.swimmer_id}`}
                         className="font-semibold underline-offset-2 hover:underline"
                       >
                         {row.name}
@@ -201,7 +212,17 @@ export function TeamPage() {
                         ? <StatusBadge status={row.status} />
                         : <span className="text-[10.5px] text-text-faint">—</span>}
                   </td>
-                  <td><CeldaDeCarga load={row.load} /></td>
+                  <td>
+                    {row.swimmer_id != null && row.load && enlace('/entrenamiento') ? (
+                      <Link
+                        to={`/entrenamiento?atleta=${row.swimmer_id}`}
+                        className="rounded-md px-1 py-0.5 hover:bg-surface-3"
+                      >
+                        <CeldaDeCarga load={row.load} />
+                        <span className="sr-only"> · ver la curva de carga de {row.name}</span>
+                      </Link>
+                    ) : <CeldaDeCarga load={row.load} />}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -213,7 +234,7 @@ export function TeamPage() {
             Salida = intervalo para repeticiones de 100m, cuadrado al reloj de pared;
             el descanso crece con la intensidad de la zona.
             Km por zona = distribución sugerida según la especialidad del atleta.
-            Forma = balance de carga (TSB) al cierre de la semana; el nombre lleva a su curva.
+            Forma = balance de carga (TSB) al cierre de la semana. El nombre lleva a la página del atleta; la forma, a su curva de carga.
           </p>
         )}
       </Card>

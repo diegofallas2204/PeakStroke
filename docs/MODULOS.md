@@ -269,9 +269,12 @@ módulo diario sigue esperando decisiones (N1/N2/N3/N5).
   fecha de la sesión. Además, un fallo al cargar atletas, sesiones o carga ya no
   sale como «Sin atletas» ni «Sin sesiones en este rango».
 
-**`modulo/equipo`** (Tabla del equipo)
-- ✨ Que el nombre de cada atleta lleve a su página (`/atletas/:id`) y no solo a
-  Entrenamiento. Nota 27 del vault.
+**`modulo/equipo`** (Tabla del equipo) — ✅ **sin pendientes** (2026-11-16).
+- ~~✨ Que el nombre de cada atleta lleve a su página~~: el nombre va a
+  `/atletas/:id` y la columna Forma, a su curva en Entrenamiento (cada enlace
+  solo si su módulo está en la versión). Nota 27 del vault.
+- Además: un fallo al cargar la tabla ya no sale como «Sin macrociclo activo»
+  (eso es solo el 404).
 
 ### Aparcado a propósito
 
