@@ -8,8 +8,9 @@ backend/peakstroke.db
 backend/peakstroke.db.*
 backend/.env
 # El piloto (piloto.ps1): su base y su secreto, nunca en git.
-backend/piloto.db*
+backend/piloto*
 backend/.env.piloto
+CUENTAS-PILOTO.txt
 
 # Node
 frontend/node_modules/
