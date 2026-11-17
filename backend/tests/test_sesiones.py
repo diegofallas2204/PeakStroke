@@ -193,3 +193,32 @@ async def test_borrar_quita_la_fila(client, db, world: World):
     assert await db.get(SwimSession, creada["id"]) is None
     r = await client.get(f"{API}/sessions/{creada['id']}", headers=como(world.sofia_email))
     assert r.status_code == 404
+
+
+async def _borrados(db) -> list:
+    from app.core.auditoria import TipoDeEvento
+    from app.persistencia.tablas.auditoria import EventoDeAuditoria
+
+    db.expire_all()
+    return list((await db.execute(select(EventoDeAuditoria).where(
+        EventoDeAuditoria.event_type == str(TipoDeEvento.SESION_DE_ENTRENAMIENTO_BORRADA),
+    ))).scalars())
+
+
+async def test_el_entrenador_que_borra_la_sesion_de_un_atleta_queda_auditado(client, db, world: World):
+    """TODO-20 (2026-11-16): es un borrado de verdad sobre el registro de otro."""
+    creada = (await _apuntar(client, world.sofia_email, world.sofia_swimmer_id)).json()
+    r = await client.delete(f"{API}/sessions/{creada['id']}", headers=como(world.owner_email))
+    assert r.status_code == 204
+    [evento] = await _borrados(db)
+    assert evento.actor_email == world.owner_email
+    assert (evento.target_type, evento.target_id) == ("swim_session", creada["id"])
+    # El detalle dice qué se borró: sin él, el evento no sirve para reconstruirlo.
+    assert DIA.isoformat() in evento.detail and "4200 m" in evento.detail
+
+
+async def test_el_atleta_que_corrige_lo_suyo_no_se_audita(client, db, world: World):
+    creada = (await _apuntar(client, world.sofia_email, world.sofia_swimmer_id)).json()
+    r = await client.delete(f"{API}/sessions/{creada['id']}", headers=como(world.sofia_email))
+    assert r.status_code == 204
+    assert await _borrados(db) == []

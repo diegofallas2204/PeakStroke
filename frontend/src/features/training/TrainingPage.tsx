@@ -18,6 +18,7 @@ import { usePageEnter } from '../../hooks/usePageEnter'
 import { useIsCoach } from '../../hooks/useSession'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { EmptyState, Segmented, Spinner } from '../../components/ui/primitives'
+import { ErrorDeCarga } from '../../components/ui/ErrorDeCarga'
 import { SessionForm } from './SessionForm'
 import { SessionsCard } from './SessionsCard'
 import { LoadCard } from './LoadCard'
@@ -46,25 +47,34 @@ export function TrainingPage() {
     { open: pideNueva, session: null },
   )
 
-  const { data: swimmers, isLoading: loadingSwimmers } = useQuery({
+  const atletasQ = useQuery({
     queryKey: ['swimmers', ''], queryFn: () => api.swimmers.list(),
   })
+  const { data: swimmers, isLoading: loadingSwimmers } = atletasQ
   // El pedido por URL solo vale si está en la lista (que ya viene acotada): un
   // id ajeno o dado de baja cae al primero, no a una pantalla de 404.
   const elegido = swimmers?.some((s) => s.id === swimmerId) ? swimmerId : null
   const activeSwimmer = elegido ?? swimmers?.[0]?.id ?? null
   const { desde, hasta } = rangoDeFechas(Number(rango))
 
-  const { data: sessions, isLoading: loadingSessions } = useQuery({
+  const sesionesQ = useQuery({
     queryKey: ['sessions', activeSwimmer, desde, hasta],
     queryFn: () => api.sessions.list(activeSwimmer!, desde, hasta),
     enabled: activeSwimmer != null,
   })
-  const { data: load, isLoading: loadingLoad } = useQuery({
+  const { data: sessions, isLoading: loadingSessions } = sesionesQ
+  const cargaQ = useQuery({
     queryKey: ['training-load', activeSwimmer, desde, hasta],
     queryFn: () => api.trainingLoad.get(activeSwimmer!, desde, hasta),
     enabled: activeSwimmer != null,
   })
+  const { data: load, isLoading: loadingLoad } = cargaQ
+  // Un fallo no es «sin atletas» ni «sin sesiones»: se dice y se puede reintentar.
+  const fallo = [
+    { q: atletasQ, que: 'los atletas' },
+    { q: sesionesQ, que: 'las sesiones' },
+    { q: cargaQ, que: 'la carga' },
+  ].find(({ q }) => q.isError)
 
   const ref = usePageEnter([activeSwimmer, loadingSessions, loadingLoad])
 
@@ -108,6 +118,11 @@ export function TrainingPage() {
 
       {cargando ? (
         <Spinner />
+      ) : fallo ? (
+        <ErrorDeCarga
+          error={fallo.q.error} que={fallo.que}
+          onReintentar={() => void fallo.q.refetch()} reintentando={fallo.q.isFetching}
+        />
       ) : activeSwimmer == null ? (
         // Sin nadador no hay a quién apuntarle nada (el backend daría 404). Al
         // atleta le pasa si nadie ligó su cuenta a una ficha; al entrenador, si

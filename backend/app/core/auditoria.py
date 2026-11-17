@@ -81,6 +81,8 @@ class TipoDeEvento(StrEnum):
     TEST_BAJA = "test_aerobico.baja"
     TEST_RESTAURADO = "test_aerobico.restaurado"
     TEST_DE_LACTATO_BAJA = "test_de_lactato.baja"
+    # TODO-20: el entrenador borra (de verdad) la sesión de un atleta.
+    SESION_DE_ENTRENAMIENTO_BORRADA = "entrenamiento.sesion_borrada"
     INSCRIPCION_BAJA = "inscripcion.baja"
     INSCRIPCION_RESTAURADA = "inscripcion.restaurada"
     MACROCICLO_BORRADO = "macrociclo.borrado"

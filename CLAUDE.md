@@ -405,6 +405,10 @@ siempre desde `/auth/me`, nunca desde lo que el cliente crea haber guardado.
   bajas, borrados de verdad) **añade su `TipoDeEvento` y su `auditar`**. Si es de
   acceso, va también en `TIPOS_DE_ACCESO` y en el filtro de las dos vistas de
   eventos (`test_auditoria_vistas.py` compara los tres)
+- **Borrar una sesión de entrenamiento** (TODO-20, 2026-11-16) se audita
+  (`entrenamiento.sesion_borrada`, con fecha y metros en el detalle) solo cuando
+  quien borra **no** es el atleta dueño: el entrenador quitando el registro de
+  otro. Que el atleta corrija lo suyo no es un evento de seguridad
 - **Fuera de una petición**, un script abre `contexto_de_auditoria()` y apunta
   como actor `os:<usuario>@<host>` (`tools/operaciones/comun.actor`: por uid, y
   con `(sudo:<quien>)` bajo sudo), con el comando en `detail`. Si el volcado

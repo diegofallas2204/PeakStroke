@@ -10,6 +10,7 @@ import { api } from '../../lib/api'
 import type { TrainingSession } from '../../lib/types'
 import { RPE_LABEL } from '../../lib/constants'
 import { toClock, toDayMonth, toHoursMinutes } from '../../lib/format'
+import { confirmar } from '../../lib/confirmar'
 import { Card, EmptyState } from '../../components/ui/primitives'
 
 export function SessionsCard({
@@ -96,10 +97,12 @@ export function SessionsCard({
                       className="rounded-md p-1.5 text-text-faint transition-colors hover:text-coral"
                       aria-label={`Borrar la sesión del ${toDayMonth(s.session_date)}`}
                       disabled={remove.isPending}
-                      onClick={() => {
-                        if (confirm('¿Borrar esta sesión? Se borra de verdad y la carga se recalcula sin ella.')) {
-                          remove.mutate(s.id)
-                        }
+                      onClick={async () => {
+                        if (await confirmar({
+                          titulo: `¿Borrar la sesión del ${toDayMonth(s.session_date)}?`,
+                          texto: 'Se borra de verdad y la carga se recalcula sin ella.',
+                          accion: 'Borrar', peligro: true,
+                        })) remove.mutate(s.id)
                       }}
                     >
                       <Trash2 size={13} />

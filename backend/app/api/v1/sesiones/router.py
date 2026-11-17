@@ -12,6 +12,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.dependencias import repo_de_atletas, repo_de_sesiones
+from app.core.auditoria import TipoDeEvento, auditar
 from app.persistencia.repositorios import RepositorioDeAtletas, RepositorioDeSesiones
 
 from . import service
@@ -71,6 +72,20 @@ async def update_session(
 async def delete_session(
     session_id: int, repo: RepositorioDeSesiones = Depends(repo_de_sesiones),
 ):
-    """Borra de verdad: ver `persistencia/tablas/sesiones.py`."""
-    if not await repo.borrar(session_id):
+    """Borra de verdad: ver `persistencia/tablas/sesiones.py`.
+
+    Se audita cuando quien borra **no** es el atleta dueño (TODO-20, 2026-11-16):
+    el entrenador quitando el registro de otro es un borrado de verdad sobre un
+    dato ajeno, y CLAUDE.md pide `TipoDeEvento` para esos. Que el atleta corrija
+    lo suyo no es un evento de seguridad.
+    """
+    borrada = await repo.borrar(session_id)
+    if borrada is None:
         raise HTTPException(404, "Sesión no encontrada")
+    principal = repo.principal
+    if not (principal.is_athlete and principal.swimmer_id == borrada.swimmer_id):
+        auditar(
+            TipoDeEvento.SESION_DE_ENTRENAMIENTO_BORRADA, principal,
+            objetivo=("swim_session", session_id),
+            detalle=f"nadador {borrada.swimmer_id} · {borrada.session_date.isoformat()} · {borrada.distance_m} m",
+        )

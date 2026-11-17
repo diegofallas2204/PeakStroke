@@ -257,13 +257,17 @@ quedan N1 y N2, que son decisión tuya y bloquean el módulo diario, no este.
   al cargar las semanas dejaba el spinner girando para siempre; y el motivo del
   parón no tenía límite en el API (la columna es de 200: en PostgreSQL, un 500).
 
-**`modulo/entrenamiento`**
-- ❓ TODO-20: ¿borrar una sesión se audita? (probablemente sí cuando el
-  entrenador borra la de un atleta).
+**`modulo/entrenamiento`** — ✅ **sin pendientes propios** (2026-11-16). El
+módulo diario sigue esperando decisiones (N1/N2/N3/N5).
+- ~~❓ TODO-20: ¿borrar una sesión se audita?~~ Sí, con la opción a la que
+  apuntaba la nota: cuando el entrenador borra la de un atleta
+  (`entrenamiento.sesion_borrada`); el atleta que corrige lo suyo, no.
 - ✨ **Módulo de entrenamiento diario** (nota 22): la sesión que sube el
   entrenador y el atleta ve antes de nadar. Depende de **N3/N5** (sesiones por
   semana; texto libre o series) y de N1/N2, y comparte trabajo con `plan-semanal`.
-- 🧹 `confirm()` del navegador al borrar una sesión (`SessionsCard`).
+- ~~🧹 `confirm()` del navegador al borrar una sesión~~: diálogo propio con la
+  fecha de la sesión. Además, un fallo al cargar atletas, sesiones o carga ya no
+  sale como «Sin atletas» ni «Sin sesiones en este rango».
 
 **`modulo/equipo`** (Tabla del equipo)
 - ✨ Que el nombre de cada atleta lleve a su página (`/atletas/:id`) y no solo a

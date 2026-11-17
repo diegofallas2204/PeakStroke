@@ -104,14 +104,17 @@ class RepositorioDeSesiones:
         await self.db.commit()
         return sesion_desde_fila(fila)
 
-    async def borrar(self, sesion_id: int) -> bool:
-        """Borra la fila. `False` si no le corresponde (el router: 404)."""
+    async def borrar(self, sesion_id: int) -> SwimSession | None:
+        """Borra la fila y la devuelve (ya fuera de la base) para auditarla.
+
+        `None` si no le corresponde (el router: 404).
+        """
         fila = await self._fila(sesion_id)
         if fila is None:
-            return False
+            return None
         await self.db.delete(fila)
         await self.db.flush()
         await recalcular(self.db, team_id=fila.team_id, swimmer_id=fila.swimmer_id,
                          desde=fila.session_date)
         await self.db.commit()
-        return True
+        return fila
