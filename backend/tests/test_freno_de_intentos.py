@@ -142,6 +142,34 @@ async def test_veinte_fallos_contra_correos_distintos_frenan_el_origen(
     assert (await _login(desde_otro_origen, world.carlos_email)).status_code == 200
 
 
+async def test_el_tope_por_origen_se_puede_subir_para_la_wifi_de_un_club(
+    client, world: World, monkeypatch,
+):
+    """Un club entero entra desde la misma wifi el primer día (2026-11-16).
+
+    El tope sigue siendo 20 por defecto (decisión del 2026-11-10); quien
+    despliega lo sube con `PEAKSTROKE_FRENO_FALLOS_POR_ORIGEN`. El de correo no
+    cambia: es el que protege a cada cuenta.
+    """
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "freno_fallos_por_origen", 40)
+    for i in range(25):
+        assert (await _login(client, f"club{i}@test.dev", "x")).status_code == 401
+    assert (await _login(client, world.carlos_email)).status_code == 200
+    await _fallar(client, world.sofia_email, 5)
+    assert (await _login(client, world.sofia_email)).status_code == 429
+
+
+def test_el_tope_por_origen_no_baja_del_de_correo():
+    from pydantic import ValidationError
+
+    from app.core.config import Settings
+
+    with pytest.raises(ValidationError):
+        Settings(freno_fallos_por_origen=4)
+
+
 async def test_en_ipv6_cambiar_de_direccion_no_esquiva_el_freno(client, world: World):
     """Cinco direcciones distintas de la misma /64 son el mismo origen."""
     for i in range(5):

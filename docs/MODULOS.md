@@ -142,16 +142,22 @@ de módulo lo reciben con `git merge Preliminar`.
   (`ops.py restablecer-password`).
 - ❓ TODO-17: la invitación crea la cuenta y el entrenador ve su temporal.
   Mitigado (hay que cambiarla al entrar); bloquea abrir el registro público.
-- 🧹 El freno por origen con un club entero en la misma wifi (20 fallos en 15 min).
-- 🧹 Perfil: `confirm()` del navegador en «cerrar en todos los dispositivos»
-  (`AccountCard`) y al revocar un acceso (`MembersCard`).
-- 🧹 La marca dice «Performance Planner», en inglés.
+- ~~🧹 El freno por origen con un club entero en la misma wifi~~: sigue en 20
+  por defecto (decisión del 2026-11-10), pero quien despliega lo sube con
+  `PEAKSTROKE_FRENO_FALLOS_POR_ORIGEN` (nunca por debajo del de correo).
+- ~~🧹 Perfil: `confirm()` del navegador~~: los dos usan el diálogo propio. Ya no
+  queda ningún `confirm()`, `prompt()` ni `alert()` en la app.
+- ~~🧹 La marca dice «Performance Planner»~~: «Planificador de natación».
 - 🧹 ~~Un componente de «no se pudo cargar» con Reintentar~~: existe desde
   `modulo/inicio` (`components/ui/ErrorDeCarga`, y `api.esNoEncontrado` para
-  separar el 404). **Falta aplicarlo en cada módulo**, cada rama a lo suyo.
-- 🧹 Limpiar las cabeceras del conmutador de desarrollo que queden guardadas con
-  el login puesto. Sin `navigator.locks` (Safari < 15.4) dos pestañas pueden
-  chocar al renovar.
+  separar el 404). ~~Falta aplicarlo en cada módulo~~: aplicado en las ocho ramas.
+- ~~🧹 Las cabeceras del conmutador guardadas con el login puesto~~: con sesión
+  real no se mandan, y al ver que el login está encendido se borran del
+  navegador. **Sin `navigator.locks`** (Safari < 15.4, de antes de marzo de 2022)
+  dos pestañas pueden chocar al renovar: **aceptado**, no se finge un cerrojo
+  (`lib/unSoloVuelo.ts`).
+- TODO-17 no aplica mientras no haya registro público (hoy solo el entrenador da
+  de alta). La decisión de la temporal sin club sigue siendo tuya.
 
 **`psadmin` — la consola de administración** (D2 y D3 del plan; TODO-1)
 - ❓ **R10**: túnel SSH o red privada (Tailscale) para entrar.

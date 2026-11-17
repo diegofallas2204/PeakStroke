@@ -74,6 +74,25 @@ export function setDevIdentity(email: string | null, limpiar: () => void) {
   window.location.reload()
 }
 
+/**
+ * Olvida el conmutador sin recargar. Con el login encendido nadie lee esas
+ * cabeceras, pero si quedaron en el navegador de antes se seguían mandando en
+ * cada petición (2026-11-16): ruido en los registros y una pista de que el
+ * backend tuvo un modo de suplantar cuentas.
+ */
+export function olvidarConmutador() {
+  if (identity == null && !bypass) return
+  identity = null
+  bypass = false
+  try {
+    localStorage.removeItem(IDENTITY_KEY)
+    localStorage.removeItem(BYPASS_KEY)
+  } catch {
+    // Sin almacenamiento no hay nada guardado que olvidar.
+  }
+  listeners.forEach((l) => l())
+}
+
 export function useDevIdentity(): string | null {
   return useSyncExternalStore(subscribe, () => identity, () => identity)
 }

@@ -18,6 +18,7 @@ import { RefreshCw, ServerOff } from 'lucide-react'
 import { EmptyState, Spinner } from '../../components/ui/primitives'
 import { useAuthConfig, useSession } from '../../hooks/useSession'
 import { arrancarSesion, useEstadoDeSesion } from '../../lib/sesion'
+import { olvidarConmutador } from '../../hooks/useDevIdentity'
 import { CambioObligado } from './CambioObligado'
 import { LoginPage } from './LoginPage'
 
@@ -27,7 +28,10 @@ export function PuertaDeSesion({ children }: { children: ReactNode }) {
   const conLogin = config?.auth_enabled === true
 
   useEffect(() => {
-    if (conLogin) void arrancarSesion()
+    if (!conLogin) return
+    // El conmutador de desarrollo no pinta nada con login: se olvida lo guardado.
+    olvidarConmutador()
+    void arrancarSesion()
   }, [conLogin])
 
   // Sin `/auth/config` no se sabe ni en qué modo está la app. Antes se pintaba

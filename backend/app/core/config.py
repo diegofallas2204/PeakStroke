@@ -5,7 +5,7 @@ import logging
 import secrets
 from pathlib import Path
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     refresh_cookie_name: str = "peakstroke_refresh"
     # False en desarrollo (http://localhost no es https). True en producción.
     refresh_cookie_secure: bool = False
+
+    # --- Freno de intentos (`core/freno.py`) ---------------------------------
+    # Fallos de login desde un mismo origen, contra cualquier correo, antes de
+    # frenar ese origen. 20 por decisión del 2026-11-10. Un club entero que
+    # entra desde la wifi de la piscina comparte origen: quien despliega lo sube
+    # aquí. Nunca por debajo del tope por correo (5), que protege a cada cuenta.
+    freno_fallos_por_origen: int = Field(default=20, ge=5, le=500)
 
     @property
     def is_production(self) -> bool:

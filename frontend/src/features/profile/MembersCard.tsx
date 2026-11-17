@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ClipboardList, Eye, EyeOff, Plus, Search, ShieldCheck, ShieldOff, UsersRound } from 'lucide-react'
 import { api } from '../../lib/api'
+import { confirmar } from '../../lib/confirmar'
 import type { Member } from '../../lib/types'
 import { ROLE_META, roleMeta } from '../../lib/constants'
 import { initials, toShortDate } from '../../lib/format'
@@ -229,9 +230,12 @@ function MemberRow({
             tone={m.is_active ? 'danger' : 'ghost'}
             className="ml-2 !size-8"
             disabled={busy}
-            onClick={() => {
-              if (m.is_active && !confirm(`¿Revocar el acceso de ${m.name}? Sus datos no se borran.`))
-                return
+            onClick={async () => {
+              if (m.is_active && !(await confirmar({
+                titulo: `¿Revocar el acceso de ${m.name}?`,
+                texto: 'Deja de poder entrar y se cierran sus sesiones. Sus datos no se borran y se puede restaurar.',
+                accion: 'Revocar', peligro: true,
+              }))) return
               onToggleAccess(!m.is_active)
             }}
           >

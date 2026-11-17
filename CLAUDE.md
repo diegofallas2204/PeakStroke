@@ -197,7 +197,9 @@ cd backend && .venv\Scripts\python tools/ops.py salud
   frena a sí mismo, y el mismo correo desde otra red entra. `core/freno.py`
   (en `core/` porque lo usan `auth` y `codigos`, que no se importan): 5 fallos
   en 15 min → 429 con `Retry-After`, 30 s que se doblan; 20 desde un origen
-  contra correos distintos frenan ese origen; el canje, 5 por cuenta. **Se
+  contra correos distintos frenan ese origen (configurable con
+  `PEAKSTROKE_FRENO_FALLOS_POR_ORIGEN`, de 5 a 500, para la wifi compartida de
+  un club; 2026-11-16); el canje, 5 por cuenta. **Se
   cuenta sobre la auditoría** (`RepositorioDeAuditoria.fallos_recientes`, su
   única lectura), y va antes de mirar la contraseña y por el correo tecleado,
   exista o no. Un intento frenado se audita como `frenado` y **no cuenta**: si
