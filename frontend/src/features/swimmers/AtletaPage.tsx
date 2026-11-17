@@ -9,7 +9,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { ArchiveRestore, ArrowLeft, CalendarRange, KeyRound, MailCheck, Pencil, UserX } from 'lucide-react'
+import { ArchiveRestore, ArrowLeft, CalendarRange, Droplet, KeyRound, MailCheck, Pencil, UserX } from 'lucide-react'
 import { api, esNoEncontrado } from '../../lib/api'
 import { enlace } from '../../lib/modulos'
 import { ErrorDeCarga } from '../../components/ui/ErrorDeCarga'
@@ -41,6 +41,8 @@ export function AtletaPage() {
   const suyos = (planes ?? []).filter((p) => p.athletes.some((a) => a.swimmer_id === id))
   const macro = suyos.find((p) => p.effective_status === 'active') ?? suyos[0]
   const aMacro = macro ? enlace(`/macrociclos#macro-${macro.id}`) : undefined
+  // Sus tests de lactato, ya filtrados por él (nota 27, TODO-37).
+  const aLactato = enlace(`/pruebas?vista=lactato&atleta=${id}`)
 
   const queryClient = useQueryClient()
   const reactivar = useMutation({
@@ -108,6 +110,11 @@ export function AtletaPage() {
             <IconButton label={`Reactivar a ${atleta.name}`} onClick={() => reactivar.mutate()} disabled={reactivar.isPending}>
               <ArchiveRestore size={14} className="text-mint" />
             </IconButton>
+          )}
+          {aLactato && (
+            <Link to={aLactato} className="btn btn-ghost btn-icon" aria-label={`Tests de lactato de ${atleta.name}`} title={`Tests de lactato de ${atleta.name}`}>
+              <Droplet size={14} />
+            </Link>
           )}
           {aMacro && (
             <Link to={aMacro} className="btn btn-ghost btn-icon" aria-label={`Su macrociclo: ${macro!.name}`} title={`Su macrociclo: ${macro!.name}`}>
