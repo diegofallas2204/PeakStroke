@@ -4,25 +4,25 @@
 > (con login) servida desde esta computadora. Varias personas entran a la vez,
 > cada una con su cuenta, para comprobar que lo que hace una le llega a las demás.
 
-## Arrancar
+## Levantar y apagar
 
-En PowerShell, desde la carpeta `peakstroke`:
+Con **doble clic** en la carpeta `peakstroke`:
 
-```powershell
-.\piloto.ps1
-```
+- `piloto-levantar.bat`: prepara lo que haga falta (la primera vez, un secreto
+  propio y la base `backend\piloto.db`; siempre, la build), lo deja corriendo
+  **en segundo plano** y abre el navegador. La ventana se puede cerrar: el piloto
+  sigue.
+- `piloto-apagar.bat`: lo para.
 
-Prepara todo la primera vez (un secreto propio, la base `backend\piloto.db` y la
-build) y arranca. Escribe las direcciones de entrada:
+Las cuentas y contraseñas están en **`CUENTAS-PILOTO.txt`** (fuera de git).
 
-```
-esta computadora:  http://localhost:4173
-                   http://127.0.0.1:4173
-la wifi:           http://192.168.x.x:4173
-```
+Lo mismo desde PowerShell: `.\piloto.ps1 levantar`, `.\piloto.ps1 apagar`,
+`.\piloto.ps1 estado`. Con `.\piloto.ps1` a secas corre en esa ventana (Ctrl+C
+para parar). Los registros, en `backend\piloto-logs\` (si no arranca, ahí está
+el porqué).
 
-**Ctrl+C** para parar. La base del piloto es aparte: no toca la de desarrollo.
-Cierra antes el entorno de desarrollo (usa el puerto 8000).
+La base del piloto es aparte: no toca la de desarrollo. El entorno de
+desarrollo tiene que estar cerrado (usa el puerto 8000).
 
 ## Las cuentas
 
