@@ -404,7 +404,14 @@ solo existe `/training-load/{swimmer_id}`, y llamarlo N veces desde la tabla es
 N peticiones. Va acotado como todo (`RepositorioDeCarga.acotar`) y `require_coach`
 como la tabla. Zona de `/cso` comprehensive por ser una lectura cruzada de atletas.
 
-## TODO-20 — `DELETE /sessions/{id}` no se audita (P3, decisión)
+## ~~TODO-20 — `DELETE /sessions/{id}` no se audita~~ — CERRADO 2026-11-16
+
+**Cómo quedó** (la opción a la que apuntaba la propia nota): se audita como
+`entrenamiento.sesion_borrada` cuando borra alguien que no es el atleta dueño
+—el entrenador—, con la fecha y los metros en el detalle; el atleta que corrige
+lo suyo no deja evento. `test_sesiones.py` fija los dos casos.
+
+Lo que decía:
 
 `sesiones` es la excepción a «nada se borra» (C7) y su borrado no llama a
 `auditar`. CLAUDE.md, «Auditoría», pide `TipoDeEvento` para los «borrados de
