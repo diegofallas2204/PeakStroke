@@ -109,6 +109,15 @@ async def test_una_razon_sin_paron_no_para_la_semana(client, db, world: World):
     assert (fila.disabled, fila.disable_reason) == (False, None)
 
 
+async def test_un_motivo_mas_largo_que_la_columna_es_un_422(client, db, world: World):
+    """`weeks.disable_reason` es String(200): en PostgreSQL pasarse era un 500."""
+    semana = (await _filas(db, world.carlos_event_id))[5]
+    r = await _patch(client, world, semana.id, {"disabled": True, "disable_reason": "x" * 201})
+    assert r.status_code == 422, r.text
+    r = await _patch(client, world, semana.id, {"disabled": True, "disable_reason": "x" * 200})
+    assert r.status_code == 200, r.text
+
+
 # ── El tiempo real ───────────────────────────────────────────────────────────
 
 

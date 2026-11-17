@@ -27,6 +27,7 @@ import { usePageEnter } from '../../hooks/usePageEnter'
 import { useVacio } from '../../hooks/useVacio'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { EmptyState, Segmented, Spinner } from '../../components/ui/primitives'
+import { ErrorDeCarga } from '../../components/ui/ErrorDeCarga'
 import { EventPicker, type EventSelection } from '../../components/ui/EventPicker'
 import { VISTAS, vistaDesdeParam, type VistaId } from './vistas'
 import { VistaPlan } from './VistaPlan'
@@ -49,7 +50,7 @@ export function WeeklyPage() {
     return nuevos
   })
 
-  const { data: weeks, isLoading } = useQuery({
+  const { data: weeks, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['weeks', selection?.event.id],
     queryFn: () => api.plans.eventWeeks(selection!.event.id),
     enabled: selection != null,
@@ -100,6 +101,9 @@ export function WeeklyPage() {
 
       {!selection ? (
         <EmptyState icon={<ListChecks size={24} />} title={vacioTitulo} hint={vacioPista} />
+      ) : isError ? (
+        // Antes un fallo dejaba el spinner girando para siempre.
+        <ErrorDeCarga error={error} que="el plan" onReintentar={() => void refetch()} reintentando={isFetching} />
       ) : isLoading || !weeks ? (
         <Spinner />
       ) : vista === 'progresion' ? (
@@ -116,6 +120,7 @@ export function WeeklyPage() {
         <VistaPlan
           weeks={weeks}
           eventId={selection.event.id}
+          selection={selection}
           currentWeek={selection.plan.current_week}
           focusWeek={focusWeek}
           onSelectWeek={setSelectedWeek}
