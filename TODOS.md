@@ -897,7 +897,9 @@ Queda:
   aún no. Con él, la curva lactato-velocidad y los umbrales (cada uno con su
   **método**, nota 28 §2); en menores, nunca 4 mmol/L por defecto. Recalibrar las
   zonas del motor con ellos mueve el snapshot: bloque propio.
-- ✨ Prellenar la mejor marca desde los resultados del atleta.
+- ~~✨ Prellenar la mejor marca~~ (2026-11-16): el formulario sugiere como
+  «Tiempo Actual» su marca inscrita en esa misma prueba (distancia y estilo),
+  con un toque. De los resultados semanales no: esos son tiempos de control.
 - ✨ Importar la hoja de Excel del entrenador.
 - En menores el techo de R1 es su propio umbral: hoy la app solo lo avisa.
 - Las migraciones `a7d3e5f1c9b4` y `b8e4f2a6d1c3` no se probaron en PostgreSQL
@@ -905,4 +907,5 @@ Queda:
 - La lectura describe; los umbrales de sus reglas (deriva de brazada > 10 %,
   pendiente de 1 s por repetición, ±2 s del propuesto) son razonables pero no
   están validados con más series: revisarlos con el entrenador.
-- La página del atleta todavía no enlaza a sus tests de lactato (nota 27).
+- ~~La página del atleta no enlazaba a sus tests de lactato~~ (2026-11-16): una
+  gota en su cabecera lleva a `/pruebas?vista=lactato&atleta=<id>`.

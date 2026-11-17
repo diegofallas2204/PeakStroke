@@ -66,6 +66,16 @@ function Formulario({ open, swimmerId, atleta, onClose, onCreado }: Props) {
   const [metodoFc, setMetodoFc] = useState<'' | 'banda' | 'palpacion' | 'optico'>('')
   const [notas, setNotas] = useState('')
   const [filas, setFilas] = useState<Celdas[]>(() => Array.from({ length: 8 }, () => ({ ...VACIA })))
+  // «Tiempo Actual» sugerido: su marca en la inscripción para esa misma prueba
+  // (distancia y estilo). Es lo que la plantilla llama así (TODO-37). La consulta
+  // es la de Macrociclos, ya en caché casi siempre.
+  const { data: planes } = useQuery({ queryKey: ['plans'], queryFn: api.plans.list })
+  const marcas = (planes ?? []).flatMap((p) => p.athletes)
+    .filter((a) => a.swimmer_id === swimmerId)
+    .flatMap((a) => a.events)
+    .filter((e) => e.distance === Number(distancia) && e.stroke === estilo)
+    .map((e) => e.current_time)
+  const marcaSugerida = marcas.length ? Math.min(...marcas) : null
   const [recup, setRecup] = useState<Recup[]>([])
 
   const cambiarReps = (n: number) => {
@@ -239,7 +249,15 @@ function Formulario({ open, swimmerId, atleta, onClose, onCreado }: Props) {
             <input className="field min-w-0" inputMode="decimal" placeholder="80" value={intMax} onChange={(e) => setIntMax(e.target.value)} aria-label="Intensidad propuesta hasta" />
           </div>
         </Field>
-        <Field label="Tiempo Actual"><input className="field" placeholder="4:05.12" value={referencia} onChange={(e) => setReferencia(e.target.value)} aria-label="Tiempo actual (su mejor marca)" /></Field>
+        <Field label="Tiempo Actual">
+          <input className="field" placeholder={marcaSugerida ? toClock(marcaSugerida) : '4:05.12'} value={referencia} onChange={(e) => setReferencia(e.target.value)} aria-label="Tiempo actual (su mejor marca)" />
+          {!referencia.trim() && marcaSugerida != null && (
+            <button type="button" className="mt-1 text-[11px] text-accent-soft hover:underline"
+              onClick={() => setReferencia(toClock(marcaSugerida))}>
+              Usar {toClock(marcaSugerida)} · su marca inscrita
+            </button>
+          )}
+        </Field>
         <Field label="Brazadas en (m)"><input className="field" inputMode="numeric" value={tramoM} onChange={(e) => setTramoM(e.target.value)} aria-label="Metros del tramo en que se cuentan las brazadas" /></Field>
       </div>
       {!propMin && s?.proposed_effective && (
